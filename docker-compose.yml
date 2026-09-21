@@ -76,6 +76,17 @@ services:
       timeout: 5s
       retries: 5
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: aima-cloudflared
+    restart: unless-stopped
+    depends_on:
+      - n8n
+    command: tunnel --no-autoupdate --url http://n8n:5678
+    # Quick Tunnel gratuito, sin cuenta: genera una URL *.trycloudflare.com aleatoria en cada
+    # arranque (ver docs/00_FASE0_ARQUITECTURA.md, sección 12). Suficiente para Fase 3 (Telegram);
+    # antes de Fase 6 (Meta) se reemplaza por un Named Tunnel con dominio propio.
+
   n8n-runners:
     image: n8nio/runners:2.39.9 # debe coincidir EXACTO con la versión de n8nio/n8n de arriba
     container_name: aima-n8n-runners

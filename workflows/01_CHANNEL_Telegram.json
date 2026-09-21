@@ -1,0 +1,125 @@
+{
+  "id": "0001channeltg01",
+  "name": "01_CHANNEL_Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 01_CHANNEL_Telegram (Fase 3)\n\nRecibe mensajes de texto de Telegram, evita procesar el mismo update dos veces,\nidentifica a qué empresa(s) pertenece el chat, y responde. Sin IA todavía (llega en Fase 4);\nesto solo prueba la conectividad y la identificación de empresa.\n\nRecuerda **activar** este workflow (interruptor arriba a la derecha) para que el webhook\nquede registrado en Telegram.",
+        "height": 220,
+        "width": 340
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000001",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [200, -20]
+    },
+    {
+      "parameters": {
+        "updates": ["message"]
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000002",
+      "name": "Trigger Telegram",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [220, 260],
+      "webhookId": "f6a2cf87-9742-4e41-b687-d91adbc75089",
+      "credentials": {
+        "telegramApi": {
+          "id": "tgcredential1",
+          "name": "Telegram - AI Marketing Agent"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO processed_events (platform, external_id, event_type)\nVALUES ('telegram', $1, 'message')\nON CONFLICT (platform, external_id) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.update_id.toString()] }}"
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000003",
+      "name": "Deduplicar",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 260],
+      "credentials": {
+        "postgres": {
+          "id": "vjJ3hmpVx6R9ZlxT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  count(*) AS company_count,\n  string_agg(c.name, ', ') AS companies_matched\nFROM company_social_accounts sa\nJOIN companies c ON c.id = sa.company_id\nWHERE sa.platform = 'telegram'\n  AND sa.account_ref = $1\n  AND sa.status = 'ACTIVE';",
+        "options": {
+          "queryReplacement": "={{ [$('Trigger Telegram').item.json.message.chat.id.toString()] }}"
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000004",
+      "name": "Buscar empresas del chat",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [700, 260],
+      "credentials": {
+        "postgres": {
+          "id": "vjJ3hmpVx6R9ZlxT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const trigger = $('Trigger Telegram').item.json;\nconst chatId = trigger.message.chat.id;\nconst text = trigger.message.text || '';\nconst row = $input.first().json;\nconst count = Number(row.company_count || 0);\n\nlet reply;\nif (count === 0) {\n  reply = `🤖 Hola. Tu chat de Telegram (chat_id: ${chatId}) todavía no está vinculado a ninguna empresa. Pídele a Rafael que lo conecte en company_social_accounts.`;\n} else {\n  reply = `🟢 Conectado a: ${row.companies_matched}.\\n\\nRecibí tu mensaje: \"${text}\"\\n\\n(El menú diario y las respuestas con IA llegan en la Fase 4.)`;\n}\n\nreturn [{ json: { chat_id: chatId, reply_text: reply, company_count: count } }];"
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000005",
+      "name": "Preparar respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [940, 260]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.reply_text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000006",
+      "name": "Enviar respuesta",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1180, 260],
+      "credentials": {
+        "telegramApi": {
+          "id": "tgcredential1",
+          "name": "Telegram - AI Marketing Agent"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Trigger Telegram": {
+      "main": [[{ "node": "Deduplicar", "type": "main", "index": 0 }]]
+    },
+    "Deduplicar": {
+      "main": [[{ "node": "Buscar empresas del chat", "type": "main", "index": 0 }]]
+    },
+    "Buscar empresas del chat": {
+      "main": [[{ "node": "Preparar respuesta", "type": "main", "index": 0 }]]
+    },
+    "Preparar respuesta": {
+      "main": [[{ "node": "Enviar respuesta", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
