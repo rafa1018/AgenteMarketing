@@ -1,0 +1,32 @@
+# Secretos y configuración local — NUNCA versionar
+.env
+.env.local
+*.pem
+*.key
+
+# Datos persistentes de los contenedores (viven en volúmenes Docker o bind mounts locales)
+n8n/data/*
+!n8n/data/.gitkeep
+postgres/data/*
+!postgres/data/.gitkeep
+
+# Contenido generado/temporal (no versionar binarios ni archivos de trabajo)
+storage/generated/*
+!storage/generated/.gitkeep
+storage/temporary/*
+!storage/temporary/.gitkeep
+storage/published/*
+!storage/published/.gitkeep
+
+# Backups: pueden contener credenciales descifradas o volcados completos de la base de datos.
+# Se ignoran los archivos reales de respaldo; los .gitkeep quedan para versionar la estructura.
+backups/**/*.sql
+backups/**/*.sql.gz
+backups/**/*.dump
+backups/**/*.json
+
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
