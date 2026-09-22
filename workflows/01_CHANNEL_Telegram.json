@@ -4,25 +4,33 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## 01_CHANNEL_Telegram (Fase 3)\n\nRecibe mensajes de texto de Telegram, evita procesar el mismo update dos veces,\nidentifica a qué empresa(s) pertenece el chat, y responde. Sin IA todavía (llega en Fase 4);\nesto solo prueba la conectividad y la identificación de empresa.\n\nRecuerda **activar** este workflow (interruptor arriba a la derecha) para que el webhook\nquede registrado en Telegram.",
-        "height": 220,
-        "width": 340
+        "content": "## 01_CHANNEL_Telegram (Fase 3-4)\n\nRecibe mensajes de Telegram, identifica empresa(s), muestra el menu diario, recolecta las\nrespuestas del modo automatico (cantidad/redes/tipo) y, al terminar, genera de verdad las\npublicaciones con Gemini (Content Planner + Creative + Copywriter combinados en un solo paso\npor ahora), las guarda como borradores en content_items, y registra el costo en agent_logs.",
+        "height": 240,
+        "width": 380
       },
       "id": "b2a2a222-0000-4000-8000-000000000001",
       "name": "Nota",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [200, -20]
+      "position": [
+        200,
+        -60
+      ]
     },
     {
       "parameters": {
-        "updates": ["message"]
+        "updates": [
+          "message"
+        ]
       },
       "id": "b2a2a222-0000-4000-8000-000000000002",
       "name": "Trigger Telegram",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.5,
-      "position": [220, 260],
+      "position": [
+        220,
+        300
+      ],
       "webhookId": "f6a2cf87-9742-4e41-b687-d91adbc75089",
       "credentials": {
         "telegramApi": {
@@ -43,7 +51,10 @@
       "name": "Deduplicar",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [460, 260],
+      "position": [
+        440,
+        300
+      ],
       "credentials": {
         "postgres": {
           "id": "vjJ3hmpVx6R9ZlxT",
@@ -54,7 +65,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT\n  count(*) AS company_count,\n  string_agg(c.name, ', ') AS companies_matched\nFROM company_social_accounts sa\nJOIN companies c ON c.id = sa.company_id\nWHERE sa.platform = 'telegram'\n  AND sa.account_ref = $1\n  AND sa.status = 'ACTIVE';",
+        "query": "SELECT COALESCE(\n  json_agg(json_build_object('id', c.id, 'name', c.name) ORDER BY c.id),\n  '[]'::json\n) AS companies\nFROM company_social_accounts sa\nJOIN companies c ON c.id = sa.company_id\nWHERE sa.platform = 'telegram'\n  AND sa.account_ref = $1\n  AND sa.status = 'ACTIVE';",
         "options": {
           "queryReplacement": "={{ [$('Trigger Telegram').item.json.message.chat.id.toString()] }}"
         }
@@ -63,7 +74,10 @@
       "name": "Buscar empresas del chat",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [700, 260],
+      "position": [
+        660,
+        300
+      ],
       "credentials": {
         "postgres": {
           "id": "vjJ3hmpVx6R9ZlxT",
@@ -73,13 +87,117 @@
     },
     {
       "parameters": {
-        "jsCode": "const trigger = $('Trigger Telegram').item.json;\nconst chatId = trigger.message.chat.id;\nconst text = trigger.message.text || '';\nconst row = $input.first().json;\nconst count = Number(row.company_count || 0);\n\nlet reply;\nif (count === 0) {\n  reply = `🤖 Hola. Tu chat de Telegram (chat_id: ${chatId}) todavía no está vinculado a ninguna empresa. Pídele a Rafael que lo conecte en company_social_accounts.`;\n} else {\n  reply = `🟢 Conectado a: ${row.companies_matched}.\\n\\nRecibí tu mensaje: \"${text}\"\\n\\n(El menú diario y las respuestas con IA llegan en la Fase 4.)`;\n}\n\nreturn [{ json: { chat_id: chatId, reply_text: reply, company_count: count } }];"
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversations (company_id, platform, channel_ref, last_customer_message_at, context_state_json, active_flow)\nVALUES (NULL, 'telegram', $1, now(), '{}'::jsonb, NULL)\nON CONFLICT (platform, channel_ref)\nDO UPDATE SET last_customer_message_at = now()\nRETURNING id, context_state_json, active_flow;",
+        "options": {
+          "queryReplacement": "={{ [$('Trigger Telegram').item.json.message.chat.id.toString()] }}"
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000007",
+      "name": "Obtener conversacion",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "vjJ3hmpVx6R9ZlxT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  seed.cid AS company_id,\n  c.name AS company_name,\n  b.description, b.sector, b.tone, b.colors_primary, b.colors_secondary, b.visual_style,\n  COALESCE((SELECT json_agg(json_build_object('name', s.name, 'description', s.description, 'price', s.price, 'currency', s.currency)) FROM company_services s WHERE s.company_id = seed.cid AND s.active), '[]'::json) AS services,\n  COALESCE((SELECT json_agg(json_build_object('name', p.name, 'description', p.description, 'price_before', p.price_before, 'price_after', p.price_after, 'currency', p.currency)) FROM company_promotions p WHERE p.company_id = seed.cid AND p.status = 'ACTIVE'), '[]'::json) AS promotions,\n  COALESCE((SELECT json_agg(r.rule_text) FROM company_rules r WHERE r.company_id = seed.cid AND r.active), '[]'::json) AS rules\nFROM (SELECT $1::text AS cid) AS seed\nLEFT JOIN company_brand b ON b.company_id = seed.cid\nLEFT JOIN companies c ON c.id = seed.cid;",
+        "options": {
+          "queryReplacement": "={{ (() => { let s = $json.context_state_json; if (typeof s === 'string') { try { s = JSON.parse(s); } catch (e) { s = {}; } } return [ (s && s.company_id) ? s.company_id : '__none__' ]; })() }}"
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000000a",
+      "name": "Cargar Company Brain",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "vjJ3hmpVx6R9ZlxT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const trigger = $('Trigger Telegram').item.json;\nconst chatId = trigger.message.chat.id;\nconst text = (trigger.message.text || '').trim();\n\nlet companies = $('Buscar empresas del chat').item.json.companies;\nif (typeof companies === 'string') { try { companies = JSON.parse(companies); } catch (e) { companies = []; } }\nif (!Array.isArray(companies)) companies = [];\n\nconst conv = $('Obtener conversacion').item.json;\nconst conversationId = conv.id;\nlet state = conv.context_state_json;\nif (typeof state === 'string') { try { state = JSON.parse(state); } catch (e) { state = {}; } }\nif (!state || typeof state !== 'object') state = {};\nlet activeFlow = conv.active_flow;\n\nconst MENU = [\n  '1) Marketing automatico',\n  '2) Crear publicacion manual',\n  '3) Revisar publicaciones',\n  '4) Revisar clientes/leads',\n  '5) Ver resultados',\n  '6) Crear promocion',\n  '7) Otra cosa',\n];\n\nconst TIPOS = ['promocion', 'producto', 'servicio', 'educativo', 'testimonial', 'marca', 'informativo', 'engagement', 'dejar_decidir'];\nconst TIPOS_LABEL = [\n  '1) Promocion', '2) Producto', '3) Servicio', '4) Educativo', '5) Testimonial',\n  '6) Marca', '7) Informativo', '8) Engagement', '9) Dejame decidir',\n];\n\nfunction menuText(companyName) {\n  return `Buenos dias.\\n\\nEstas trabajando con: ${companyName}.\\n\\nQue deseas hacer hoy?\\n\\n${MENU.join('\\n')}\\n\\n(Responde con el numero o describelo con tus palabras. Escribe \"cambiar empresa\" para elegir otra.)`;\n}\nfunction askCompany(list) {\n  return `Con cual empresa quieres trabajar?\\n\\n${list.map((c, i) => `${i + 1}) ${c.name}`).join('\\n')}`;\n}\nfunction askCantidad() {\n  return 'Cuantas publicaciones deseas hacer hoy? (maximo 5)';\n}\nfunction askRedes() {\n  return 'Donde deseas publicar?\\n\\n1) Facebook\\n2) Instagram\\n3) WhatsApp\\n4) Todas';\n}\nfunction askTipo() {\n  return `Que tipo de contenido quieres?\\n\\n${TIPOS_LABEL.join('\\n')}`;\n}\nfunction askIdioma() {\n  return 'En que idioma quieres la publicacion?\\n\\n1) Espanol\\n2) Ingles';\n}\n\nfunction buildGeminiPrompt(brain, automatico) {\n  let services = brain.services;\n  let promotions = brain.promotions;\n  let rules = brain.rules;\n  if (typeof services === 'string') { try { services = JSON.parse(services); } catch (e) { services = []; } }\n  if (typeof promotions === 'string') { try { promotions = JSON.parse(promotions); } catch (e) { promotions = []; } }\n  if (typeof rules === 'string') { try { rules = JSON.parse(rules); } catch (e) { rules = []; } }\n  if (!Array.isArray(services)) services = [];\n  if (!Array.isArray(promotions)) promotions = [];\n  if (!Array.isArray(rules)) rules = [];\n\n  const idiomaNombre = automatico.idioma === 'en' ? 'ingles (English)' : 'espanol';\n\n  return `Eres el redactor de marketing de la empresa \"${brain.company_name}\".\nSector: ${brain.sector || 'no especificado'}.\nDescripcion: ${brain.description || 'no especificada'}.\nTono de comunicacion: ${brain.tone || 'profesional y cercano'}.\nColores de marca: ${brain.colors_primary || ''} y ${brain.colors_secondary || ''}.\nEstilo visual: ${brain.visual_style || 'no especificado'}.\n\nServicios/productos reales disponibles (NUNCA inventes otros ni cambies precios):\n${JSON.stringify(services)}\n\nPromociones activas reales (si esta vacio, no hay promociones activas, no inventes ninguna):\n${JSON.stringify(promotions)}\n\nReglas obligatorias:\n${rules.join('\\n')}\n\nTarea: genera exactamente ${automatico.cantidad} publicaciones de tipo \"${automatico.tipo}\" para la(s) red(es) \"${automatico.redes}\".\nIMPORTANTE: escribe TODO el contenido (headline, caption, cta, hashtags, alt_text) completamente en ${idiomaNombre}, sin mezclar idiomas.\nResponde SOLO con un arreglo JSON valido (sin texto adicional, sin markdown, sin bloque de codigo) de ${automatico.cantidad} objetos, cada uno con estas claves exactas: concept (string corto, en ${idiomaNombre}), headline (string, en ${idiomaNombre}), caption (string, el texto completo del post, en ${idiomaNombre}), cta (string corto, en ${idiomaNombre}), hashtags (arreglo de strings sin el simbolo #, en ${idiomaNombre} cuando aplique), alt_text (string describiendo la imagen para accesibilidad, en ${idiomaNombre}), image_prompt (string SIEMPRE en ingles, describiendo SOLO la escena o fondo fotografico para un generador de imagenes, sin pedir que dibuje ningun logo ni texto), platform (una de: facebook, instagram, whatsapp).\nSi no hay suficiente informacion real de servicios o promociones para el tipo pedido, usa contenido informativo o de marca en su lugar, pero nunca inventes precios ni promociones que no esten en las listas de arriba.`;\n}\n\nlet reply;\nlet newState = state;\nlet newFlow = activeFlow;\nlet action = 'reply_only';\nlet geminiPrompt = null;\nlet automatico = null;\n\nif (companies.length === 0) {\n  reply = `Hola. Tu chat de Telegram (chat_id: ${chatId}) todavia no esta vinculado a ninguna empresa. Pidele a Rafael que lo conecte.`;\n} else if (/^cambiar\\s+empresa/i.test(text)) {\n  if (companies.length === 1) {\n    newState = { company_id: companies[0].id };\n    newFlow = null;\n    reply = `Solo tienes una empresa conectada a este chat: ${companies[0].name}. Sigo trabajando con ella.\\n\\n${menuText(companies[0].name)}`;\n  } else {\n    newState = {};\n    newFlow = 'select_company';\n    reply = askCompany(companies);\n  }\n} else if (activeFlow === 'select_company' || (!state.company_id && companies.length > 1)) {\n  let picked = null;\n  const numMatch = text.match(/^(\\d+)/);\n  if (numMatch) {\n    const idx = parseInt(numMatch[1], 10) - 1;\n    if (companies[idx]) picked = companies[idx];\n  }\n  if (!picked) {\n    const lower = text.toLowerCase();\n    picked = companies.find((c) => lower.includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(lower));\n  }\n  if (picked) {\n    newState = { company_id: picked.id };\n    newFlow = null;\n    reply = menuText(picked.name);\n  } else {\n    newFlow = 'select_company';\n    reply = `No reconoci esa opcion. ${askCompany(companies)}`;\n  }\n} else if (!state.company_id && companies.length === 1) {\n  newState = { company_id: companies[0].id };\n  newFlow = null;\n  reply = menuText(companies[0].name);\n} else {\n  const company = companies.find((c) => c.id === state.company_id) || companies[0];\n\n  if (activeFlow === 'auto_cantidad') {\n    const n = parseInt(text, 10);\n    if (!isNaN(n) && n >= 1 && n <= 5) {\n      newState = { ...state, automatico: { cantidad: n } };\n      newFlow = 'auto_redes';\n      reply = askRedes();\n    } else {\n      newFlow = 'auto_cantidad';\n      reply = `Escribe un numero entre 1 y 5. ${askCantidad()}`;\n    }\n  } else if (activeFlow === 'auto_redes') {\n    const map = { '1': 'facebook', '2': 'instagram', '3': 'whatsapp', '4': 'todas' };\n    const numMatch = text.match(/^(\\d+)/);\n    let redes = numMatch ? map[numMatch[1]] : null;\n    if (!redes) {\n      const lower = text.toLowerCase();\n      if (lower.includes('todas')) redes = 'todas';\n      else if (lower.includes('facebook')) redes = 'facebook';\n      else if (lower.includes('instagram')) redes = 'instagram';\n      else if (lower.includes('whatsapp')) redes = 'whatsapp';\n    }\n    if (redes) {\n      const prevAuto = state.automatico || {};\n      newState = { ...state, automatico: { ...prevAuto, redes } };\n      newFlow = 'auto_tipo';\n      reply = askTipo();\n    } else {\n      newFlow = 'auto_redes';\n      reply = `No reconoci esa red. ${askRedes()}`;\n    }\n  } else if (activeFlow === 'auto_tipo') {\n    const numMatch = text.match(/^(\\d+)/);\n    let tipo = null;\n    if (numMatch) {\n      const idx = parseInt(numMatch[1], 10) - 1;\n      tipo = TIPOS[idx];\n    }\n    if (!tipo) {\n      const lower = text.toLowerCase();\n      if (lower.includes('decidir')) tipo = 'dejar_decidir';\n      else tipo = TIPOS.find((t) => lower.includes(t));\n    }\n    if (tipo) {\n      const prevAuto = state.automatico || {};\n      newState = { ...state, automatico: { ...prevAuto, tipo } };\n      newFlow = 'auto_idioma';\n      reply = askIdioma();\n    } else {\n      newFlow = 'auto_tipo';\n      reply = `No reconoci esa opcion. ${askTipo()}`;\n    }\n  } else if (activeFlow === 'auto_idioma') {\n    const numMatch = text.match(/^(\\d+)/);\n    let idioma = null;\n    if (numMatch) {\n      if (numMatch[1] === '1') idioma = 'es';\n      else if (numMatch[1] === '2') idioma = 'en';\n    }\n    if (!idioma) {\n      const lower = text.toLowerCase();\n      if (lower.includes('espan') || lower.includes('spanish')) idioma = 'es';\n      else if (lower.includes('ingl') || lower.includes('english')) idioma = 'en';\n    }\n    if (idioma) {\n      const prevAuto = state.automatico || {};\n      automatico = { ...prevAuto, idioma };\n      newState = { ...state, automatico };\n      newFlow = null;\n      action = 'generate_content';\n      reply = `Generando ${automatico.cantidad} publicaciones para ${company.name} en ${idioma === 'en' ? 'ingles' : 'espanol'}, dame un momento...`;\n\n      const brain = $('Cargar Company Brain').item.json;\n      geminiPrompt = buildGeminiPrompt(brain, automatico);\n    } else {\n      newFlow = 'auto_idioma';\n      reply = `No reconoci esa opcion. ${askIdioma()}`;\n    }\n  } else if (/^1\\b/.test(text) || /automatico/i.test(text)) {\n    newFlow = 'auto_cantidad';\n    reply = askCantidad();\n  } else if (/^2\\b/.test(text) || /publicaci.n\\s+manual/i.test(text)) {\n    reply = `La creacion manual (opcion 2) se construye en el siguiente incremento de esta fase.\\n\\n${menuText(company.name)}`;\n  } else {\n    reply = `Elegiste: \"${text}\" para ${company.name}.\\n\\n(Esta opcion del menu se construye en un proximo incremento de la Fase 4.)\\n\\n${menuText(company.name)}`;\n  }\n}\n\nreturn [{\n  json: {\n    chat_id: chatId,\n    reply_text: reply,\n    conversation_id: conversationId,\n    new_state: JSON.stringify(newState),\n    new_flow: newFlow,\n    action,\n    company_id: (newState && newState.company_id) || null,\n    content_type: automatico ? automatico.tipo : null,\n    gemini_prompt: geminiPrompt,\n  },\n}];\n"
       },
       "id": "b2a2a222-0000-4000-8000-000000000005",
-      "name": "Preparar respuesta",
+      "name": "Decidir respuesta",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [940, 260]
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "generate_content",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000000b",
+      "name": "Generar contenido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations\nSET context_state_json = $1::jsonb, active_flow = $2\nWHERE id = $3\nRETURNING $4::text AS chat_id, $5::text AS reply_text;",
+        "options": {
+          "queryReplacement": "={{ [$json.new_state, $json.new_flow, $json.conversation_id, $json.chat_id.toString(), $json.reply_text] }}"
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000008",
+      "name": "Guardar estado",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1760,
+        180
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "vjJ3hmpVx6R9ZlxT",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -95,30 +213,282 @@
       "name": "Enviar respuesta",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [1180, 260],
+      "position": [
+        1980,
+        180
+      ],
       "credentials": {
         "telegramApi": {
           "id": "tgcredential1",
           "name": "Telegram - AI Marketing Agent"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: $json.gemini_prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.9 } }) }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000000c",
+      "name": "Generar contenido IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        420
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 4000,
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "geminiqueryauth1",
+          "name": "Gemini Query Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision = $('Decidir respuesta').item.json;\nlet state = {};\ntry { state = JSON.parse(decision.new_state); } catch (e) { state = {}; }\nconst cleanState = { company_id: state.company_id || decision.company_id || null };\n\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: 'Hubo un problema generando el contenido: el proveedor de IA esta ocupado en este momento (error temporal). Intenta de nuevo en un minuto escribiendo \"1\".',\n    conversation_id: decision.conversation_id,\n    new_state: JSON.stringify(cleanState),\n    new_flow: null,\n  },\n}];"
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000010",
+      "name": "Manejar error IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision = $('Decidir respuesta').item.json;\nconst geminiResponse = $input.first().json;\n\nlet draftsRaw = [];\nlet usage = {};\nlet parseError = null;\ntry {\n  const text = geminiResponse.candidates[0].content.parts[0].text;\n  draftsRaw = JSON.parse(text);\n  if (!Array.isArray(draftsRaw)) draftsRaw = [draftsRaw];\n} catch (e) {\n  parseError = String(e);\n  draftsRaw = [];\n}\nusage = geminiResponse.usageMetadata || {};\n\nconst drafts = draftsRaw.map((d) => ({\n  concept: d.concept || '',\n  headline: d.headline || '',\n  caption: d.caption || '',\n  cta: d.cta || '',\n  hashtags: Array.isArray(d.hashtags) ? d.hashtags : [],\n  alt_text: d.alt_text || '',\n  image_prompt: d.image_prompt || '',\n  platform: d.platform || (decision.content_type || null),\n}));\n\nlet replyText;\nif (drafts.length === 0) {\n  replyText = `Hubo un problema generando el contenido con la IA (${parseError || 'respuesta vacia'}). Intenta de nuevo escribiendo \"1\".`;\n} else {\n  const lines = drafts.map((d, i) => {\n    const hashtagsText = d.hashtags.map((h) => '#' + h).join(' ');\n    return `--- Publicacion ${i + 1} (${d.platform}) ---\\n${d.headline}\\n\\n${d.caption}\\n\\nCTA: ${d.cta}\\nHashtags: ${hashtagsText}`;\n  });\n  replyText = `Aqui tienes ${drafts.length} publicacion(es) generadas para revisar:\\n\\n${lines.join('\\n\\n')}\\n\\n(La aprobacion y edicion desde Telegram se conecta en el siguiente incremento; por ahora quedan guardadas como borradores en el sistema.)`;\n}\n\nconst inputTokens = usage.promptTokenCount || 0;\nconst outputTokens = usage.candidatesTokenCount || 0;\n// Precio promocional gemini-3.6-flash (docs/research/08_ai_text_providers_and_safety.md): $0.75 / $3.75 por millon de tokens\nconst estimatedCost = (inputTokens / 1000000) * 0.75 + (outputTokens / 1000000) * 3.75;\n\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: replyText,\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n    company_id: decision.company_id,\n    content_type: decision.content_type,\n    drafts_json: JSON.stringify(drafts),\n    input_tokens: inputTokens,\n    output_tokens: outputTokens,\n    estimated_cost: estimatedCost,\n  },\n}];\n"
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000000d",
+      "name": "Procesar respuesta IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH inserted AS (\n  INSERT INTO content_items (company_id, content_type, platform, concept, headline, caption, cta, hashtags_json, alt_text, image_prompt, status)\n  SELECT\n    $1,\n    $2,\n    d->>'platform',\n    d->>'concept',\n    d->>'headline',\n    d->>'caption',\n    d->>'cta',\n    COALESCE(d->'hashtags', '[]'::jsonb),\n    d->>'alt_text',\n    d->>'image_prompt',\n    'GENERATED'\n  FROM jsonb_array_elements($3::jsonb) AS d\n  RETURNING id\n)\nSELECT\n  (SELECT count(*) FROM inserted) AS inserted_count,\n  $1::text AS company_id,\n  $4::integer AS input_tokens,\n  $5::integer AS output_tokens,\n  $6::numeric AS estimated_cost,\n  $7::text AS chat_id,\n  $8::text AS reply_text,\n  $9::text AS new_state,\n  $10::text AS new_flow,\n  $11::bigint AS conversation_id;",
+        "options": {
+          "queryReplacement": "={{ [$json.company_id, $json.content_type, $json.drafts_json, $json.input_tokens, $json.output_tokens, $json.estimated_cost, $json.chat_id, $json.reply_text, $json.new_state, $json.new_flow, $json.conversation_id] }}"
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000000e",
+      "name": "Guardar borradores",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2200,
+        420
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "vjJ3hmpVx6R9ZlxT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH logged AS (\n  INSERT INTO agent_logs (company_id, workflow, agent, action, model, input_tokens, output_tokens, estimated_cost, status)\n  VALUES ($1, '01_CHANNEL_Telegram', 'content_planner_creative_copywriter', 'generate_draft_posts', 'gemini-3.6-flash', $2, $3, $4, 'SUCCESS')\n  RETURNING id\n)\nSELECT\n  $5::text AS chat_id,\n  $6::text AS reply_text,\n  $7::text AS new_state,\n  $8::text AS new_flow,\n  $9::bigint AS conversation_id\nFROM logged;",
+        "options": {
+          "queryReplacement": "={{ [$json.company_id, $json.input_tokens, $json.output_tokens, $json.estimated_cost, $json.chat_id, $json.reply_text, $json.new_state, $json.new_flow, $json.conversation_id] }}"
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000000f",
+      "name": "Registrar costo IA",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2420,
+        420
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "vjJ3hmpVx6R9ZlxT",
+          "name": "Postgres account"
+        }
+      }
     }
   ],
   "connections": {
     "Trigger Telegram": {
-      "main": [[{ "node": "Deduplicar", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Deduplicar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Deduplicar": {
-      "main": [[{ "node": "Buscar empresas del chat", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Buscar empresas del chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Buscar empresas del chat": {
-      "main": [[{ "node": "Preparar respuesta", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Obtener conversacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Preparar respuesta": {
-      "main": [[{ "node": "Enviar respuesta", "type": "main", "index": 0 }]]
+    "Obtener conversacion": {
+      "main": [
+        [
+          {
+            "node": "Cargar Company Brain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cargar Company Brain": {
+      "main": [
+        [
+          {
+            "node": "Decidir respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir respuesta": {
+      "main": [
+        [
+          {
+            "node": "Generar contenido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar contenido?": {
+      "main": [
+        [
+          {
+            "node": "Generar contenido IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Guardar estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar contenido IA": {
+      "main": [
+        [
+          {
+            "node": "Procesar respuesta IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Manejar error IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar respuesta IA": {
+      "main": [
+        [
+          {
+            "node": "Guardar borradores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar borradores": {
+      "main": [
+        [
+          {
+            "node": "Registrar costo IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar costo IA": {
+      "main": [
+        [
+          {
+            "node": "Guardar estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manejar error IA": {
+      "main": [
+        [
+          {
+            "node": "Guardar estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar estado": {
+      "main": [
+        [
+          {
+            "node": "Enviar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1"
   }
