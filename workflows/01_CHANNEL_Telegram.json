@@ -285,7 +285,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH inserted AS (\n  INSERT INTO content_items (company_id, content_type, platform, concept, headline, caption, cta, hashtags_json, alt_text, image_prompt, status)\n  SELECT\n    $1,\n    $2,\n    d->>'platform',\n    d->>'concept',\n    d->>'headline',\n    d->>'caption',\n    d->>'cta',\n    COALESCE(d->'hashtags', '[]'::jsonb),\n    d->>'alt_text',\n    d->>'image_prompt',\n    'GENERATED'\n  FROM jsonb_array_elements($3::jsonb) AS d\n  RETURNING id\n)\nSELECT\n  (SELECT count(*) FROM inserted) AS inserted_count,\n  $1::text AS company_id,\n  $4::integer AS input_tokens,\n  $5::integer AS output_tokens,\n  $6::numeric AS estimated_cost,\n  $7::text AS chat_id,\n  $8::text AS reply_text,\n  $9::text AS new_state,\n  $10::text AS new_flow,\n  $11::bigint AS conversation_id;",
+        "query": "WITH inserted AS (\n  INSERT INTO content_items (company_id, content_type, platform, concept, headline, caption, cta, hashtags_json, alt_text, image_prompt, status)\n  SELECT\n    $1,\n    $2,\n    d->>'platform',\n    d->>'concept',\n    d->>'headline',\n    d->>'caption',\n    d->>'cta',\n    COALESCE(d->'hashtags', '[]'::jsonb),\n    d->>'alt_text',\n    d->>'image_prompt',\n    'GENERATED'\n  FROM jsonb_array_elements($3::jsonb) AS d\n  RETURNING id\n)\nSELECT\n  (SELECT count(*) FROM inserted) AS inserted_count,\n  (SELECT min(id) FROM inserted) AS first_item_id,\n  $1::text AS company_id,\n  $4::integer AS input_tokens,\n  $5::integer AS output_tokens,\n  $6::numeric AS estimated_cost,\n  $7::text AS chat_id,\n  $8::text AS reply_text,\n  $9::text AS new_state,\n  $10::text AS new_flow,\n  $11::bigint AS conversation_id;",
         "options": {
           "queryReplacement": "={{ [$json.company_id, $json.content_type, $json.drafts_json, $json.input_tokens, $json.output_tokens, $json.estimated_cost, $json.chat_id, $json.reply_text, $json.new_state, $json.new_flow, $json.conversation_id] }}"
         }
@@ -350,6 +350,415 @@
           "name": "Postgres account"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.higgsfield.ai/recraft/v4.1/text-to-image",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ prompt: (JSON.parse($('Procesar respuesta IA').item.json.drafts_json)[0] || {}).image_prompt || 'professional clean modern scene, no text, no logo, no people', resolution: '1k', aspect_ratio: '1:1', output_format: 'jpg' }) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000012",
+      "name": "Generar imagen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "higgsfieldheaderauth1",
+          "name": "Higgsfield Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000013",
+      "name": "Esperar imagen 1",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2860,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Generar imagen').item.json.status_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000014",
+      "name": "Revisar estado imagen 1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "higgsfieldheaderauth1",
+          "name": "Higgsfield Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000015",
+      "name": "Imagen lista 1?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3300,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 40,
+        "unit": "seconds"
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000016",
+      "name": "Esperar imagen 2",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3300,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Generar imagen').item.json.status_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000017",
+      "name": "Revisar estado imagen 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3520,
+        620
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "higgsfieldheaderauth1",
+          "name": "Higgsfield Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000018",
+      "name": "Imagen lista 2?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3740,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 40,
+        "unit": "seconds"
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000019",
+      "name": "Esperar imagen 3",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3740,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Generar imagen').item.json.status_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000001a",
+      "name": "Revisar estado imagen 3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3960,
+        820
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "higgsfieldheaderauth1",
+          "name": "Higgsfield Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000001b",
+      "name": "Imagen lista 3?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4180,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision = $('Procesar respuesta IA').item.json;\nconst draftInfo = $('Guardar borradores').item.json;\nconst imgResult = $input.first().json;\nconst imageUrl = (imgResult.images && imgResult.images[0] && imgResult.images[0].url) || null;\n\nlet drafts = [];\ntry { drafts = JSON.parse(decision.drafts_json); } catch (e) { drafts = []; }\nconst first = drafts[0] || {};\n\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: decision.reply_text,\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n    content_item_id: draftInfo.first_item_id,\n    image_url: imageUrl,\n    image_caption: (first.headline || '').slice(0, 900),\n  },\n}];"
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000001c",
+      "name": "Preparar imagen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE content_items\nSET generated_image_url = $1, status = 'VALIDATED'\nWHERE id = $2\nRETURNING\n  $3::text AS chat_id,\n  $4::text AS reply_text,\n  $5::text AS new_state,\n  $6::text AS new_flow,\n  $7::bigint AS conversation_id,\n  $1::text AS image_url,\n  $8::text AS image_caption;",
+        "options": {
+          "queryReplacement": "={{ [$json.image_url, $json.content_item_id, $json.chat_id, $json.reply_text, $json.new_state, $json.new_flow, $json.conversation_id, $json.image_caption] }}"
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000001d",
+      "name": "Guardar imagen en BD",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3520,
+        220
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "vjJ3hmpVx6R9ZlxT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH logged AS (\n  INSERT INTO agent_logs (company_id, workflow, agent, action, model, estimated_cost, status)\n  VALUES ($1, '01_CHANNEL_Telegram', 'image_agent', 'generate_image', 'recraft/v4.1/text-to-image', 0.035, 'SUCCESS')\n  RETURNING id\n)\nSELECT\n  $2::text AS chat_id,\n  $3::text AS reply_text,\n  $4::text AS new_state,\n  $5::text AS new_flow,\n  $6::bigint AS conversation_id,\n  $7::text AS image_url,\n  $8::text AS image_caption\nFROM logged;",
+        "options": {
+          "queryReplacement": "={{ [$('Procesar respuesta IA').item.json.company_id, $json.chat_id, $json.reply_text, $json.new_state, $json.new_flow, $json.conversation_id, $json.image_url, $json.image_caption] }}"
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000001e",
+      "name": "Registrar costo imagen",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3740,
+        220
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "vjJ3hmpVx6R9ZlxT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendPhoto",
+        "chatId": "={{ $json.chat_id }}",
+        "binaryData": false,
+        "file": "={{ $json.image_url }}",
+        "additionalFields": {
+          "caption": "={{ $json.image_caption }}",
+          "appendAttribution": false
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000001f",
+      "name": "Enviar foto",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3960,
+        140
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "tgcredential1",
+          "name": "Telegram - AI Marketing Agent"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision = $('Procesar respuesta IA').item.json;\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: decision.reply_text + '\\n\\n(La imagen esta tardando mas de lo esperado; el texto ya quedo listo. Puedes revisar la imagen mas tarde en \\'Revisar publicaciones\\'.)',\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n  },\n}];"
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000020",
+      "name": "Manejar timeout imagen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        1020
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(SUM(estimated_cost), 0) AS gasto_hoy\nFROM agent_logs\nWHERE agent = 'image_agent'\n  AND status = 'SUCCESS'\n  AND timestamp::date = CURRENT_DATE;",
+        "options": {}
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000021",
+      "name": "Revisar gasto de imagenes hoy",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2420,
+        620
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "vjJ3hmpVx6R9ZlxT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ Number($json.gasto_hoy) }}",
+              "rightValue": 1.0,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000022",
+      "name": "Dentro del limite diario de imagenes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision = $('Procesar respuesta IA').item.json;\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: decision.reply_text + '\\n\\n(Se alcanzo el limite diario de gasto en generacion de imagenes ($1.0 USD/dia). El texto ya quedo listo; la imagen se puede generar manana o pidele a Rafael que ajuste el limite.)',\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n  },\n}];"
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000023",
+      "name": "Manejar limite de gasto alcanzado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        820
+      ]
     }
   ],
   "connections": {
@@ -481,7 +890,7 @@
       "main": [
         [
           {
-            "node": "Guardar estado",
+            "node": "Revisar gasto de imagenes hoy",
             "type": "main",
             "index": 0
           }
@@ -515,6 +924,226 @@
         [
           {
             "node": "Cargar Company Brain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar imagen": {
+      "main": [
+        [
+          {
+            "node": "Esperar imagen 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar imagen 1": {
+      "main": [
+        [
+          {
+            "node": "Revisar estado imagen 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revisar estado imagen 1": {
+      "main": [
+        [
+          {
+            "node": "Imagen lista 1?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Imagen lista 1?": {
+      "main": [
+        [
+          {
+            "node": "Preparar imagen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Esperar imagen 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar imagen 2": {
+      "main": [
+        [
+          {
+            "node": "Revisar estado imagen 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revisar estado imagen 2": {
+      "main": [
+        [
+          {
+            "node": "Imagen lista 2?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Imagen lista 2?": {
+      "main": [
+        [
+          {
+            "node": "Preparar imagen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Esperar imagen 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar imagen 3": {
+      "main": [
+        [
+          {
+            "node": "Revisar estado imagen 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revisar estado imagen 3": {
+      "main": [
+        [
+          {
+            "node": "Imagen lista 3?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Imagen lista 3?": {
+      "main": [
+        [
+          {
+            "node": "Preparar imagen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Manejar timeout imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar imagen": {
+      "main": [
+        [
+          {
+            "node": "Guardar imagen en BD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar imagen en BD": {
+      "main": [
+        [
+          {
+            "node": "Registrar costo imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar costo imagen": {
+      "main": [
+        [
+          {
+            "node": "Enviar foto",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Guardar estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manejar timeout imagen": {
+      "main": [
+        [
+          {
+            "node": "Guardar estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revisar gasto de imagenes hoy": {
+      "main": [
+        [
+          {
+            "node": "Dentro del limite diario de imagenes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dentro del limite diario de imagenes?": {
+      "main": [
+        [
+          {
+            "node": "Generar imagen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Manejar limite de gasto alcanzado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manejar limite de gasto alcanzado": {
+      "main": [
+        [
+          {
+            "node": "Guardar estado",
             "type": "main",
             "index": 0
           }
