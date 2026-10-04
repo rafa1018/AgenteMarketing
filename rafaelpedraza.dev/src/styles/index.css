@@ -1,0 +1,242 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #03060c;
+  --color-abyss: #060b16;
+  --color-navy: #0a1426;
+  --color-steel: #13213a;
+  --color-line: rgb(120 165 230 / 0.14);
+  --color-line-strong: rgb(120 175 255 / 0.32);
+  --color-fg: #e9eef7;
+  --color-muted: #8797b0;
+  --color-dim: #56657d;
+  --color-volt: #2f8cff;
+  --color-cyan: #52d3ff;
+  --color-violet: #8f83ff;
+  --color-ok: #4ade9a;
+
+  --font-display: 'Sora Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', Consolas, monospace;
+
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --glow-blue: 0 0 0 1px rgb(47 140 255 / 0.35), 0 0 32px -4px rgb(47 140 255 / 0.45);
+  }
+  html {
+    background: var(--color-ink);
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: 72px;
+  }
+  body {
+    background: var(--color-ink);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    overflow-x: clip;
+  }
+  ::selection {
+    background: rgb(47 140 255 / 0.35);
+    color: #fff;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-cyan);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+  img {
+    user-select: none;
+  }
+}
+
+@layer components {
+  .hud {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    font-size: 0.6875rem;
+    line-height: 1.4;
+  }
+  .panel {
+    background: linear-gradient(180deg, rgb(14 26 48 / 0.62), rgb(7 13 26 / 0.62));
+    border: 1px solid var(--color-line);
+    border-radius: 14px;
+  }
+  .container-x {
+    width: 100%;
+    max-width: 1240px;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+  @media (min-width: 640px) {
+    .container-x { padding-inline: 1.75rem; }
+  }
+  @media (min-width: 1280px) {
+    .container-x { padding-inline: 2.5rem; }
+  }
+  .text-gradient {
+    background: linear-gradient(100deg, #f1f6ff 10%, #9cc8ff 55%, #52d3ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .text-gradient-blue {
+    background: linear-gradient(100deg, #2f8cff, #52d3ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  /* HUD corner brackets */
+  .corners {
+    position: relative;
+  }
+  .corners::before,
+  .corners::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--color-line-strong);
+    pointer-events: none;
+  }
+  .corners::before {
+    top: -1px;
+    left: -1px;
+    border-top: 1px solid;
+    border-left: 1px solid;
+    border-top-left-radius: 6px;
+  }
+  .corners::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+    border-bottom-right-radius: 6px;
+  }
+  /* Animated gradient border on hover */
+  .glow-border {
+    position: relative;
+    isolation: isolate;
+  }
+  .glow-border::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(from var(--angle, 0deg), transparent 0 70%, rgb(82 211 255 / 0.9) 82%, rgb(47 140 255 / 0.8) 90%, transparent 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.4s;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .glow-border:hover::after,
+  .glow-border:focus-within::after,
+  .glow-border[data-active='true']::after {
+    opacity: 1;
+    animation: spin-angle 3.2s linear infinite;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid var(--color-line);
+    background: rgb(12 22 40 / 0.6);
+    border-radius: 999px;
+    padding: 0.28rem 0.7rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    color: #b8c6dc;
+    white-space: nowrap;
+  }
+  .grid-bg {
+    background-image:
+      linear-gradient(to right, rgb(120 165 230 / 0.055) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(120 165 230 / 0.055) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+  /* Transparent cut-out portrait: only fade the bottom edge into the page */
+  .portrait-cutout {
+    -webkit-mask-image: linear-gradient(to bottom, #000 68%, transparent 97%);
+    mask-image: linear-gradient(to bottom, #000 68%, transparent 97%);
+  }
+  /* Dissolves a studio background (non-transparent photos) into the page */
+  .portrait-mask {
+    --m-radial: radial-gradient(ellipse 56% 64% at 50% 42%, #000 50%, transparent 86%);
+    --m-vertical: linear-gradient(to bottom, transparent 0%, #000 14%, #000 66%, transparent 97%);
+    -webkit-mask-image: var(--m-radial), var(--m-vertical);
+    -webkit-mask-composite: source-in;
+    mask-image: var(--m-radial), var(--m-vertical);
+    mask-composite: intersect;
+  }
+  .dotted-leader {
+    flex: 1;
+    border-bottom: 1px dotted rgb(120 165 230 / 0.3);
+    transform: translateY(-4px);
+    margin-inline: 0.75rem;
+    min-width: 1rem;
+  }
+}
+
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes spin-angle {
+  to { --angle: 360deg; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes spin-rev {
+  to { transform: rotate(-360deg); }
+}
+@keyframes blink {
+  50% { opacity: 0.25; }
+}
+@keyframes scan {
+  0% { transform: translateY(-110%); }
+  100% { transform: translateY(110%); }
+}
+@keyframes dash {
+  to { stroke-dashoffset: -40; }
+}
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.7; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+.animate-spin-slow { animation: spin 60s linear infinite; }
+.animate-spin-slower { animation: spin-rev 90s linear infinite; }
+.animate-blink { animation: blink 1.6s steps(2) infinite; }
+.animate-dash { animation: dash 1.6s linear infinite; }
+.animate-pulse-ring { animation: pulse-ring 2.4s var(--ease-out-expo) infinite; }
+
+/* Custom cursor: hide native cursor only when our cursor is mounted */
+html.has-cursor,
+html.has-cursor a,
+html.has-cursor button {
+  cursor: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,10 @@
+# Only the two public endpoints are reachable; config, helpers and data are private.
+Options -Indexes
+
+<FilesMatch "^(config|config\.example|_bootstrap)\.php$">
+  Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(json|log)$">
+  Require all denied
+</FilesMatch>

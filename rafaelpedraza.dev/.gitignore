@@ -1,0 +1,9 @@
+node_modules
+dist
+*.local
+.DS_Store
+
+# API secrets & runtime data (never commit / never deploy local data)
+public/api/config.php
+public/api/data/*.json
+.api-data/
