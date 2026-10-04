@@ -9,8 +9,8 @@ const STORAGE_KEY = 'rp-lang'
 const DEFAULT_LANG: Lang = 'es'
 
 const TITLES: Record<Lang, string> = {
-  es: 'Rafael Pedraza | Ingeniero de Software | IA y Arquitectura de Software',
-  en: 'Rafael Pedraza | Software Engineer | AI & Software Architecture',
+  es: 'Rafael Pedraza | Ingeniero Full Stack | Ingeniería de Software',
+  en: 'Rafael Pedraza | Full Stack Engineer | Software Engineering',
 }
 
 function initialLang(): Lang {

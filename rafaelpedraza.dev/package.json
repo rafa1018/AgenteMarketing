@@ -6,7 +6,7 @@
   "description": "Rafael Pedraza — Software Engineer | AI-Assisted Development | Software Architecture",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/postbuild.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "images": "node scripts/optimize-images.mjs",

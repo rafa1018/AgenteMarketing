@@ -68,11 +68,9 @@ Every visible text is written as `{ es: '...', en: '...' }`:
 | --- | --- |
 | `src/data/profile.ts` | Name, roles, phrases, photo, links (email, LinkedIn, GitHub, WhatsApp, CV), About text, indicators |
 | `src/data/experience.ts` | Professional experience timeline + education |
-| `src/data/projects.ts` | Selected projects (problem / solution / optional `results`) |
 | `src/data/technologies.ts` | Technology stack, grouped by category |
 | `src/data/journey.ts` | My Evolution stages, "How I work" process nodes, system status |
 | `src/data/architecture.ts` | Architecture diagrams (nodes + edges) and principles |
-| `src/data/certifications.ts` | Certifications |
 | `src/data/navigation.ts` | Navbar items and the left progress rail |
 
 **Placeholders:** any value written like `[ADD GITHUB URL]` is treated as pending — buttons render as a disabled
@@ -102,7 +100,7 @@ src/
     layout/       BootSequence, Background, ScrollRail
     navigation/   Navbar (desktop + mobile menu)
     sections/     Hero, Manifesto, About, Evolution, Experience, Stack, Method,
-                  Projects, Architecture, Certifications, CurrentFocus, Contact, Footer
+                  Architecture, CurrentFocus, Contact, Footer (+ build/ laptop scene)
     ui/           Button, SectionHeader, Logo, BrandIcons, Cursor, LanguageToggle, WhatsAppButton
   data/           all editable content (bilingual)
   i18n/           language provider + interface copy

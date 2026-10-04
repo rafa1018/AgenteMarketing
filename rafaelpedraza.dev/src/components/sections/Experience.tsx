@@ -8,7 +8,7 @@ import { useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
 import { EASE_OUT, cn } from '@/lib/utils'
 
-const INITIAL = 4
+const INITIAL = 3
 
 const companies = [...new Set(experience.map((e) => e.company.replace(/ \(.+\)$/, '')))]
 const firstYear = Math.min(...experience.map((e) => Number(e.start.slice(0, 4))))

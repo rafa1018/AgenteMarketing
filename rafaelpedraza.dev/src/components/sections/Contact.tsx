@@ -51,7 +51,7 @@ export function Contact() {
       <div className="container-x relative">
         <div className="text-center">
           <FadeIn>
-            <span className="hud text-cyan">[10] · {t(ui.contact.kicker)}</span>
+            <span className="hud text-cyan">[08] ·{t(ui.contact.kicker)}</span>
           </FadeIn>
           <RevealText
             key={t(ui.contact.title)}

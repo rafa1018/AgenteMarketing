@@ -10,7 +10,7 @@ const TAGS = [
   { label: 'ANGULAR', x: 85, y: 13 },
   { label: 'REACT', x: 90, y: 40 },
   { label: 'ORACLE', x: 12, y: 48 },
-  { label: 'AZURE', x: 89, y: 67 },
+  { label: 'PHP', x: 89, y: 67 },
   { label: 'SQL SERVER', x: 13, y: 74 },
   { label: 'DOCKER', x: 80, y: 89 },
   { label: 'DEVOPS', x: 19, y: 94 },

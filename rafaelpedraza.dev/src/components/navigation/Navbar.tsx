@@ -13,7 +13,7 @@ import { EASE_OUT, cn, isPlaceholder, pad, scrollToId } from '@/lib/utils'
 
 const ids = navItems.map((n) => n.id)
 // sections without their own nav item map to the closest group
-const groupOf: Record<string, string> = { evolution: 'about', focus: 'architecture', certifications: 'architecture', manifesto: 'home' }
+const groupOf: Record<string, string> = { evolution: 'about', focus: 'architecture', manifesto: 'home', build: 'home' }
 const trackedIds = [...ids, ...Object.keys(groupOf)]
 
 export function Navbar({ visible }: { visible: boolean }) {

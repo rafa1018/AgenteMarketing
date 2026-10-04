@@ -1,8 +1,8 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Server, Braces, Hash, Layers, FileCode2, Component, Atom, Code2, Type, Palette,
-  Database, DatabaseZap, Table, Boxes, Cloud, CloudCog, GitBranch, Container, Infinity as InfinityIcon,
-  Workflow, FileSpreadsheet, Merge, Bot, Sparkles, Brain, Webhook, Cpu, Wand2, Leaf, LayoutGrid,
+  Database, DatabaseZap, Table, Boxes, GitBranch, Container, Infinity as InfinityIcon,
+  Workflow, FileSpreadsheet, Merge, Bot, Sparkles, Brain, Webhook, Leaf, LayoutGrid, Coffee, Smartphone, TabletSmartphone,
 } from 'lucide-react'
 import type { L } from '@/i18n'
 
@@ -10,7 +10,7 @@ import type { L } from '@/i18n'
  * TECHNOLOGY STACK — grouped by category. `note` is the secondary line shown on hover.
  * Only technologies listed in the CV or confirmed by Rafael.
  */
-export type CategoryId = 'backend' | 'frontend' | 'databases' | 'cloud' | 'data' | 'ai'
+export type CategoryId = 'backend' | 'frontend' | 'databases' | 'devops' | 'data' | 'ai'
 
 export interface Technology {
   name: string
@@ -41,14 +41,17 @@ export const techCategories: TechCategory[] = [
       { name: 'Blazor', icon: Component, note: p('UI por componentes en .NET', 'Component UI on .NET') },
       { name: 'Laravel', icon: Leaf, note: p('Framework web PHP', 'PHP web framework') },
       { name: 'PHP', icon: FileCode2, note: p('Desarrollo web', 'Web development') },
+      { name: 'Java', icon: Coffee, note: p('Conocimientos básicos', 'Basic knowledge') },
     ],
   },
   {
     id: 'frontend',
-    label: p('Frontend', 'Frontend'),
+    label: p('Frontend / Mobile', 'Frontend / Mobile'),
     code: 'FE',
     icon: LayoutGrid,
     items: [
+      { name: 'Ionic', icon: Smartphone, note: p('Apps móviles híbridas', 'Hybrid mobile apps') },
+      { name: 'React Native', icon: TabletSmartphone, note: p('Apps móviles nativas', 'Native mobile apps') },
       { name: 'Angular', icon: Component, note: p('SPA empresariales', 'Enterprise SPAs') },
       { name: 'React', icon: Atom, note: p('Interfaces por componentes', 'Component interfaces') },
       { name: 'TypeScript', icon: Braces, note: p('JavaScript tipado', 'Typed JavaScript') },
@@ -72,13 +75,12 @@ export const techCategories: TechCategory[] = [
     ],
   },
   {
-    id: 'cloud',
-    label: p('Cloud / DevOps', 'Cloud / DevOps'),
+    id: 'devops',
+    label: p('DevOps / Versionamiento', 'DevOps / Version control'),
     code: 'OPS',
-    icon: Cloud,
+    icon: GitBranch,
     items: [
-      { name: 'Azure', icon: Cloud, note: p('Plataforma cloud', 'Cloud platform') },
-      { name: 'Azure DevOps', icon: CloudCog, note: p('Boards, repos y pipelines', 'Boards, repos & pipelines') },
+      { name: 'Azure DevOps', icon: Workflow, note: p('Boards, repos y pipelines', 'Boards, repos & pipelines') },
       { name: 'Git', icon: GitBranch, note: p('Control de versiones · TFS', 'Version control · TFS') },
       { name: 'Docker', icon: Container, note: p('Contenedores', 'Containers') },
       { name: 'CI/CD', icon: InfinityIcon, note: p('Integración y entrega continua', 'Continuous delivery') },
@@ -105,8 +107,6 @@ export const techCategories: TechCategory[] = [
       { name: 'Claude', icon: Sparkles, note: p('Asistente de ingeniería', 'Engineering assistant') },
       { name: 'Gemini', icon: Sparkles, note: p('Asistente multimodal', 'Multimodal assistant') },
       { name: 'n8n', icon: Webhook, note: p('Automatización de flujos', 'Workflow automation') },
-      { name: 'LLM APIs', icon: Cpu, note: p('Modelos integrados en productos', 'Models inside products') },
-      { name: 'AI-assisted dev', icon: Wand2, note: p('Código, pruebas y docs', 'Code, tests & docs') },
     ],
   },
 ]

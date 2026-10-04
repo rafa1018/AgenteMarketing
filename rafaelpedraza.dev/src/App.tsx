@@ -9,14 +9,13 @@ import { MusicToggle } from '@/components/ui/MusicToggle'
 import { SectionTransition } from '@/components/animations'
 import { Hero } from '@/components/sections/Hero'
 import { Manifesto } from '@/components/sections/Manifesto'
+import { BuildScene } from '@/components/sections/build/BuildScene'
 import { About } from '@/components/sections/About'
 import { Evolution } from '@/components/sections/Evolution'
 import { Experience } from '@/components/sections/Experience'
 import { Stack } from '@/components/sections/Stack'
 import { Method } from '@/components/sections/Method'
-import { Projects } from '@/components/sections/Projects'
 import { Architecture } from '@/components/sections/Architecture'
-import { Certifications } from '@/components/sections/Certifications'
 import { CurrentFocus } from '@/components/sections/CurrentFocus'
 import { Contact } from '@/components/sections/Contact'
 import { Footer } from '@/components/sections/Footer'
@@ -44,6 +43,7 @@ export default function App() {
       <main className="overflow-x-clip">
         <Hero ready={ready} />
         <Manifesto />
+        <BuildScene />
         <About />
         <SectionTransition index="02" next={next(ui.evolution.kicker)} />
         <Evolution />
@@ -53,13 +53,10 @@ export default function App() {
         <Stack />
         <SectionTransition index="05" next={next(ui.method.kicker)} />
         <Method />
-        <SectionTransition index="06" next={next(ui.nav.projects)} />
-        <Projects />
-        <SectionTransition index="07" next={next(ui.nav.architecture)} />
+        <SectionTransition index="06" next={next(ui.nav.architecture)} />
         <Architecture />
-        <Certifications />
         <CurrentFocus />
-        <SectionTransition index="10" next={next(ui.nav.contact)} />
+        <SectionTransition index="08" next={next(ui.nav.contact)} />
         <Contact />
       </main>
       <Footer />

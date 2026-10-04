@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { architecturePrinciples, diagrams } from '@/data/architecture'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { ArchitectureDiagram, RevealItem, ScrollReveal } from '@/components/animations'
+import { Lifecycle } from './Lifecycle'
 import { useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
 import { cn, pad } from '@/lib/utils'
@@ -15,7 +16,15 @@ export function Architecture() {
   return (
     <section id="architecture" className="relative py-20 sm:py-28">
       <div className="container-x">
-        <SectionHeader index="07" kicker={t(ui.architecture.kicker)} title={t(ui.architecture.title)} />
+        <SectionHeader index="06" kicker={t(ui.lifecycle.kicker)} title={t(ui.lifecycle.title)} description={t(ui.lifecycle.description)} />
+
+        <Lifecycle />
+
+        {/* architecture: zoom into the "Design" stage */}
+        <div className="mt-20 mb-8 flex items-center gap-3 sm:mt-24">
+          <span className="h-px w-10 bg-line-strong" />
+          <h3 className="hud text-muted">{t(ui.architecture.kicker)} · {t(ui.architecture.title)}</h3>
+        </div>
 
         <div className="panel corners overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line px-4 py-3 sm:px-6">

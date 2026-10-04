@@ -71,7 +71,8 @@ export function Hero({ ready }: { ready: boolean }) {
               <span className="absolute inset-0 rounded-full bg-ok animate-pulse-ring" />
               <span className="relative size-2 rounded-full bg-ok" />
             </span>
-            <span className="hud !text-[10px] text-muted">
+            {/* sans font on purpose: the mono font's dotted zero made "10" read like "18" */}
+            <span className="text-[12px] font-medium tracking-[0.06em] text-fg/85 uppercase">
               {t(ui.hero.status)}
             </span>
           </motion.div>
@@ -82,21 +83,47 @@ export function Hero({ ready }: { ready: boolean }) {
             <SplitName text={profile.name.last.toUpperCase()} ready={ready} delay={0.3} gradient />
           </h1>
 
-          <motion.ul {...show(0.75)} className="mt-7 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6">
-            {profile.roles.map((r) => (
-              <li key={r.en} className="flex items-center gap-2.5 font-mono text-[11.5px] tracking-[0.22em] text-fg/85 uppercase sm:text-xs">
+          {/* main title: what defines the profile */}
+          <motion.p {...show(0.7)} className="mt-7 flex items-center gap-3 font-display text-[clamp(1.5rem,3.2vw,2.4rem)] leading-none font-semibold tracking-[-0.03em] text-fg">
+            <span className="h-[0.9em] w-1 rounded-full bg-gradient-to-b from-cyan to-volt" />
+            {t(profile.title)}
+          </motion.p>
+
+          {/* formal credentials */}
+          <motion.ul {...show(0.82)} className="mt-4 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6">
+            {profile.credentials.map((r) => (
+              <li key={r.en} className="flex items-center gap-2.5 font-mono text-[11px] tracking-[0.18em] text-muted uppercase sm:text-[11.5px]">
                 <span className="size-1.5 rotate-45 border border-cyan" />
                 {t(r)}
               </li>
             ))}
           </motion.ul>
 
-          <motion.p {...show(0.9)} className="mt-7 max-w-[34rem] text-lg leading-relaxed text-muted sm:text-xl">
+          {/* the "full stack": every language at a glance */}
+          <motion.ul
+            className="mt-6 flex max-w-[36rem] flex-wrap gap-1.5"
+            initial="hidden"
+            animate={ready ? 'show' : 'hidden'}
+            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.035, delayChildren: 0.95 } } }}
+            aria-label={t(ui.hero.stackLabel)}
+          >
+            {profile.heroStack.map((tech) => (
+              <motion.li
+                key={tech}
+                variants={{ hidden: { opacity: 0, y: 8, scale: 0.9 }, show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: EASE_OUT } } }}
+                className="rounded-md border border-line bg-navy/50 px-2.5 py-1 font-mono text-[11.5px] text-fg/85 backdrop-blur-sm transition-colors duration-300 hover:border-cyan/50 hover:text-white"
+              >
+                {tech}
+              </motion.li>
+            ))}
+          </motion.ul>
+
+          <motion.p {...show(1.1)} className="mt-6 max-w-[34rem] text-base leading-relaxed text-muted sm:text-lg">
             {t(profile.tagline)}
           </motion.p>
 
           <motion.div {...show(1.05)} className="mt-9 flex flex-wrap gap-3">
-            <Button icon={ArrowRight} iconRight onClick={() => scrollToId('projects')}>
+            <Button icon={ArrowRight} iconRight onClick={() => scrollToId('experience')}>
               {t(ui.hero.explore)}
             </Button>
             <Button variant="secondary" icon={Download} href={profile.links.cv} download>
@@ -119,7 +146,7 @@ export function Hero({ ready }: { ready: boolean }) {
           {ui.hero.strip.map(({ k, v }) => (
             <div key={k.en}>
               <dt className="hud !text-[9px] text-dim">{t(k)}</dt>
-              <dd className="mt-1 font-mono text-xs tracking-[0.08em] text-fg/80">{t(v)}</dd>
+              <dd className="mt-1 text-[13px] font-medium text-fg/85">{t(v)}</dd>
             </div>
           ))}
         </dl>

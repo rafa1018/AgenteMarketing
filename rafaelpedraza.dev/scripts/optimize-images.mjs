@@ -34,6 +34,20 @@ const fy = Math.round(meta.height * (isCutout ? 0.035 : 0.03))
 const fs = Math.round(meta.width * (isCutout ? 0.44 : 0.42))
 await sharp(SRC).flatten({ background: '#0a1426' }).extract({ left: fx, top: fy, width: fs, height: fs }).resize(320).webp({ quality: 82 }).toFile(`${OUT}/rafael-pedraza-face.webp`)
 
+// Frontal portrait for the "Engineering Profile" card (thumbnail + full-size viewer)
+const FRONT = 'public/images/front-rafael.png'
+if (existsSync(FRONT)) {
+  const fm = await sharp(FRONT).metadata()
+  const s = Math.round(fm.width * 0.62)
+  await sharp(FRONT)
+    .flatten({ background: '#0a1426' })
+    .extract({ left: Math.round(fm.width * 0.19), top: Math.round(fm.height * 0.03), width: s, height: s })
+    .resize(320)
+    .webp({ quality: 85 })
+    .toFile(`${OUT}/front-rafael-thumb.webp`)
+  await sharp(FRONT).resize({ width: 900 }).webp({ quality: 86, alphaQuality: 90 }).toFile(`${OUT}/front-rafael-900.webp`)
+}
+
 // Open Graph card 1200x630
 const photo = await base.clone().resize({ height: 630 }).toBuffer()
 const photoMeta = await sharp(photo).metadata()
@@ -45,11 +59,11 @@ const ogSvg = `
   </defs>
   <rect width="1200" height="630" fill="url(#g)"/>
   <rect width="1200" height="630" fill="url(#grid)"/>
-  <text x="72" y="120" font-family="Consolas, monospace" font-size="20" letter-spacing="6" fill="#4fd1ff">INGENIERO DE SISTEMAS · +10 AÑOS</text>
+  <text x="72" y="120" font-family="Consolas, monospace" font-size="20" letter-spacing="6" fill="#4fd1ff">INGENIERO FULL STACK</text>
   <text x="68" y="250" font-family="Segoe UI, Arial, sans-serif" font-weight="700" font-size="104" fill="#eef3fb">RAFAEL</text>
   <text x="68" y="360" font-family="Segoe UI, Arial, sans-serif" font-weight="700" font-size="104" fill="#2f8cff">PEDRAZA</text>
-  <text x="72" y="430" font-family="Consolas, monospace" font-size="22" letter-spacing="3" fill="#9fb2cc">INGENIERO DE SOFTWARE · ARQUITECTURA</text>
-  <text x="72" y="466" font-family="Consolas, monospace" font-size="22" letter-spacing="3" fill="#9fb2cc">.NET · ANGULAR · ORACLE · CLOUD</text>
+  <text x="72" y="430" font-family="Consolas, monospace" font-size="22" letter-spacing="3" fill="#9fb2cc">ING. DE SISTEMAS · ESP. ING. DE SOFTWARE</text>
+  <text x="72" y="466" font-family="Consolas, monospace" font-size="22" letter-spacing="3" fill="#9fb2cc">C# · .NET · ANGULAR · REACT · PHP · ORACLE · SQL</text>
   <rect x="72" y="520" width="120" height="2" fill="#2f8cff"/>
   <text x="72" y="566" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="#eef3fb">rafaelpedraza.dev</text>
 </svg>`
@@ -64,5 +78,7 @@ await sharp(Buffer.from(ogSvg))
 const fav = await readFile('public/favicon.svg')
 await sharp(fav, { density: 512 }).resize(180).png().toFile('public/apple-touch-icon.png')
 await sharp(fav, { density: 512 }).resize(32).png().toFile('public/favicon-32.png')
+await sharp(fav, { density: 768 }).resize(192).png().toFile('public/icon-192.png')
+await sharp(fav, { density: 1536 }).resize(512).png().toFile('public/icon-512.png')
 
 console.log('[images] done')

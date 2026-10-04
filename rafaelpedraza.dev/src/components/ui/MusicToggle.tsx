@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils'
 
 const SRC = '/audio/background.mp3'
 const PREF_KEY = 'rp-music' // 'on' | 'off'
-const VOL_KEY = 'rp-music-volume'
 const DEFAULT_VOLUME = 0.8
 
 const read = (k: string) => {
@@ -38,10 +37,8 @@ export function MusicToggle({ visible }: { visible: boolean }) {
   const [available, setAvailable] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [blocked, setBlocked] = useState(false) // waiting for a user gesture
-  const [volume, setVolume] = useState(() => {
-    const v = Number(read(VOL_KEY))
-    return Number.isFinite(v) && v > 0 && v <= 1 ? v : DEFAULT_VOLUME
-  })
+  // Every visit starts at the default volume (80 %); the slider only affects the current visit.
+  const [volume, setVolume] = useState(DEFAULT_VOLUME)
   const [open, setOpen] = useState(false)
   const volumeRef = useRef(volume)
   volumeRef.current = volume
@@ -141,7 +138,6 @@ export function MusicToggle({ visible }: { visible: boolean }) {
 
   const changeVolume = (v: number) => {
     setVolume(v)
-    write(VOL_KEY, String(v))
     const el = audio.current
     if (el && playing) {
       window.clearInterval(fade.current)

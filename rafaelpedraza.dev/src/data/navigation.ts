@@ -6,7 +6,6 @@ export const navItems = [
   { id: 'experience', label: ui.nav.experience },
   { id: 'stack', label: ui.nav.stack },
   { id: 'method', label: ui.nav.method },
-  { id: 'projects', label: ui.nav.projects },
   { id: 'architecture', label: ui.nav.architecture },
   { id: 'contact', label: ui.nav.contact },
 ] as const
@@ -19,7 +18,6 @@ export const railSections = [
   { id: 'experience', label: 'EXPERIENCE' },
   { id: 'stack', label: 'STACK' },
   { id: 'method', label: 'METHOD' },
-  { id: 'projects', label: 'PROJECTS' },
   { id: 'architecture', label: 'ARCHITECTURE' },
   { id: 'focus', label: 'STATUS' },
   { id: 'contact', label: 'CONTACT' },

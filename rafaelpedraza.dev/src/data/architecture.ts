@@ -69,7 +69,6 @@ export const diagrams: Diagram[] = [
       { id: 'users', label: p('Usuarios', 'Users'), sub: p('Navegador · móvil', 'Browser · mobile'), x: 120, y: 90, tone: 'muted' },
       { id: 'fe', label: 'Frontend', sub: 'SPA', x: 360, y: 90, tone: 'cyan' },
       { id: 'api', label: 'API Gateway', sub: 'REST · Auth', x: 620, y: 90, tone: 'blue' },
-      { id: 'cloud', label: 'Cloud', sub: 'Azure', x: 880, y: 90, tone: 'violet' },
       { id: 'svc', label: p('Servicios', 'Services'), sub: '.NET · Laravel', x: 620, y: 260, tone: 'blue' },
       { id: 'int', label: p('Integración', 'Integration'), sub: p('Sistemas externos', 'External systems'), x: 880, y: 260, tone: 'violet' },
       { id: 'dw', label: p('Reportes', 'Reporting'), sub: 'JasperReports', x: 120, y: 430, tone: 'muted' },
@@ -85,7 +84,6 @@ export const diagrams: Diagram[] = [
       { from: 'svc', to: 'int', label: p('eventos', 'events') },
       { from: 'db', to: 'etl' },
       { from: 'etl', to: 'dw' },
-      { from: 'cloud', to: 'api', dashed: true },
       { from: 'cicd', to: 'svc', dashed: true, label: 'deploy' },
     ],
   },
@@ -96,6 +94,6 @@ export const architecturePrinciples = [
   { title: p('API-first', 'API-first'), text: p('Contratos claros entre frontend y backend.', 'Clear frontend–backend contracts.') },
   { title: p('Integridad de datos', 'Data integrity'), text: p('Modelado relacional y PL/SQL.', 'Relational modeling and PL/SQL.') },
   { title: p('Integración & ETL', 'Integration & ETL'), text: p('Datos confiables entre sistemas.', 'Reliable data between systems.') },
-  { title: p('Cloud & DevOps', 'Cloud & DevOps'), text: p('Entregas versionadas y automatizadas.', 'Versioned, automated delivery.') },
+  { title: p('DevOps', 'DevOps'), text: p('Entregas versionadas y automatizadas.', 'Versioned, automated delivery.') },
   { title: p('Soporte nivel III', 'Level III support'), text: p('Estabilidad en producción.', 'Stability in production.') },
 ]

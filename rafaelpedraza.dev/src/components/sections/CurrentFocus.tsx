@@ -11,7 +11,7 @@ export function CurrentFocus() {
   return (
     <section id="focus" className="relative py-20 sm:py-28">
       <div className="container-x">
-        <SectionHeader index="09" kicker={t(ui.focus.kicker)} title={t(ui.focus.title)} />
+        <SectionHeader index="07" kicker={t(ui.focus.kicker)} title={t(ui.focus.title)} />
         <div className="grid items-center gap-8 lg:grid-cols-[1.1fr_1fr] lg:gap-14">
           <FadeIn>
             <div className="panel corners overflow-hidden font-mono">
