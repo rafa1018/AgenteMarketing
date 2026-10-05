@@ -4,6 +4,7 @@ import { profile } from '@/data/profile'
 import { GithubIcon, LinkedinIcon } from '@/components/ui/BrandIcons'
 import { FadeIn, Parallax, RevealText } from '@/components/animations'
 import { ContactForm } from './contact/ContactForm'
+import { ShareButton } from '@/components/ui/ShareButton'
 import { useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
 import { cn, isPlaceholder } from '@/lib/utils'
@@ -92,6 +93,13 @@ export function Contact() {
                 </li>
               ))}
             </ul>
+
+            {/* share this profile */}
+            <div className="panel corners mt-3 bg-[linear-gradient(150deg,rgb(47_140_255/0.12),rgb(7_13_26/0.6)_60%)] p-5">
+              <p className="font-display text-[16px] font-semibold tracking-tight text-fg">{t(ui.share.cardTitle)}</p>
+              <p className="mt-1 text-[13.5px] text-muted">{t(ui.share.cardText)}</p>
+              <ShareButton className="mt-4" placement="up" align="left" />
+            </div>
           </FadeIn>
         </div>
       </div>

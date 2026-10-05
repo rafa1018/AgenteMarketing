@@ -2,6 +2,7 @@ import { profile } from '@/data/profile'
 import { Logo } from '@/components/ui/Logo'
 import { GithubIcon, LinkedinIcon } from '@/components/ui/BrandIcons'
 import { VisitCounter } from '@/components/ui/VisitCounter'
+import { ShareButton } from '@/components/ui/ShareButton'
 import { useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
 import { isPlaceholder } from '@/lib/utils'
@@ -34,6 +35,9 @@ export function Footer() {
               </a>
             </li>
           ))}
+          <li>
+            <ShareButton placement="up" align="right" className="[&>button]:!h-10 [&>button]:!rounded-md [&>button]:!border-line [&>button]:!px-3.5 [&>button]:!text-muted" />
+          </li>
         </ul>
       </div>
       <div className="container-x flex flex-col gap-2 border-t border-line py-5 pr-20 font-mono text-[10.5px] tracking-[0.12em] text-dim sm:flex-row sm:justify-between">

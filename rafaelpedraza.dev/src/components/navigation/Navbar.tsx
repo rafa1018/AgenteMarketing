@@ -6,6 +6,7 @@ import { profile } from '@/data/profile'
 import { useActiveSection } from '@/hooks/useActiveSection'
 import { Logo } from '@/components/ui/Logo'
 import { LanguageToggle } from '@/components/ui/LanguageToggle'
+import { ShareButton } from '@/components/ui/ShareButton'
 import { GithubIcon, LinkedinIcon } from '@/components/ui/BrandIcons'
 import { useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
@@ -90,6 +91,7 @@ export function Navbar({ visible }: { visible: boolean }) {
           </nav>
 
           <div className="flex items-center gap-2">
+            <ShareButton variant="icon" placement="down" align="right" />
             <LanguageToggle className="hidden sm:flex" />
             <a
               href={profile.links.cv}

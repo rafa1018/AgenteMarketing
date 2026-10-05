@@ -149,6 +149,16 @@ export const ui = {
     },
   },
   visits: { es: 'Visitas', en: 'Visits' },
+  share: {
+    button: { es: 'Compartir', en: 'Share' },
+    title: { es: 'Compartir este perfil', en: 'Share this profile' },
+    subject: { es: 'Rafael Pedraza | Ingeniero Full Stack', en: 'Rafael Pedraza | Full Stack Engineer' },
+    text: { es: 'Conoce a Rafael Pedraza, Ingeniero Full Stack (.NET, Angular, React, PHP, Oracle):', en: 'Meet Rafael Pedraza, Full Stack Engineer (.NET, Angular, React, PHP, Oracle):' },
+    copy: { es: 'Copiar', en: 'Copy' },
+    copied: { es: 'Copiado', en: 'Copied' },
+    cardTitle: { es: '¿Conoces a alguien que necesite un ingeniero?', en: 'Know someone who needs an engineer?' },
+    cardText: { es: 'Comparte este perfil en tus redes.', en: 'Share this profile on your networks.' },
+  },
   music: {
     label: { es: 'Música', en: 'Music' },
     playing: { es: 'Sonando', en: 'Playing' },
@@ -158,8 +168,8 @@ export const ui = {
     volume: { es: 'Volumen', en: 'Volume' },
   },
   footer: {
-    tagline: { es: 'Ingeniero de Software | Arquitectura | IA', en: 'Software Engineer | Architecture | AI' },
-    built: { es: 'Construido con código, arquitectura e IA.', en: 'Built with code, architecture and AI.' },
+    tagline: { es: 'Ingeniero Full Stack | Ingeniería de Software', en: 'Full Stack Engineer | Software Engineering' },
+    built: { es: 'Diseñado y desarrollado por Rafael Pedraza.', en: 'Designed and developed by Rafael Pedraza.' },
   },
   link: { es: 'ENLACE', en: 'LINK' },
 } as const

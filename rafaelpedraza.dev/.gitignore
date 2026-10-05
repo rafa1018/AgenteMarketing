@@ -7,3 +7,6 @@ dist
 public/api/config.php
 public/api/data/*.json
 .api-data/
+
+# Hostinger upload package
+rafaelpedraza-hostinger.zip
