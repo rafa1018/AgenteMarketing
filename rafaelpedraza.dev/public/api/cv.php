@@ -15,7 +15,8 @@ if (!rp_settings()['cvEnabled'] || !is_file(CV_FILE)) {
 }
 
 $count = null;
-if (!rp_is_bot() && !rp_is_admin()) {
+// HEAD requests (link checkers, previews) only ask whether the file exists: they are not downloads
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && !rp_is_bot() && !rp_is_admin()) {
     $now = time();
     $ip = rp_client_ip();
     $ua = substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 300);

@@ -8,5 +8,10 @@ $s = rp_settings();
 rp_json(200, [
     'ok' => true,
     'cv' => ['enabled' => $s['cvEnabled']],
+    'preloader' => $s['preloader'],
+    'autoScroll' => $s['autoScroll'],
     'music' => ['src' => rp_music_src($s), 'autoplay' => $s['music']['autoplay'], 'volume' => $s['music']['volume']],
+    'video' => $s['video']['enabled'] && ($s['video']['youtube'] !== '' || $s['video']['src'] !== '')
+        ? ['youtube' => $s['video']['youtube'], 'src' => $s['video']['src'], 'opacity' => $s['video']['opacity']]
+        : null,
 ]);

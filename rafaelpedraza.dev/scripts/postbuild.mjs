@@ -22,7 +22,7 @@ if (existsSync(dataDir)) for (const f of readdirSync(dataDir)) if (f.endsWith('.
 
 const must = [
   'index.html', '.htaccess', 'robots.txt', 'sitemap.xml', 'site.webmanifest', 'images/og-image.jpg', 'cv/Rafael-Pedraza-CV.pdf', 'cv/.htaccess',
-  'api/config.php', 'api/contact.php', 'api/visits.php', 'api/cv.php', 'api/site.php', 'api/auth.php', 'api/experience.php', 'api/stack.php',
+  'api/config.php', 'api/contact.php', 'api/visits.php', 'api/cv.php', 'api/site.php', 'api/auth.php', 'api/experience.php', 'api/stack.php', 'api/subscribe.php', 'api/subscribers.php',
   'api/seed/experience.json', 'api/seed/stack.json',
   'admin/index.html', 'admin/sw.js', 'admin/manifest.webmanifest',
 ]

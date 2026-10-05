@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react'
 import { api, toast } from '../api'
 import { Card, CardTitle, Toggle, btnGhost, btnPrimary } from '../ui'
 
-type Prefs = { mensajes: boolean; descargas: boolean; visitas: boolean }
-const DEFAULT_PREFS: Prefs = { mensajes: true, descargas: true, visitas: false }
+type Prefs = { mensajes: boolean; suscriptores: boolean; descargas: boolean; visitas: boolean }
+const DEFAULT_PREFS: Prefs = { mensajes: true, suscriptores: true, descargas: true, visitas: false }
 const TYPES: { id: keyof Prefs; label: string; detail: string }[] = [
   { id: 'mensajes', label: 'Mensajes nuevos', detail: 'Al instante, cuando alguien te escribe desde el formulario.' },
+  { id: 'suscriptores', label: 'Suscriptores nuevos', detail: 'Cuando alguien deja su correo en el pie de página del sitio.' },
   { id: 'descargas', label: 'Descargas de tu CV', detail: 'Cada vez que alguien descarga tu hoja de vida.' },
   { id: 'visitas', label: 'Visitantes nuevos', detail: 'Cuando entra alguien desde una IP nueva (puede ser frecuente).' },
 ]

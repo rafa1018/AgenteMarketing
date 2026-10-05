@@ -6,7 +6,6 @@ import { useFinePointer } from '@/hooks/useMediaQuery'
 import { useCvEnabled } from '@/hooks/useSite'
 import { Button } from '@/components/ui/Button'
 import { HeroPortrait } from './hero/HeroPortrait'
-import { VisitCounter } from '@/components/ui/VisitCounter'
 import { EASE_OUT, scrollToId } from '@/lib/utils'
 import { useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
@@ -154,7 +153,6 @@ export function Hero({ ready }: { ready: boolean }) {
             </div>
           ))}
         </dl>
-        <VisitCounter />
       </motion.div>
       <motion.button
         type="button"

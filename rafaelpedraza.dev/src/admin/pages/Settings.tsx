@@ -1,9 +1,10 @@
-import { Download, ExternalLink, FileText, Gauge, HardDriveDownload, LogOut, RotateCcw, Save, Smartphone } from 'lucide-react'
+import { ChevronsDown, Download, ExternalLink, FileText, Gauge, HardDriveDownload, Loader, LogOut, RotateCcw, Save, Smartphone } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, logout, toast, type Settings, type Stats } from '../api'
 import { Card, CardTitle, Confirm, PageHead, Toggle, btnDanger, btnGhost, btnPrimary, field, label } from '../ui'
 import { Notifications } from './Notifications'
 import { TelegramCard } from './Telegram'
+import { VideoCard } from './VideoCard'
 
 /* Chrome's "install app" prompt (Android / desktop) */
 type InstallEvent = Event & { prompt: () => Promise<void> }
@@ -45,6 +46,24 @@ export function SettingsPage({ tick }: { tick: number }) {
     if (!data?.ok) return toast('No se pudo guardar.')
     setSettings(data.settings)
     toast(enabled ? 'El botón "Descargar CV" ya se muestra en el sitio.' : 'El botón "Descargar CV" quedó oculto en todo el sitio.')
+  }
+
+  const setPreloader = async (enabled: boolean) => {
+    setBusy(true)
+    const { data } = await api.post<{ settings: Settings }>('settings.php', { action: 'preloader', enabled })
+    setBusy(false)
+    if (!data?.ok) return toast('No se pudo guardar.')
+    setSettings(data.settings)
+    toast(enabled ? 'La pantalla de carga se mostrará al entrar al sitio.' : 'Pantalla de carga apagada: el sitio abre directo en la portada.')
+  }
+
+  const setAutoScroll = async (enabled: boolean) => {
+    setBusy(true)
+    const { data } = await api.post<{ settings: Settings }>('settings.php', { action: 'autoScroll', enabled })
+    setBusy(false)
+    if (!data?.ok) return toast('No se pudo guardar.')
+    setSettings(data.settings)
+    toast(enabled ? 'El botón de recorrido automático ya se muestra en el sitio.' : 'Botón de recorrido automático oculto.')
   }
 
   const saveCount = async (e: FormEvent) => {
@@ -94,6 +113,35 @@ export function SettingsPage({ tick }: { tick: number }) {
         </Card>
 
         <Card>
+          <CardTitle icon={Loader}>Experiencia del visitante</CardTitle>
+          <ul className="divide-y divide-line">
+            <li className="flex items-start justify-between gap-4 pb-3">
+              <span>
+                <span className="block text-[15px] text-fg">Pantalla de carga</span>
+                <span className="block text-sm text-muted">
+                  {settings?.preloader === false ? 'Apagada: el sitio abre directo en la portada.' : 'Animación de arranque (logo + barra) antes de la portada; se puede saltar.'}
+                </span>
+              </span>
+              <Toggle on={settings?.preloader ?? false} onChange={setPreloader} disabled={!settings || busy} label="Mostrar pantalla de carga" />
+            </li>
+            <li className="flex items-start justify-between gap-4 pt-3">
+              <span>
+                <span className="flex items-center gap-1.5 text-[15px] text-fg">
+                  <ChevronsDown size={15} className="text-cyan" /> Recorrido automático
+                </span>
+                <span className="block text-sm text-muted">
+                  {settings?.autoScroll === false
+                    ? 'Oculto: el visitante recorre la página con su dedo o mouse.'
+                    : 'Botón que hace bajar la página sola a velocidad de lectura (ideal en el celular). Se detiene al tocar la pantalla.'}
+                </span>
+              </span>
+              <Toggle on={settings?.autoScroll ?? false} onChange={setAutoScroll} disabled={!settings || busy} label="Mostrar botón de recorrido automático" />
+            </li>
+          </ul>
+          <p className="mt-3 text-xs text-dim">Quien tenga activado "reducir movimiento" en su dispositivo nunca ve la pantalla de carga.</p>
+        </Card>
+
+        <Card>
           <CardTitle icon={Gauge} sub="Suma una vez por IP. Tus visitas con la sesión del panel abierta no cuentan.">
             Contador de visitas
           </CardTitle>
@@ -116,11 +164,13 @@ export function SettingsPage({ tick }: { tick: number }) {
 
         <TelegramCard settings={settings} onChange={setSettings} />
 
+        <VideoCard settings={settings} onChange={setSettings} />
+
         <div className="space-y-4">
           <Card>
             <CardTitle icon={HardDriveDownload}>Copia de seguridad</CardTitle>
             <p className="text-sm leading-relaxed text-muted">
-              Tus datos (experiencia, stack, mensajes, visitas, descargas y ajustes) se guardan en el servidor, fuera de la carpeta de la página: publicar una nueva versión no los borra. Además se hace una copia
+              Tus datos (experiencia, stack, suscriptores, mensajes, visitas, descargas y ajustes) se guardan en el servidor, fuera de la carpeta de la página: publicar una nueva versión no los borra. Además se hace una copia
               automática cada día (se guardan los últimos 14 días). Si quieres una copia en tu celular o computador, descárgala aquí.
             </p>
             <a href="/api/backup.php" className={`${btnGhost} mt-4`}>

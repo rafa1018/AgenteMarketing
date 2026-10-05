@@ -159,6 +159,12 @@ export const ui = {
     cardTitle: { es: '¿Conoces a alguien que necesite un ingeniero?', en: 'Know someone who needs an engineer?' },
     cardText: { es: 'Comparte este perfil en tus redes.', en: 'Share this profile on your networks.' },
   },
+  backToTop: { es: 'Volver arriba', en: 'Back to top' },
+  autoScroll: {
+    start: { es: 'Recorrido automático: la página baja sola', en: 'Auto tour: the page scrolls by itself' },
+    stop: { es: 'Detener recorrido automático', en: 'Stop auto tour' },
+    speed: { es: 'Velocidad', en: 'Speed' },
+  },
   music: {
     label: { es: 'Música', en: 'Music' },
     playing: { es: 'Sonando', en: 'Playing' },
@@ -166,6 +172,19 @@ export const ui = {
     off: { es: 'Pausar música de fondo', en: 'Pause background music' },
     tap: { es: 'Activar sonido', en: 'Enable sound' },
     volume: { es: 'Volumen', en: 'Volume' },
+  },
+  subscribe: {
+    title: { es: 'Suscríbete', en: 'Subscribe' },
+    text: { es: 'Recibe novedades sobre mis proyectos y lo que estoy construyendo.', en: 'Get updates on my projects and what I am building.' },
+    placeholder: { es: 'tu@correo.com', en: 'you@email.com' },
+    label: { es: 'Tu correo electrónico', en: 'Your email address' },
+    button: { es: 'Suscribirme', en: 'Subscribe' },
+    note: { es: 'Sin spam. Solo novedades importantes.', en: 'No spam. Only important updates.' },
+    subscribed: { es: '¡Listo! Ya estás suscrito. Gracias por seguir mi trabajo.', en: "Done! You're subscribed. Thanks for following my work." },
+    already: { es: 'Este correo ya está suscrito. ¡Gracias por seguir aquí!', en: 'This email is already subscribed. Thanks for staying!' },
+    invalid: { es: 'Escribe un correo válido, por ejemplo nombre@dominio.com.', en: 'Enter a valid email, e.g. name@domain.com.' },
+    rate_limited: { es: 'Demasiados intentos. Prueba de nuevo en un rato.', en: 'Too many attempts. Please try again later.' },
+    error: { es: 'No se pudo completar la suscripción. Intenta de nuevo.', en: 'Subscription failed. Please try again.' },
   },
   footer: {
     tagline: { es: 'Ingeniero Full Stack | Ingeniería de Software', en: 'Full Stack Engineer | Software Engineering' },

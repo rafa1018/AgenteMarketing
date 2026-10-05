@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { BarChart3, Briefcase, ExternalLink, Home, Layers, Loader2, LogIn, LogOut, Mail, Monitor, Moon, MoreHorizontal, Music2, RefreshCw, Settings as SettingsIcon, Sun } from 'lucide-react'
+import { BarChart3, Briefcase, ExternalLink, Home, Layers, Loader2, LogIn, LogOut, Mail, Monitor, Moon, MoreHorizontal, Music2, RefreshCw, Settings as SettingsIcon, Sun, Users } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Logo } from '@/components/ui/Logo'
 import { cn } from '@/lib/utils'
@@ -11,6 +11,7 @@ import { MessagesPage } from './pages/Messages'
 import { VisitsPage } from './pages/Visits'
 import { ExperiencePage } from './pages/Experience'
 import { StackPage } from './pages/Stack'
+import { SubscribersPage } from './pages/Subscribers'
 import { MusicPage } from './pages/Music'
 import { SettingsPage } from './pages/Settings'
 
@@ -20,6 +21,7 @@ const PAGES = [
   { id: 'mensajes', label: 'Mensajes', icon: Mail, view: MessagesPage, main: true },
   { id: 'visitas', label: 'Visitas', icon: BarChart3, view: VisitsPage, main: true },
   { id: 'experiencia', label: 'Experiencia', icon: Briefcase, view: ExperiencePage, main: true },
+  { id: 'suscriptores', label: 'Suscriptores', icon: Users, view: SubscribersPage, main: false },
   { id: 'stack', label: 'Stack', icon: Layers, view: StackPage, main: false },
   { id: 'musica', label: 'Música', icon: Music2, view: MusicPage, main: false },
   { id: 'ajustes', label: 'Ajustes', icon: SettingsIcon, view: SettingsPage, main: false },

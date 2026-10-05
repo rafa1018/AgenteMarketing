@@ -140,7 +140,11 @@ export type Stats = { visits: { count: number; unique: number }; visitLog: Visit
 export type Message = { id: string; t: number; name: string; phone: string; subject: string; message: string; lang: string; ip: string; device: string; read: boolean; place?: string; cc?: string }
 export type Settings = {
   cvEnabled: boolean
+  preloader: boolean
+  autoScroll: boolean
   music: { enabled: boolean; autoplay: boolean; volume: number; mode: 'default' | 'url' | 'file'; url: string; file: string; name: string; updatedAt: string }
+  /** background video of the Manifesto section */
+  video: { enabled: boolean; youtube: string; src: string; opacity: number }
   /** the bot token itself never reaches the browser, only its last characters */
   telegram: { enabled: boolean; chatId: string; tokenHint: string; source: 'panel' | 'config' }
 }

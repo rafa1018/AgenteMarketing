@@ -31,9 +31,10 @@ export async function sendContact(payload: ContactPayload): Promise<{ ok: true }
 }
 
 /** Settings managed from the admin panel: whether the CV can be downloaded and which music plays. */
-export type SiteSettings = { cv: { enabled: boolean }; music: { src: string | null; autoplay: boolean; volume: number } }
+export type SiteVideo = { youtube: string; src: string; opacity: number }
+export type SiteSettings = { cv: { enabled: boolean }; preloader: boolean; autoScroll: boolean; music: { src: string | null; autoplay: boolean; volume: number }; video: SiteVideo | null }
 
-const SITE_FALLBACK: SiteSettings = { cv: { enabled: true }, music: { src: '/audio/background.mp3', autoplay: true, volume: 80 } }
+const SITE_FALLBACK: SiteSettings = { cv: { enabled: true }, preloader: true, autoScroll: true, music: { src: '/audio/background.mp3', autoplay: true, volume: 80 }, video: null }
 let sitePromise: Promise<SiteSettings> | null = null
 const siteListeners = new Set<(s: SiteSettings) => void>()
 
@@ -44,7 +45,10 @@ function fetchSite(): Promise<SiteSettings> {
       d?.ok
         ? {
             cv: { enabled: Boolean(d.cv?.enabled) },
+            preloader: d.preloader !== false,
+            autoScroll: d.autoScroll !== false,
             music: { src: d.music?.src ?? null, autoplay: d.music?.autoplay !== false, volume: Math.max(0, Math.min(100, Number(d.music?.volume ?? 80))) },
+            video: d.video ? { youtube: String(d.video.youtube ?? ''), src: String(d.video.src ?? ''), opacity: Number(d.video.opacity ?? 30) } : null,
           }
         : SITE_FALLBACK,
     )
@@ -69,6 +73,22 @@ if (typeof document !== 'undefined') {
     sitePromise = next
     next.then((s) => siteListeners.forEach((f) => f(s)))
   })
+}
+
+export type SubscribeResult = 'subscribed' | 'already' | 'invalid' | 'rate_limited' | 'error'
+
+/** Footer newsletter form. */
+export async function subscribe(payload: { email: string; lang: 'es' | 'en'; website: string; elapsed: number }): Promise<SubscribeResult> {
+  try {
+    const res = await fetch(`${BASE}/subscribe.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    const data = await res.json().catch(() => null)
+    if (res.ok && data?.ok) return data.already ? 'already' : 'subscribed'
+    if (res.status === 422) return 'invalid'
+    if (res.status === 429) return 'rate_limited'
+    return 'error'
+  } catch {
+    return 'error'
+  }
 }
 
 const VISIT_KEY = 'rp-visit-counted'

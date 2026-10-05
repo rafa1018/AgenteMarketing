@@ -178,7 +178,7 @@ export function MusicToggle({ visible }: { visible: boolean }) {
 
   return (
     <motion.div
-      className="fixed right-4 bottom-4 z-50 flex items-center gap-2 sm:right-6 sm:bottom-6"
+      className="flex items-center gap-2"
       initial={{ opacity: 0, y: 16 }}
       animate={visible ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.6, delay: 0.6 }}

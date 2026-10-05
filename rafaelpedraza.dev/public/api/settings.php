@@ -2,11 +2,14 @@
 // Admin only — site settings.
 // GET  /api/settings.php                                → { settings, musicSrc }
 // POST /api/settings.php {action:"cv", enabled}           → show / hide every "Descargar CV" button
+// POST /api/settings.php {action:"preloader", enabled}    → show / skip the intro (boot) screen
+// POST /api/settings.php {action:"autoScroll", enabled}   → show / hide the "auto tour" button
 // POST /api/settings.php {action:"musicEnabled", enabled} → turn the background music on / off
 // POST /api/settings.php {action:"musicAutoplay", autoplay} → start playing by itself or wait for the visitor
 // POST /api/settings.php {action:"musicVolume", volume}   → starting volume 0–100
 // POST /api/settings.php {action:"musicUrl", url}         → play an mp3 from a URL
 // POST /api/settings.php {action:"musicDefault"}          → back to the original track
+// POST /api/settings.php {action:"videoEnabled", enabled} / {action:"videoUrl", url} / {action:"videoOpacity", opacity}
 // POST /api/settings.php {action:"telegramEnabled", enabled} / {action:"telegramSave", token?, chatId}
 // POST /api/settings.php {action:"telegramReset"} / {action:"telegramTest"}
 // POST /api/settings.php  multipart: action=musicUpload, file=<.mp3>  (X-CSRF-Token header)
@@ -91,6 +94,24 @@ if ($action === 'cv') {
     rp_json(200, settings_out());
 }
 
+if ($action === 'preloader') {
+    $on = (bool) ($in['enabled'] ?? true);
+    settings_save($file, function (array $s) use ($on) {
+        $s['preloader'] = $on;
+        return $s;
+    });
+    rp_json(200, settings_out());
+}
+
+if ($action === 'autoScroll') {
+    $on = (bool) ($in['enabled'] ?? true);
+    settings_save($file, function (array $s) use ($on) {
+        $s['autoScroll'] = $on;
+        return $s;
+    });
+    rp_json(200, settings_out());
+}
+
 if ($action === 'telegramEnabled') {
     $on = (bool) ($in['enabled'] ?? true);
     settings_save($file, function (array $s) use ($on) {
@@ -153,6 +174,46 @@ if ($action === 'musicVolume') {
     if ($v === false) rp_json(422, ['ok' => false, 'error' => 'volume']);
     settings_save($file, function (array $s) use ($v) {
         $s['music']['volume'] = $v;
+        return $s;
+    });
+    rp_json(200, settings_out());
+}
+
+if ($action === 'videoEnabled') {
+    $on = (bool) ($in['enabled'] ?? false);
+    $s = rp_settings();
+    if ($on && $s['video']['youtube'] === '' && $s['video']['src'] === '') rp_json(422, ['ok' => false, 'error' => 'video_missing']);
+    settings_save($file, function (array $s) use ($on) {
+        $s['video']['enabled'] = $on;
+        return $s;
+    });
+    rp_json(200, settings_out());
+}
+
+if ($action === 'videoUrl') {
+    // a YouTube link (watch?v=, youtu.be/, shorts/, embed/) or a direct https link to an .mp4/.webm file
+    $url = trim((string) ($in['url'] ?? ''));
+    $yt = '';
+    $src = '';
+    if (preg_match('#^https?://(?:www\.|m\.)?(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|live/)|youtu\.be/|youtube-nocookie\.com/embed/)([A-Za-z0-9_-]{11})#i', $url, $m)) {
+        $yt = $m[1];
+    } elseif (preg_match('#^https://[^\s"\'<>]+\.(mp4|webm)(\?[^\s"\'<>]*)?$#i', $url) && strlen($url) <= 1000) {
+        $src = $url;
+    } else {
+        rp_json(422, ['ok' => false, 'error' => 'video_url']);
+    }
+    settings_save($file, function (array $s) use ($yt, $src) {
+        $s['video'] = array_merge($s['video'], ['enabled' => true, 'youtube' => $yt, 'src' => $src]);
+        return $s;
+    });
+    rp_json(200, settings_out());
+}
+
+if ($action === 'videoOpacity') {
+    $v = filter_var($in['opacity'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 5, 'max_range' => 100]]);
+    if ($v === false) rp_json(422, ['ok' => false, 'error' => 'validation']);
+    settings_save($file, function (array $s) use ($v) {
+        $s['video']['opacity'] = $v;
         return $s;
     });
     rp_json(200, settings_out());

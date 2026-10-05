@@ -51,7 +51,7 @@ function rp_migrate_data(string $from, string $to): void
 }
 
 /** Data files that make up a backup (keys, rate limits and the music file are left out). */
-const RP_BACKUP_FILES = ['experience', 'stack', 'visits', 'visitlog', 'downloads', 'messages', 'settings', 'push', 'geo'];
+const RP_BACKUP_FILES = ['experience', 'stack', 'subscribers', 'visits', 'visitlog', 'downloads', 'messages', 'settings', 'push', 'geo'];
 
 /** Once a day: copy the JSON data to <data>/backups/YYYY-MM-DD and keep the last 14 days. */
 function rp_daily_backup(): void
@@ -211,6 +211,8 @@ function rp_settings_from(array $s): array
     $music = (array) ($s['music'] ?? []);
     return [
         'cvEnabled' => (bool) ($s['cvEnabled'] ?? true),
+        'preloader' => (bool) ($s['preloader'] ?? true), // intro/boot screen shown while the site loads
+        'autoScroll' => (bool) ($s['autoScroll'] ?? true), // "auto tour" button (page scrolls by itself at reading pace)
         'music' => [
             'enabled' => (bool) ($music['enabled'] ?? true),
             'autoplay' => (bool) ($music['autoplay'] ?? true),                       // starts by itself when the page opens
@@ -220,6 +222,13 @@ function rp_settings_from(array $s): array
             'file' => (string) ($music['file'] ?? ''),
             'name' => (string) ($music['name'] ?? ''),
             'updatedAt' => (string) ($music['updatedAt'] ?? ''),
+        ],
+        'video' => [
+            // background video of the Manifesto section (off until turned on from the admin panel)
+            'enabled' => (bool) ($s['video']['enabled'] ?? false),
+            'youtube' => preg_match('/^[A-Za-z0-9_-]{11}$/', (string) ($s['video']['youtube'] ?? '')) ? $s['video']['youtube'] : '',
+            'src' => (string) ($s['video']['src'] ?? ''),
+            'opacity' => max(5, min(100, (int) ($s['video']['opacity'] ?? 30))),
         ],
         'telegram' => [
             'enabled' => (bool) ($s['telegram']['enabled'] ?? true),

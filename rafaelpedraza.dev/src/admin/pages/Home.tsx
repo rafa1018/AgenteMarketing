@@ -15,9 +15,11 @@ export function HomePage({ tick }: { tick: number }) {
   const firstName = session.status === 'in' ? session.name.split(' ')[0] : ''
   const [stats, setStats] = useState<Stats | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+  const [subs, setSubs] = useState<{ t: number }[] | null>(null)
 
   useEffect(() => {
     api.get<Stats>('stats.php').then(({ data }) => data?.ok && setStats(data))
+    api.get<{ subscribers: { t: number }[] }>('subscribers.php').then(({ data }) => data?.ok && setSubs(data.subscribers))
     api.get<{ messages: Message[]; unread: number }>('messages.php').then(({ data }) => {
       if (!data?.ok) return
       setMessages(data.messages)
@@ -51,10 +53,13 @@ export function HomePage({ tick }: { tick: number }) {
         {greeting()}, <span className="font-medium text-fg">{firstName}</span> 👋
       </p>
       <PageHead title="Resumen" sub="Lo que está pasando en rafaelpedraza.dev" />
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
         <Stat label="Visitas (contador)" value={stats?.visits.count ?? '—'} hint="Una por IP, sin contarte a ti" tone="text-cyan" />
         <Stat label="Visitas hoy" value={today ?? '—'} hint="Incluye visitantes que regresan" />
         <Stat label="Descargas del CV" value={stats?.downloads.count ?? '—'} hint="Desde que se activó el conteo" />
+        <a href="#/suscriptores" className="contents">
+          <Stat label="Suscriptores" value={subs?.length ?? '—'} hint={subs ? `+${subs.filter((s) => s.t > Date.now() / 1000 - 7 * 86400).length} esta semana` : undefined} tone="text-ok" />
+        </a>
         <Stat label="Mensajes sin leer" value={unread} hint={`${messages.length} en total`} tone={unread ? 'text-volt' : 'text-fg'} />
       </div>
 

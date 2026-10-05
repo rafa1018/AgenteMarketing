@@ -4,6 +4,7 @@ import { profile } from '@/data/profile'
 import { useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
 import { cn } from '@/lib/utils'
+import { ManifestoVideo } from './ManifestoVideo'
 
 const KEY = new Set<string>(profile.centralKeywords)
 
@@ -35,7 +36,8 @@ export function Manifesto() {
 
   return (
     <section id="manifesto" ref={ref} aria-label="Manifesto" className={cn('relative', reduce ? 'py-32' : 'h-[210vh]')}>
-      <div className={cn('flex flex-col items-center justify-center overflow-hidden', !reduce && 'sticky top-0 h-svh')}>
+      <div className={cn('relative flex flex-col items-center justify-center overflow-hidden', !reduce && 'sticky top-0 h-svh')}>
+        <ManifestoVideo />
         {/* the hero line continues down into the statement */}
         <motion.span aria-hidden className="absolute top-0 left-1/2 h-[22vh] w-px origin-top bg-gradient-to-b from-cyan/0 via-cyan/70 to-cyan/0" style={{ scaleY: reduce ? 1 : lineScale }} />
         <motion.div aria-hidden className="absolute top-1/2 left-1/2 h-[60vh] w-[80vw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(47_140_255/0.25),transparent)]" style={{ opacity: glow }} />

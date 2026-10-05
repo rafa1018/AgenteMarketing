@@ -3,7 +3,7 @@
 // Included by push.php, contact.php, visits.php and cv.php — never called directly (.htaccess denies it).
 defined('RP_API') || exit;
 
-const PUSH_TYPES = ['mensajes', 'descargas', 'visitas'];
+const PUSH_TYPES = ['mensajes', 'suscriptores', 'descargas', 'visitas'];
 
 function b64u_enc(string $s): string
 {

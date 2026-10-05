@@ -24,7 +24,7 @@ foreach (RP_BACKUP_FILES as $f) {
     if (is_file("$dir/$f.json")) $zip->addFile("$dir/$f.json", "$f.json");
 }
 $zip->addFromString('LEEME.txt', "Copia de seguridad de rafaelpedraza.dev — " . date('Y-m-d H:i') . "\r\n"
-    . "Incluye experiencia profesional, stack tecnológico, mensajes, visitas, descargas del CV y ajustes (la música subida no se incluye).\r\n"
+    . "Incluye experiencia profesional, stack tecnológico, suscriptores, mensajes, visitas, descargas del CV y ajustes (la música subida no se incluye).\r\n"
     . "Para restaurar: sube estos archivos a la carpeta rp-data del hosting (al lado de public_html).\r\n");
 $zip->close();
 
