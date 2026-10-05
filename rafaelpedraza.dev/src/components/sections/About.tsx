@@ -3,7 +3,7 @@ import { BadgeCheck, MapPin, GraduationCap, X, ZoomIn } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { profile } from '@/data/profile'
-import { experience, education } from '@/data/experience'
+import { education, experienceSeed, useExperience } from '@/data/experience'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { AnimatedCounter, FadeIn, RevealItem, ScrollReveal, TiltCard } from '@/components/animations'
 import { useT } from '@/i18n'
@@ -67,6 +67,7 @@ function PhotoViewer({ open, onClose }: { open: boolean; onClose: () => void }) 
 
 export function About() {
   const t = useT()
+  const roles = (useExperience() ?? experienceSeed).length
   const [zoom, setZoom] = useState(false)
   return (
     <section id="about" className="relative py-20 sm:py-28">
@@ -163,7 +164,7 @@ export function About() {
 
             <ScrollReveal className="mt-10 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line xl:grid-cols-4">
               {profile.indicators.map((ind) => {
-                const value = ind.value === 'roles' ? experience.length : ind.value
+                const value = ind.value === 'roles' ? roles : ind.value
                 return (
                   <RevealItem key={ind.label.en} className="bg-abyss p-5">
                     <div className="font-display text-4xl font-semibold tracking-tight text-fg sm:text-5xl">

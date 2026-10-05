@@ -1,0 +1,3 @@
+# The CV is never served directly: /api/cv.php reads it (PHP ignores this rule), so the
+# "Descargar CV" switch in the admin panel is respected and every download is counted.
+Require all denied

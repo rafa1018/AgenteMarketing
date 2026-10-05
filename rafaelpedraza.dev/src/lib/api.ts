@@ -30,6 +30,47 @@ export async function sendContact(payload: ContactPayload): Promise<{ ok: true }
   }
 }
 
+/** Settings managed from the admin panel: whether the CV can be downloaded and which music plays. */
+export type SiteSettings = { cv: { enabled: boolean }; music: { src: string | null; autoplay: boolean; volume: number } }
+
+const SITE_FALLBACK: SiteSettings = { cv: { enabled: true }, music: { src: '/audio/background.mp3', autoplay: true, volume: 80 } }
+let sitePromise: Promise<SiteSettings> | null = null
+const siteListeners = new Set<(s: SiteSettings) => void>()
+
+function fetchSite(): Promise<SiteSettings> {
+  return fetch(`${BASE}/site.php`, { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) =>
+      d?.ok
+        ? {
+            cv: { enabled: Boolean(d.cv?.enabled) },
+            music: { src: d.music?.src ?? null, autoplay: d.music?.autoplay !== false, volume: Math.max(0, Math.min(100, Number(d.music?.volume ?? 80))) },
+          }
+        : SITE_FALLBACK,
+    )
+    .catch(() => SITE_FALLBACK)
+}
+
+export function loadSite(): Promise<SiteSettings> {
+  sitePromise ??= fetchSite()
+  return sitePromise
+}
+
+/** Calls `fn` whenever the settings change while the page is open (checked when the visitor comes back to the tab). */
+export function onSiteChange(fn: (s: SiteSettings) => void): () => void {
+  siteListeners.add(fn)
+  return () => siteListeners.delete(fn)
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !siteListeners.size) return
+    const next = fetchSite()
+    sitePromise = next
+    next.then((s) => siteListeners.forEach((f) => f(s)))
+  })
+}
+
 const VISIT_KEY = 'rp-visit-counted'
 let visitsPromise: Promise<number | null> | null = null
 
@@ -42,7 +83,15 @@ export function loadVisits(): Promise<number | null> {
   } catch {
     /* ignore */
   }
-  visitsPromise = fetch(`${BASE}/visits.php`, { method: counted ? 'GET' : 'POST' })
+  const visit = counted
+    ? undefined
+    : JSON.stringify({
+        ref: document.referrer,
+        lang: navigator.language,
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        screen: `${screen.width}x${screen.height}`,
+      })
+  visitsPromise = fetch(`${BASE}/visits.php`, { method: counted ? 'GET' : 'POST', headers: visit ? { 'Content-Type': 'application/json' } : undefined, body: visit })
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => {
       if (!d?.ok) return null

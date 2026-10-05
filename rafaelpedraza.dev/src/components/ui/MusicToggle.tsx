@@ -3,9 +3,9 @@ import { Volume1, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
+import { loadSite } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
-const SRC = '/audio/background.mp3'
 const PREF_KEY = 'rp-music' // 'on' | 'off'
 const DEFAULT_VOLUME = 0.8
 
@@ -25,10 +25,10 @@ const write = (k: string, v: string) => {
 }
 
 /**
- * Background music, on by default.
+ * Background music. Whether it starts by itself and at what volume is set in the admin panel.
  * Browsers block audible autoplay until the visitor interacts with the page,
  * so we try immediately and otherwise start on the first click / tap / key.
- * A visitor who pauses it is remembered. Hidden if the audio file is missing.
+ * A visitor who pauses it is remembered. Hidden if the music is turned off in the admin panel or the file is missing.
  */
 export function MusicToggle({ visible }: { visible: boolean }) {
   const t = useT()
@@ -37,21 +37,40 @@ export function MusicToggle({ visible }: { visible: boolean }) {
   const [available, setAvailable] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [blocked, setBlocked] = useState(false) // waiting for a user gesture
-  // Every visit starts at the default volume (80 %); the slider only affects the current visit.
+  // Every visit starts at the volume set in the admin panel (80 % by default); the slider only affects the current visit.
   const [volume, setVolume] = useState(DEFAULT_VOLUME)
   const [open, setOpen] = useState(false)
   const volumeRef = useRef(volume)
   volumeRef.current = volume
 
+  const src = useRef<string | null>(null)
+  const autoplay = useRef(true)
+
+  // The track (or "no music"), whether it starts by itself and the starting volume are chosen in the
+  // admin panel. Local files are checked first; an external URL is trusted until the browser fails to load it.
   useEffect(() => {
-    fetch(SRC, { method: 'HEAD' })
-      .then((r) => setAvailable(r.ok && (r.headers.get('content-type') ?? '').startsWith('audio')))
-      .catch(() => setAvailable(false))
+    let alive = true
+    loadSite().then(async ({ music }) => {
+      if (!alive || !music.src) return
+      src.current = music.src
+      autoplay.current = music.autoplay
+      setVolume(music.volume / 100)
+      if (/^https?:\/\//i.test(music.src)) return setAvailable(true)
+      const r = await fetch(music.src, { method: 'HEAD' }).catch(() => null)
+      if (alive) setAvailable(Boolean(r?.ok && (r.headers.get('content-type') ?? '').startsWith('audio')))
+    })
+    return () => {
+      alive = false
+    }
   }, [])
 
   const getAudio = () => {
     if (!audio.current) {
-      const el = new Audio(SRC)
+      const el = new Audio(src.current ?? undefined)
+      el.addEventListener('error', () => {
+        setAvailable(false)
+        setPlaying(false)
+      })
       el.loop = true
       el.preload = 'auto'
       el.volume = 0
@@ -93,9 +112,10 @@ export function MusicToggle({ visible }: { visible: boolean }) {
     if (el) rampTo(el, 0, () => el.pause())
   }
 
-  // Autoplay: try right away; if the browser blocks it, start on the first interaction.
+  // Autoplay (when enabled in the admin panel): try right away; if the browser blocks it, start on the first interaction.
+  // With autoplay off the button is shown paused and the visitor decides.
   useEffect(() => {
-    if (!available || read(PREF_KEY) === 'off') return
+    if (!available || !autoplay.current || read(PREF_KEY) === 'off') return
     let cancelled = false
     const events = ['pointerdown', 'keydown', 'touchstart'] as const
     const onGesture = () => {

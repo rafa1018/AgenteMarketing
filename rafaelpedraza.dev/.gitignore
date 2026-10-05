@@ -8,5 +8,8 @@ public/api/config.php
 public/api/data/*.json
 .api-data/
 
+# SSH deploy settings (npm run deploy)
+.deploy.local.json
+
 # Hostinger upload package
 rafaelpedraza-hostinger.zip

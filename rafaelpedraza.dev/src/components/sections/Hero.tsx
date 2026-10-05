@@ -3,6 +3,7 @@ import { ArrowDown, ArrowRight, Download, Mail } from 'lucide-react'
 import { useRef, type PointerEvent } from 'react'
 import { profile } from '@/data/profile'
 import { useFinePointer } from '@/hooks/useMediaQuery'
+import { useCvEnabled } from '@/hooks/useSite'
 import { Button } from '@/components/ui/Button'
 import { HeroPortrait } from './hero/HeroPortrait'
 import { VisitCounter } from '@/components/ui/VisitCounter'
@@ -37,6 +38,7 @@ function SplitName({ text, ready, delay, className, gradient }: { text: string; 
 
 export function Hero({ ready }: { ready: boolean }) {
   const t = useT()
+  const cvEnabled = useCvEnabled()
   const ref = useRef<HTMLElement>(null)
   const fine = useFinePointer()
   const mxRaw = useMotionValue(0)
@@ -126,9 +128,11 @@ export function Hero({ ready }: { ready: boolean }) {
             <Button icon={ArrowRight} iconRight onClick={() => scrollToId('experience')}>
               {t(ui.hero.explore)}
             </Button>
-            <Button variant="secondary" icon={Download} href={profile.links.cv} download>
-              {t(ui.nav.downloadCv)}
-            </Button>
+            {cvEnabled && (
+              <Button variant="secondary" icon={Download} href={profile.links.cv} download>
+                {t(ui.nav.downloadCv)}
+              </Button>
+            )}
             <Button variant="ghost" icon={Mail} onClick={() => scrollToId('contact')} className="!px-3">
               {t(ui.hero.contact)}
             </Button>

@@ -1,0 +1,334 @@
+{
+  "backend": [
+    {
+      "id": "seed01",
+      "name": "C#",
+      "icon": "Hash",
+      "note": {
+        "es": "Lenguaje principal",
+        "en": "Primary language"
+      },
+      "active": true
+    },
+    {
+      "id": "seed02",
+      "name": ".NET",
+      "icon": "Layers",
+      "note": {
+        "es": "Aplicaciones empresariales",
+        "en": "Enterprise applications"
+      },
+      "active": true
+    },
+    {
+      "id": "seed03",
+      "name": "ASP.NET MVC",
+      "icon": "Server",
+      "note": {
+        "es": "Aplicaciones web FullStack",
+        "en": "Full-stack web apps"
+      },
+      "active": true
+    },
+    {
+      "id": "seed04",
+      "name": "Blazor",
+      "icon": "Component",
+      "note": {
+        "es": "UI por componentes en .NET",
+        "en": "Component UI on .NET"
+      },
+      "active": true
+    },
+    {
+      "id": "seed05",
+      "name": "Laravel",
+      "icon": "Leaf",
+      "note": {
+        "es": "Framework web PHP",
+        "en": "PHP web framework"
+      },
+      "active": true
+    },
+    {
+      "id": "seed06",
+      "name": "PHP",
+      "icon": "FileCodeCorner",
+      "note": {
+        "es": "Desarrollo web",
+        "en": "Web development"
+      },
+      "active": true
+    },
+    {
+      "id": "seed07",
+      "name": "Java",
+      "icon": "Coffee",
+      "note": {
+        "es": "Conocimientos básicos",
+        "en": "Basic knowledge"
+      },
+      "active": true
+    }
+  ],
+  "frontend": [
+    {
+      "id": "seed08",
+      "name": "Ionic",
+      "icon": "Smartphone",
+      "note": {
+        "es": "Apps móviles híbridas",
+        "en": "Hybrid mobile apps"
+      },
+      "active": true
+    },
+    {
+      "id": "seed09",
+      "name": "React Native",
+      "icon": "TabletSmartphone",
+      "note": {
+        "es": "Apps móviles nativas",
+        "en": "Native mobile apps"
+      },
+      "active": true
+    },
+    {
+      "id": "seed10",
+      "name": "Angular",
+      "icon": "Component",
+      "note": {
+        "es": "SPA empresariales",
+        "en": "Enterprise SPAs"
+      },
+      "active": true
+    },
+    {
+      "id": "seed11",
+      "name": "React",
+      "icon": "Atom",
+      "note": {
+        "es": "Interfaces por componentes",
+        "en": "Component interfaces"
+      },
+      "active": true
+    },
+    {
+      "id": "seed12",
+      "name": "TypeScript",
+      "icon": "Braces",
+      "note": {
+        "es": "JavaScript tipado",
+        "en": "Typed JavaScript"
+      },
+      "active": true
+    },
+    {
+      "id": "seed13",
+      "name": "JavaScript",
+      "icon": "CodeXml",
+      "note": {
+        "es": "El lenguaje de la web",
+        "en": "The language of the web"
+      },
+      "active": true
+    },
+    {
+      "id": "seed14",
+      "name": "HTML",
+      "icon": "Type",
+      "note": {
+        "es": "Estructura semántica",
+        "en": "Semantic structure"
+      },
+      "active": true
+    },
+    {
+      "id": "seed15",
+      "name": "CSS",
+      "icon": "Palette",
+      "note": {
+        "es": "Diseño responsive",
+        "en": "Responsive layouts"
+      },
+      "active": true
+    }
+  ],
+  "databases": [
+    {
+      "id": "seed16",
+      "name": "Oracle",
+      "icon": "Database",
+      "note": {
+        "es": "Base de datos empresarial",
+        "en": "Enterprise database"
+      },
+      "active": true
+    },
+    {
+      "id": "seed17",
+      "name": "PL/SQL",
+      "icon": "DatabaseZap",
+      "note": {
+        "es": "Procedimientos y paquetes",
+        "en": "Procedures & packages"
+      },
+      "active": true
+    },
+    {
+      "id": "seed18",
+      "name": "SQL Server",
+      "icon": "Table",
+      "note": {
+        "es": "Motor relacional Microsoft",
+        "en": "Microsoft relational engine"
+      },
+      "active": true
+    },
+    {
+      "id": "seed19",
+      "name": "PostgreSQL",
+      "icon": "Database",
+      "note": {
+        "es": "Motor relacional open source",
+        "en": "Open-source relational"
+      },
+      "active": true
+    },
+    {
+      "id": "seed20",
+      "name": "MySQL",
+      "icon": "Table",
+      "note": {
+        "es": "Base de datos relacional",
+        "en": "Relational database"
+      },
+      "active": true
+    },
+    {
+      "id": "seed21",
+      "name": "MongoDB",
+      "icon": "Boxes",
+      "note": {
+        "es": "Base de datos documental",
+        "en": "Document database"
+      },
+      "active": true
+    }
+  ],
+  "devops": [
+    {
+      "id": "seed22",
+      "name": "Azure DevOps",
+      "icon": "Workflow",
+      "note": {
+        "es": "Boards, repos y pipelines",
+        "en": "Boards, repos & pipelines"
+      },
+      "active": true
+    },
+    {
+      "id": "seed23",
+      "name": "Git",
+      "icon": "GitBranch",
+      "note": {
+        "es": "Control de versiones · TFS",
+        "en": "Version control · TFS"
+      },
+      "active": true
+    },
+    {
+      "id": "seed24",
+      "name": "Docker",
+      "icon": "Container",
+      "note": {
+        "es": "Contenedores",
+        "en": "Containers"
+      },
+      "active": true
+    },
+    {
+      "id": "seed25",
+      "name": "CI/CD",
+      "icon": "Infinity",
+      "note": {
+        "es": "Integración y entrega continua",
+        "en": "Continuous delivery"
+      },
+      "active": true
+    }
+  ],
+  "data": [
+    {
+      "id": "seed26",
+      "name": "ETL",
+      "icon": "Merge",
+      "note": {
+        "es": "Extracción · transformación · carga",
+        "en": "Extract · transform · load"
+      },
+      "active": true
+    },
+    {
+      "id": "seed27",
+      "name": "Talend",
+      "icon": "Workflow",
+      "note": {
+        "es": "Integración de datos",
+        "en": "Data integration"
+      },
+      "active": true
+    },
+    {
+      "id": "seed28",
+      "name": "JasperReports",
+      "icon": "FileSpreadsheet",
+      "note": {
+        "es": "Reportes institucionales",
+        "en": "Institutional reports"
+      },
+      "active": true
+    }
+  ],
+  "ai": [
+    {
+      "id": "seed29",
+      "name": "AI Agents",
+      "icon": "Bot",
+      "note": {
+        "es": "Agentes en el flujo de trabajo",
+        "en": "Agents in the workflow"
+      },
+      "active": true
+    },
+    {
+      "id": "seed30",
+      "name": "Claude",
+      "icon": "Sparkles",
+      "note": {
+        "es": "Asistente de ingeniería",
+        "en": "Engineering assistant"
+      },
+      "active": true
+    },
+    {
+      "id": "seed31",
+      "name": "Gemini",
+      "icon": "Sparkles",
+      "note": {
+        "es": "Asistente multimodal",
+        "en": "Multimodal assistant"
+      },
+      "active": true
+    },
+    {
+      "id": "seed32",
+      "name": "n8n",
+      "icon": "Webhook",
+      "note": {
+        "es": "Automatización de flujos",
+        "en": "Workflow automation"
+      },
+      "active": true
+    }
+  ]
+}

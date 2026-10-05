@@ -42,7 +42,9 @@ export const profile = {
     // Email and phone are intentionally not published: messages arrive via the contact form → Telegram.
     linkedin: 'https://www.linkedin.com/in/rafael-pedraza/',
     github: '[ADD GITHUB URL]',
-    cv: '/cv/Rafael-Pedraza-CV.pdf',
+    // served through the API so each download is counted and the admin can turn it off
+    // (the PDF lives in public/cv/, which .htaccess blocks from direct access)
+    cv: '/api/cv.php',
   },
 
   about: {

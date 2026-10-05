@@ -1,6 +1,8 @@
 <?php
-// POST /api/contact.php — validates the form and forwards it to Telegram.
+// POST /api/contact.php — validates the form, saves it in the admin inbox (messages.json),
+// then forwards it to Telegram and to the admin's phone (push).
 require __DIR__ . '/_bootstrap.php';
+require __DIR__ . '/_push.php';
 rp_check_origin($CONFIG);
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -71,47 +73,48 @@ if ($limited) {
     rp_json(429, ['ok' => false, 'error' => 'rate_limited']);
 }
 
-// Plain text (no parse_mode) so user input can never inject formatting or links.
+// Saved first: the admin inbox is the source of truth, Telegram and push are just notifications.
+$ip = rp_client_ip();
+$ua = substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 300);
+$msg = [
+    'id' => rp_uid(),
+    't' => $now,
+    'name' => $name,
+    'phone' => $phone,
+    'subject' => $subject,
+    'message' => $message,
+    'lang' => $lang,
+    'ip' => $ip,
+    'device' => rp_device($ua)['label'],
+    'read' => false,
+];
+rp_with_json(rp_data_dir() . '/messages.json', function (array $data) use ($msg) {
+    $data[] = $msg;
+    if (count($data) > 2000) $data = array_slice($data, -2000);
+    return [$data, null];
+});
+
+rp_json_then_continue(['ok' => true]);
+
+// ── after the response: location of the sender, phone notification and Telegram copy ──
+$geo = rp_geo($ip);
+$where = implode(', ', array_filter([$geo['city'], $geo['country']]));
+if ($where !== '') {
+    rp_with_json(rp_data_dir() . '/messages.json', function (array $data) use ($msg, $geo, $where) {
+        foreach ($data as $i => $m) if (($m['id'] ?? '') === $msg['id']) $data[$i] += ['place' => $where, 'cc' => $geo['cc']];
+        return [$data, null];
+    });
+}
+push_notify('mensajes', ['title' => "✉️ $name", 'body' => "$subject — " . mb_substr($message, 0, 120), 'url' => '/admin/#/mensajes', 'tag' => 'msg-' . $msg['id']]);
+
+// Telegram copy (can be turned off or re-pointed from the admin panel → Ajustes → Telegram).
+$tg = rp_telegram();
+if (!$tg['enabled']) exit;
+
 $text = "📩 Nuevo mensaje — rafaelpedraza.dev\n\n"
       . "👤 Nombre: {$name}\n"
       . "📞 Teléfono: {$phone}\n"
       . "📌 Asunto: {$subject}\n\n"
       . "💬 Mensaje:\n{$message}\n\n"
-      . '🌐 ' . strtoupper($lang) . ' · ' . date('Y-m-d H:i') . ' · ' . substr($client, 0, 8);
-
-$url = 'https://api.telegram.org/bot' . $CONFIG['telegram_bot_token'] . '/sendMessage';
-$payload = http_build_query([
-    'chat_id' => $CONFIG['telegram_chat_id'],
-    'text' => $text,
-    'disable_web_page_preview' => 'true',
-]);
-
-$ok = false;
-if (function_exists('curl_init')) {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $payload,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_TIMEOUT => 10,
-    ]);
-    $res = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    $ok = $res !== false && $code === 200;
-} else {
-    $ctx = stream_context_create(['http' => [
-        'method' => 'POST',
-        'header' => 'Content-Type: application/x-www-form-urlencoded',
-        'content' => $payload,
-        'timeout' => 10,
-    ]]);
-    $res = @file_get_contents($url, false, $ctx);
-    $ok = $res !== false && (json_decode($res, true)['ok'] ?? false);
-}
-
-if (!$ok) {
-    rp_json(502, ['ok' => false, 'error' => 'delivery']);
-}
-rp_json(200, ['ok' => true]);
+      . '🌐 ' . strtoupper($lang) . ' · ' . date('Y-m-d H:i') . ($where !== '' ? " · $where" : '');
+rp_telegram_send($tg['token'], $tg['chatId'], $text);

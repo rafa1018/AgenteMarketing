@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { techCategories, techCount, type CategoryId, type TechCategory, type Technology } from '@/data/technologies'
+import { CATEGORIES, useTechCategories, type CategoryId, type TechCategory, type Technology } from '@/data/technologies'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { FadeIn } from '@/components/animations'
 import { useIsDesktop } from '@/hooks/useMediaQuery'
@@ -10,8 +10,8 @@ import { ui } from '@/i18n/ui'
 
 type Focus = { cat: CategoryId; tech?: Technology } | null
 
-const left = techCategories.slice(0, 3)
-const right = techCategories.slice(3)
+// while the API answers, panels render empty (the section is far below the fold)
+const LOADING: TechCategory[] = CATEGORIES.map((c) => ({ ...c, items: [] }))
 
 function TechItem({ tech, onFocus, focused }: { tech: Technology; onFocus: (t: Technology | null) => void; focused: boolean }) {
   const t = useT()
@@ -73,9 +73,10 @@ function CategoryPanel({ cat, focus, setFocus, side, panelRef }: { cat: TechCate
 }
 
 /** Central SVG core: six sectors (one per category) that light up with the focused category. */
-function Core({ focus }: { focus: Focus }) {
+function Core({ focus, cats }: { focus: Focus; cats: TechCategory[] }) {
   const t = useT()
-  const idx = focus ? techCategories.findIndex((c) => c.id === focus.cat) : -1
+  const techCount = cats.reduce((n, c) => n + c.items.length, 0)
+  const idx = focus ? cats.findIndex((c) => c.id === focus.cat) : -1
   const sector = (i: number) => {
     const a0 = (i / 6) * Math.PI * 2 - Math.PI / 2 + 0.06
     const a1 = ((i + 1) / 6) * Math.PI * 2 - Math.PI / 2 - 0.06
@@ -87,7 +88,7 @@ function Core({ focus }: { focus: Focus }) {
       <div aria-hidden className={cn('absolute inset-[10%] rounded-full bg-[radial-gradient(closest-side,rgb(47_140_255/0.35),transparent)] transition-opacity duration-500', focus ? 'opacity-100' : 'opacity-60')} />
       <svg viewBox="0 0 200 200" className="absolute inset-0 h-full w-full" aria-hidden>
         <circle cx="100" cy="100" r="98" fill="none" stroke="rgb(120 165 230 / 0.12)" strokeWidth="0.5" />
-        {techCategories.map((c, i) => (
+        {cats.map((c, i) => (
           <path key={c.id} d={sector(i)} fill="none" strokeWidth={idx === i ? 3 : 1.4} strokeLinecap="round"
             stroke={idx === i ? '#52d3ff' : 'rgb(47 140 255 / 0.35)'} style={{ transition: 'stroke 0.4s, stroke-width 0.4s' }} />
         ))}
@@ -102,13 +103,13 @@ function Core({ focus }: { focus: Focus }) {
           <motion.div key={focus?.tech?.name ?? focus?.cat ?? 'idle'} initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} transition={{ duration: 0.2 }} className="max-w-[44%]">
             {focus?.tech ? (
               <>
-                <div className="hud !text-[8.5px] text-cyan">{t(techCategories[idx].label)}</div>
+                <div className="hud !text-[8.5px] text-cyan">{t(cats[idx].label)}</div>
                 <div className="mt-1 font-display text-lg leading-tight font-semibold">{focus.tech.name}</div>
               </>
             ) : focus ? (
               <>
                 <div className="hud !text-[8.5px] text-cyan">{t(ui.stack.module)}</div>
-                <div className="mt-1 font-display text-lg leading-tight font-semibold">{t(techCategories[idx].label)}</div>
+                <div className="mt-1 font-display text-lg leading-tight font-semibold">{t(cats[idx].label)}</div>
               </>
             ) : (
               <>
@@ -125,7 +126,7 @@ function Core({ focus }: { focus: Focus }) {
 }
 
 /** Measured connector lines from each panel to the core (desktop). */
-function Connectors({ container, panels, core, focus }: { container: HTMLDivElement | null; panels: Record<string, HTMLDivElement | null>; core: HTMLDivElement | null; focus: Focus }) {
+function Connectors({ container, panels, core, focus, cats }: { container: HTMLDivElement | null; panels: Record<string, HTMLDivElement | null>; core: HTMLDivElement | null; focus: Focus; cats: TechCategory[] }) {
   const [paths, setPaths] = useState<{ id: string; d: string }[]>([])
   const [size, setSize] = useState({ w: 0, h: 0 })
 
@@ -136,7 +137,7 @@ function Connectors({ container, panels, core, focus }: { container: HTMLDivElem
     const cx = k.left + k.width / 2 - cr.left
     const cy = k.top + k.height / 2 - cr.top
     const r = k.width / 2 - 6
-    const out = techCategories.map((c) => {
+    const out = cats.map((c) => {
       const el = panels[c.id]
       if (!el) return { id: c.id, d: '' }
       const p = el.getBoundingClientRect()
@@ -151,7 +152,7 @@ function Connectors({ container, panels, core, focus }: { container: HTMLDivElem
     })
     setSize({ w: cr.width, h: cr.height })
     setPaths(out)
-  }, [container, core, panels])
+  }, [container, core, panels, cats])
 
   useLayoutEffect(() => {
     measure()
@@ -192,12 +193,15 @@ export function Stack() {
   const t = useT()
   const desktop = useIsDesktop()
   const [focus, setFocus] = useState<Focus>(null)
+  const cats = useTechCategories() ?? LOADING
+  const left = cats.slice(0, 3)
+  const right = cats.slice(3)
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   const [core, setCore] = useState<HTMLDivElement | null>(null)
   const panels = useRef<Record<string, HTMLDivElement | null>>({})
   // stable ref callbacks (one per category)
   const refs = useMemo(
-    () => Object.fromEntries(techCategories.map((c) => [c.id, (el: HTMLDivElement | null) => void (panels.current[c.id] = el)])),
+    () => Object.fromEntries(CATEGORIES.map((c) => [c.id, (el: HTMLDivElement | null) => void (panels.current[c.id] = el)])),
     [],
   )
 
@@ -212,7 +216,7 @@ export function Stack() {
         />
 
         <div ref={setContainer} className="relative grid gap-5 lg:grid-cols-[1fr_300px_1fr] lg:items-center lg:gap-8">
-          {desktop && <Connectors container={container} panels={panels.current} core={core} focus={focus} />}
+          {desktop && <Connectors container={container} panels={panels.current} core={core} focus={focus} cats={cats} />}
 
           <div className="order-2 space-y-5 lg:order-1">
             {left.map((c, i) => (
@@ -224,7 +228,7 @@ export function Stack() {
 
           <FadeIn className="order-1 lg:order-2" direction="none">
             <div ref={setCore} className="mx-auto w-[min(72vw,300px)] lg:w-full">
-              <Core focus={focus} />
+              <Core focus={focus} cats={cats} />
             </div>
           </FadeIn>
 

@@ -5,17 +5,19 @@ import { GithubIcon, LinkedinIcon } from '@/components/ui/BrandIcons'
 import { FadeIn, Parallax, RevealText } from '@/components/animations'
 import { ContactForm } from './contact/ContactForm'
 import { ShareButton } from '@/components/ui/ShareButton'
+import { useCvEnabled } from '@/hooks/useSite'
 import { useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
 import { cn, isPlaceholder } from '@/lib/utils'
 
 export function Contact() {
   const t = useT()
+  const cvEnabled = useCvEnabled()
 
   const channels = [
     { label: 'LinkedIn', sub: 'in/rafael-pedraza', href: profile.links.linkedin, icon: LinkedinIcon, tone: 'text-[#5aa9ff]', external: true },
     { label: 'GitHub', sub: '', href: profile.links.github, icon: GithubIcon, tone: 'text-fg', external: true },
-    { label: t(ui.nav.downloadCv), sub: 'PDF', href: profile.links.cv, icon: Download, tone: 'text-cyan', external: false, download: true },
+    ...(cvEnabled ? [{ label: t(ui.nav.downloadCv), sub: 'PDF', href: profile.links.cv, icon: Download, tone: 'text-cyan', external: false, download: true }] : []),
   ].filter((c) => !isPlaceholder(c.href))
 
   return (

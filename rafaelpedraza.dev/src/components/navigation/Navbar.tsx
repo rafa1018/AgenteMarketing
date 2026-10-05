@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { navItems } from '@/data/navigation'
 import { profile } from '@/data/profile'
 import { useActiveSection } from '@/hooks/useActiveSection'
+import { useCvEnabled } from '@/hooks/useSite'
 import { Logo } from '@/components/ui/Logo'
 import { LanguageToggle } from '@/components/ui/LanguageToggle'
 import { ShareButton } from '@/components/ui/ShareButton'
@@ -25,6 +26,7 @@ export function Navbar({ visible }: { visible: boolean }) {
   const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 30, mass: 0.3 })
   const rawActive = useActiveSection(trackedIds)
   const active = groupOf[rawActive] ?? rawActive
+  const cvEnabled = useCvEnabled()
 
   useMotionValueEvent(scrollY, 'change', (y) => setScrolled(y > 24))
 
@@ -93,13 +95,15 @@ export function Navbar({ visible }: { visible: boolean }) {
           <div className="flex items-center gap-2">
             <ShareButton variant="icon" placement="down" align="right" />
             <LanguageToggle className="hidden sm:flex" />
-            <a
-              href={profile.links.cv}
-              download
-              className="hidden h-9 items-center gap-2 rounded-md border border-line-strong px-3.5 font-mono text-[10.5px] tracking-[0.18em] text-fg uppercase transition-colors hover:border-cyan/70 hover:text-white sm:inline-flex"
-            >
-              <Download size={14} strokeWidth={1.75} /> {t(ui.nav.cv)}
-            </a>
+            {cvEnabled && (
+              <a
+                href={profile.links.cv}
+                download
+                className="hidden h-9 items-center gap-2 rounded-md border border-line-strong px-3.5 font-mono text-[10.5px] tracking-[0.18em] text-fg uppercase transition-colors hover:border-cyan/70 hover:text-white sm:inline-flex"
+              >
+                <Download size={14} strokeWidth={1.75} /> {t(ui.nav.cv)}
+              </a>
+            )}
             <button
               type="button"
               className="grid size-10 place-items-center rounded-md border border-line text-fg xl:hidden"
@@ -150,9 +154,11 @@ export function Navbar({ visible }: { visible: boolean }) {
                 ))}
               </ul>
               <motion.div className="mt-8 flex flex-wrap items-center gap-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.55 }}>
-                <a href={profile.links.cv} download className="inline-flex h-11 items-center gap-2 rounded-md bg-volt px-4 font-mono text-[11px] tracking-[0.18em] text-white uppercase">
-                  <Download size={15} /> {t(ui.nav.downloadCv)}
-                </a>
+                {cvEnabled && (
+                  <a href={profile.links.cv} download className="inline-flex h-11 items-center gap-2 rounded-md bg-volt px-4 font-mono text-[11px] tracking-[0.18em] text-white uppercase">
+                    <Download size={15} /> {t(ui.nav.downloadCv)}
+                  </a>
+                )}
                 <a href={profile.links.linkedin} target="_blank" rel="noopener noreferrer" className="grid size-11 place-items-center rounded-md border border-line text-fg" aria-label="LinkedIn">
                   <LinkedinIcon size={17} />
                 </a>

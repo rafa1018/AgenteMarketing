@@ -1,0 +1,42 @@
+/*
+ * Admin panel light theme. The panel uses the site's color tokens (bg-ink, text-fg, border-line…),
+ * so the light theme only redefines those variables. Applied with <html data-theme="light">.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-ink: #f3f5fa;
+  --color-abyss: #ffffff;
+  --color-navy: #eaf0f8;
+  --color-steel: #e2e8f2;
+  --color-line: rgb(22 40 80 / 0.11);
+  --color-line-strong: rgb(22 52 110 / 0.24);
+  --color-fg: #0d1526;
+  --color-muted: #4a5a74;
+  --color-dim: #6f7f98;
+  --color-volt: #1d6fe5;
+  --color-cyan: #0b87b8;
+  --color-violet: #6b5ce0;
+  --color-ok: #138a52;
+  --color-danger: #cf3434;
+  --color-warn: #9a6200;
+}
+
+:root[data-theme='light'] .panel {
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 4px 16px -8px rgb(16 24 40 / 0.08);
+}
+
+:root[data-theme='light'] .chip {
+  background: var(--color-navy);
+  border-color: var(--color-line);
+  color: var(--color-fg);
+}
+
+:root[data-theme='light'] .grid-bg {
+  background-image: none;
+}
+
+:root[data-theme='light'] ::selection {
+  background: rgb(29 111 229 / 0.2);
+  color: inherit;
+}

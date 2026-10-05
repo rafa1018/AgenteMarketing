@@ -1,5 +1,5 @@
 // Runs after `vite build`: removes source-only files from dist/ and checks deploy essentials.
-import { existsSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 const DIST = 'dist'
@@ -20,8 +20,17 @@ if (existsSync(imagesDir)) {
 const dataDir = join(DIST, 'api', 'data')
 if (existsSync(dataDir)) for (const f of readdirSync(dataDir)) if (f.endsWith('.json')) rmSync(join(dataDir, f))
 
-const must = ['index.html', '.htaccess', 'robots.txt', 'sitemap.xml', 'site.webmanifest', 'images/og-image.jpg', 'api/contact.php', 'api/visits.php', 'api/config.php', 'cv/Rafael-Pedraza-CV.pdf']
+const must = [
+  'index.html', '.htaccess', 'robots.txt', 'sitemap.xml', 'site.webmanifest', 'images/og-image.jpg', 'cv/Rafael-Pedraza-CV.pdf', 'cv/.htaccess',
+  'api/config.php', 'api/contact.php', 'api/visits.php', 'api/cv.php', 'api/site.php', 'api/auth.php', 'api/experience.php', 'api/stack.php',
+  'api/seed/experience.json', 'api/seed/stack.json',
+  'admin/index.html', 'admin/sw.js', 'admin/manifest.webmanifest',
+]
 const missing = must.filter((f) => !existsSync(join(DIST, f)))
+
+// the admin panel needs a bcrypt hash in config.php
+const config = existsSync(join(DIST, 'api/config.php')) ? readFileSync(join(DIST, 'api/config.php'), 'utf8') : ''
+if (!/'admin_password_hash'\s*=>\s*'\$2y\$/.test(config)) console.warn('[postbuild] WARNING config.php: admin_password_hash no es un hash bcrypt — el panel no permitirá ingresar')
 
 const size = (dir) => readdirSync(dir).reduce((n, f) => {
   const p = join(dir, f)

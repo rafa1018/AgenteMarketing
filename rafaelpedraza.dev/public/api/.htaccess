@@ -1,7 +1,7 @@
-# Only the two public endpoints are reachable; config, helpers and data are private.
+# Only the endpoints are reachable; config, helpers (_*.php) and data are private.
 Options -Indexes
 
-<FilesMatch "^(config|config\.example|_bootstrap)\.php$">
+<FilesMatch "^(config|config\.example|_.*)\.php$">
   Require all denied
 </FilesMatch>
 

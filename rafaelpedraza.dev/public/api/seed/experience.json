@@ -1,0 +1,361 @@
+[
+  {
+    "id": "seed01",
+    "company": "UT SALUD SIS Integral",
+    "location": "Bogotá, Colombia",
+    "role": {
+      "es": "Desarrollador Senior",
+      "en": "Senior Developer"
+    },
+    "start": "2025-08",
+    "end": "2025-12",
+    "technologies": [
+      "ASP.NET MVC",
+      "C#",
+      "PL/SQL",
+      "Oracle",
+      "JasperSoft",
+      "ETL (Talend)",
+      "Git",
+      "Azure"
+    ],
+    "responsibilities": [
+      {
+        "es": "Desarrollo, soporte y mantenimiento evolutivo de SALUD.SIS (Sistema Integral de Información del Subsistema de Salud de las Fuerzas Militares), garantizando actualización normativa y continuidad operativa.",
+        "en": "Development, support and evolutionary maintenance of SALUD.SIS (Military Forces Health Subsystem information system), ensuring regulatory updates and operational continuity."
+      },
+      {
+        "es": "Nuevas funcionalidades y soporte especializado nivel III para la Dirección General de Sanidad Militar (DIGSA).",
+        "en": "New features and level III specialized support for the Dirección General de Sanidad Militar (DIGSA)."
+      }
+    ],
+    "highlight": true
+  },
+  {
+    "id": "seed02",
+    "company": "Ministerio de Agricultura y Desarrollo Rural (MADR)",
+    "location": "Bogotá, Colombia",
+    "role": {
+      "es": "Desarrollador de Software",
+      "en": "Software Developer"
+    },
+    "start": "2025-05",
+    "end": "2025-12",
+    "technologies": [
+      ".NET",
+      "C#",
+      "Blazor",
+      "PHP",
+      "Laravel",
+      "PostgreSQL",
+      "Git",
+      "Azure DevOps"
+    ],
+    "responsibilities": [
+      {
+        "es": "Transformación y mantenimiento de sistemas misionales del Observatorio de Tecnologías de la Información.",
+        "en": "Transformation and maintenance of mission systems of the IT Observatory."
+      },
+      {
+        "es": "Resolución de incidencias críticas y soporte nivel III a aplicaciones clave.",
+        "en": "Critical incident resolution and level III support for key applications."
+      },
+      {
+        "es": "Mejoras normativas y funcionalidades para observancia y análisis.",
+        "en": "Regulatory improvements and features for monitoring and analysis."
+      }
+    ],
+    "highlight": false
+  },
+  {
+    "id": "seed03",
+    "company": "Corporación Autónoma Regional de Cundinamarca (CAR)",
+    "location": "Bogotá, Colombia",
+    "role": {
+      "es": "Desarrollador de Software & Soporte Nivel III",
+      "en": "Software Developer & Level III Support"
+    },
+    "start": "2025-02",
+    "end": "2025-12",
+    "technologies": [
+      "C#",
+      "ASP.NET",
+      "Angular",
+      "SQL Server",
+      "Oracle",
+      "Git",
+      "Azure DevOps"
+    ],
+    "responsibilities": [
+      {
+        "es": "Desarrollo y evolución del sistema SIDCAR en la Oficina TIC (OTIC).",
+        "en": "Development and evolution of the SIDCAR system at the IT office (OTIC)."
+      },
+      {
+        "es": "Contribución relevante en el módulo de Cuentas de Cobro: nuevas funcionalidades, mantenimiento y estabilidad.",
+        "en": "Key contribution to the Billing Accounts module: new features, maintenance and stability."
+      }
+    ],
+    "highlight": false
+  },
+  {
+    "id": "seed04",
+    "company": "Corporación Autónoma Regional de Cundinamarca (CAR)",
+    "location": "Bogotá, Colombia",
+    "role": {
+      "es": "Desarrollador de Software & Soporte Nivel III",
+      "en": "Software Developer & Level III Support"
+    },
+    "start": "2024-03",
+    "end": "2024-12",
+    "technologies": [
+      "C#",
+      "ASP.NET",
+      "SQL Server",
+      "Oracle",
+      "Git",
+      "Azure DevOps"
+    ],
+    "responsibilities": [
+      {
+        "es": "Requerimientos FullStack para aplicativos, herramientas y sistemas de información de la CAR.",
+        "en": "Full-stack requirements for CAR applications, tools and information systems."
+      }
+    ],
+    "highlight": false
+  },
+  {
+    "id": "seed05",
+    "company": "Corporación Autónoma Regional de Cundinamarca (CAR)",
+    "location": "Bogotá, Colombia",
+    "role": {
+      "es": "Desarrollador de Software & Soporte Nivel III",
+      "en": "Software Developer & Level III Support"
+    },
+    "start": "2023-06",
+    "end": "2023-12",
+    "technologies": [
+      "C#",
+      ".NET",
+      "SQL Server",
+      "Git",
+      "Azure DevOps"
+    ],
+    "responsibilities": [
+      {
+        "es": "Soporte nivel III y desarrollos FullStack en SIDCAR, SIDCAR AMBIENTAL y SAE.",
+        "en": "Level III support and full-stack development for SIDCAR, SIDCAR AMBIENTAL and SAE."
+      }
+    ],
+    "highlight": false
+  },
+  {
+    "id": "seed06",
+    "company": "GrowData",
+    "location": "Bogotá, Colombia",
+    "role": {
+      "es": "Ingeniero de Soporte y Desarrollo",
+      "en": "Support & Development Engineer"
+    },
+    "start": "2023-03",
+    "end": "2023-12",
+    "technologies": [
+      "ASP.NET MVC",
+      "C#",
+      "PL/SQL",
+      "Oracle",
+      "JasperSoft",
+      "ETL (Talend)",
+      "Git",
+      "Azure DevOps"
+    ],
+    "responsibilities": [
+      {
+        "es": "Desarrollador FullStack ASP.NET: desarrollos evolutivos y correctivos para SALUD.SIS (DIGSA).",
+        "en": "Full-stack ASP.NET developer: evolutionary and corrective development for SALUD.SIS (DIGSA)."
+      }
+    ],
+    "highlight": false
+  },
+  {
+    "id": "seed07",
+    "company": "Corporación Autónoma Regional de Cundinamarca (CAR)",
+    "location": "Bogotá, Colombia",
+    "role": {
+      "es": "Ingeniero de Soporte Nivel III .NET",
+      "en": "Level III Support Engineer .NET"
+    },
+    "start": "2022-09",
+    "end": "2023-05",
+    "technologies": [
+      "C#",
+      "Angular",
+      ".NET",
+      "SQL Server",
+      "Git",
+      "Azure DevOps"
+    ],
+    "responsibilities": [
+      {
+        "es": "Apoyo en planes de descongestión de trámites ambientales y mantenimiento de aplicativos.",
+        "en": "Support for environmental-procedure decongestion plans and application maintenance."
+      }
+    ],
+    "highlight": false
+  },
+  {
+    "id": "seed08",
+    "company": "GrowData",
+    "location": "Bogotá, Colombia",
+    "role": {
+      "es": "Analista de Base de Datos",
+      "en": "Database Analyst"
+    },
+    "start": "2022-11",
+    "end": "2023-02",
+    "technologies": [
+      "PostgreSQL",
+      "SQL Server",
+      "MySQL"
+    ],
+    "responsibilities": [
+      {
+        "es": "Diseño y aplicación de pruebas para migración de bases de datos.",
+        "en": "Design and execution of database-migration tests."
+      }
+    ],
+    "highlight": false
+  },
+  {
+    "id": "seed09",
+    "company": "Universidad Popular del Cesar",
+    "location": "Valledupar, Cesar",
+    "role": {
+      "es": "Programador Web",
+      "en": "Web Programmer"
+    },
+    "start": "2022-02",
+    "end": "2022-12",
+    "technologies": [
+      "PHP",
+      "Laravel",
+      "Git"
+    ],
+    "responsibilities": [
+      {
+        "es": "Software para procesos de autoevaluación y acreditación (registro calificado y condiciones institucionales).",
+        "en": "Software for self-assessment and accreditation processes (qualified registry and institutional conditions)."
+      }
+    ],
+    "highlight": false
+  },
+  {
+    "id": "seed10",
+    "company": "GrowData",
+    "location": "Bogotá, Colombia",
+    "role": {
+      "es": "Desarrollador de Software",
+      "en": "Software Developer"
+    },
+    "start": "2021-10",
+    "end": "2022-07",
+    "technologies": [
+      "C#",
+      "ASP.NET MVC",
+      "Kendo UI",
+      "PL/SQL",
+      "Oracle",
+      "JasperSoft",
+      "ETL (Talend)",
+      "Azure DevOps"
+    ],
+    "responsibilities": [
+      {
+        "es": "Desarrollador FullStack ASP.NET para SALUD.SIS: desarrollo, soporte y mantenimiento para DIGSA, con metodologías ágiles.",
+        "en": "Full-stack ASP.NET developer for SALUD.SIS: development, support and maintenance for DIGSA, using agile methodologies."
+      }
+    ],
+    "highlight": false
+  },
+  {
+    "id": "seed11",
+    "company": "GlobalEDB",
+    "location": "Bogotá, Colombia",
+    "role": {
+      "es": "Desarrollador .NET MVC, ASP.NET",
+      "en": ".NET MVC / ASP.NET Developer"
+    },
+    "start": "2021-03",
+    "end": "2021-09",
+    "technologies": [
+      "ASP.NET MVC",
+      "C#",
+      "PL/SQL",
+      "Oracle",
+      "Git",
+      "Azure DevOps"
+    ],
+    "responsibilities": [
+      {
+        "es": "Desarrollo, soporte, administración de bases de datos y reportes.",
+        "en": "Development, support, database administration and reporting."
+      }
+    ],
+    "highlight": false
+  },
+  {
+    "id": "seed12",
+    "company": "Konecta Digital",
+    "location": "Medellín, Antioquia",
+    "role": {
+      "es": "Desarrollador Web Profesional",
+      "en": "Professional Web Developer"
+    },
+    "start": "2019-01",
+    "end": "2019-11",
+    "technologies": [
+      "HTML",
+      "CSS",
+      "JavaScript",
+      "PHP",
+      "Laravel",
+      "WordPress"
+    ],
+    "responsibilities": [
+      {
+        "es": "Landing pages, sitios responsive y e-commerce.",
+        "en": "Landing pages, responsive sites and e-commerce."
+      }
+    ],
+    "highlight": false
+  },
+  {
+    "id": "seed13",
+    "company": "SisemCorp",
+    "location": "Valledupar, Cesar",
+    "role": {
+      "es": "Desarrollador Full Stack",
+      "en": "Full Stack Developer"
+    },
+    "start": "2016-02",
+    "end": "2018-12",
+    "technologies": [
+      "HTML",
+      "CSS",
+      "JavaScript",
+      "PHP",
+      "Laravel",
+      "WordPress",
+      "OpenCart",
+      "C#",
+      "Visual Basic"
+    ],
+    "responsibilities": [
+      {
+        "es": "Sistemas de información y software a la medida; administración de MySQL, Oracle, SQL Server y PostgreSQL.",
+        "en": "Information systems and custom software; administration of MySQL, Oracle, SQL Server and PostgreSQL."
+      }
+    ],
+    "highlight": false
+  }
+]

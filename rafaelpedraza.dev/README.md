@@ -87,8 +87,9 @@ Every visible text is written as `{ es: '...', en: '...' }`:
 
 ## CV
 
-`public/cv/Rafael-Pedraza-CV.pdf` is served by every "Download CV" button. Replace the file to update it
-(note: it is public once deployed — it currently includes your phone number and email).
+`public/cv/Rafael-Pedraza-CV.pdf` is downloaded through `/api/cv.php`, which counts every download and returns 404
+while the CV is turned off in the admin panel (Ajustes → Botón "Descargar CV"). `public/cv/.htaccess` blocks direct
+access to the PDF, so that switch can't be bypassed. Replace the file to update it (it includes your phone number and email).
 
 ## Structure
 

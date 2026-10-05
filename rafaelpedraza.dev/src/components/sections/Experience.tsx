@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useScroll, useSpring } from 'motion/react'
 import { Briefcase, ChevronDown, MapPin } from 'lucide-react'
 import { useRef, useState } from 'react'
-import { experience, type Experience as Exp } from '@/data/experience'
+import { both, period, summary, useExperience, type Experience as Exp } from '@/data/experience'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { FadeIn } from '@/components/animations'
 import { useT } from '@/i18n'
@@ -10,9 +10,6 @@ import { EASE_OUT, cn } from '@/lib/utils'
 
 const INITIAL = 3
 
-const companies = [...new Set(experience.map((e) => e.company.replace(/ \(.+\)$/, '')))]
-const firstYear = Math.min(...experience.map((e) => Number(e.start.slice(0, 4))))
-const lastYear = Math.max(...experience.map((e) => Number(e.start.slice(0, 4))))
 
 function Entry({ e, i }: { e: Exp; i: number }) {
   const t = useT()
@@ -36,21 +33,21 @@ function Entry({ e, i }: { e: Exp; i: number }) {
       <article className="glow-border panel group p-5 transition-colors duration-300 hover:border-line-strong sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
           <div className="min-w-0">
-            <h3 className="font-display text-lg font-semibold tracking-tight sm:text-xl">{t(e.role)}</h3>
+            <h3 className="font-display text-lg font-semibold tracking-tight sm:text-xl">{t(both(e.role))}</h3>
             <p className="mt-1 text-[14px] text-fg/75">{e.company}</p>
           </div>
           <div className="text-left sm:text-right">
-            <div className="font-mono text-[11.5px] tracking-[0.1em] text-cyan">{t(e.period)}</div>
+            <div className="font-mono text-[11.5px] tracking-[0.1em] text-cyan">{t(period(e))}</div>
             <div className="mt-1 flex items-center gap-1 font-mono text-[10.5px] text-dim sm:justify-end">
               <MapPin size={11} /> {e.location}
             </div>
           </div>
         </div>
         <ul className="mt-4 space-y-2">
-          {e.responsibilities.map((r) => (
-            <li key={r.en} className="flex gap-3 text-[14px] leading-relaxed text-muted">
+          {e.responsibilities.map((r, k) => (
+            <li key={k} className="flex gap-3 text-[14px] leading-relaxed text-muted">
               <span className="mt-[9px] h-px w-3 shrink-0 bg-volt" />
-              {t(r)}
+              {t(both(r))}
             </li>
           ))}
         </ul>
@@ -70,6 +67,8 @@ export function Experience() {
   const listRef = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({ target: listRef, offset: ['start 0.75', 'end 0.6'] })
   const line = useSpring(scrollYProgress, { stiffness: 120, damping: 30 })
+  const experience = useExperience() ?? []
+  const { firstYear, lastYear, roles, companies } = summary(experience)
   const items = expanded ? experience : experience.slice(0, INITIAL)
 
   return (
@@ -84,11 +83,11 @@ export function Experience() {
               <dl className="mt-5 grid grid-cols-2 gap-5 lg:grid-cols-1">
                 <div>
                   <dt className="hud !text-[9px] text-dim">{t(ui.experience.span)}</dt>
-                  <dd className="mt-1 font-display text-2xl font-semibold">{firstYear} — {lastYear}</dd>
+                  <dd className="mt-1 font-display text-2xl font-semibold">{experience.length ? `${firstYear} — ${lastYear}` : '—'}</dd>
                 </div>
                 <div>
                   <dt className="hud !text-[9px] text-dim">{t(ui.experience.roles)}</dt>
-                  <dd className="mt-1 font-display text-2xl font-semibold">{experience.length}</dd>
+                  <dd className="mt-1 font-display text-2xl font-semibold">{roles || '—'}</dd>
                 </div>
               </dl>
               <div className="mt-6">
@@ -110,7 +109,7 @@ export function Experience() {
             <motion.ol layout className="space-y-5">
               <AnimatePresence initial={false}>
                 {items.map((e, i) => (
-                  <Entry key={`${e.company}-${e.start}`} e={e} i={i} />
+                  <Entry key={e.id} e={e} i={i} />
                 ))}
               </AnimatePresence>
             </motion.ol>

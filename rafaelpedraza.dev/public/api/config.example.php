@@ -17,4 +17,9 @@ return [
     'global_rate_limit' => ['max' => 40, 'window' => 3600],
 
     'salt' => 'change-me-to-a-random-string',
+
+    // Admin panel (/admin/). Hash generated with password_hash(..., PASSWORD_DEFAULT).
+    'admin_user'          => 'admin',
+    'admin_name'          => 'Rafael Pedraza',
+    'admin_password_hash' => '$2y$10$REPLACE_WITH_A_BCRYPT_HASH',
 ];

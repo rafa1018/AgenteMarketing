@@ -14,6 +14,8 @@
   --color-cyan: #52d3ff;
   --color-violet: #8f83ff;
   --color-ok: #4ade9a;
+  --color-danger: #ff8a8a;
+  --color-warn: #f5c77e;
 
   --font-display: 'Sora Variable', 'Segoe UI', system-ui, sans-serif;
   --font-sans: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
