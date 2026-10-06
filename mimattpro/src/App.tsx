@@ -4,7 +4,7 @@ import { Preloader } from '@/components/layout/Preloader'
 import { Background } from '@/components/layout/Background'
 import { Navbar } from '@/components/layout/Navbar'
 import { BackToTop } from '@/components/ui/BackToTop'
-import { Hero } from '@/components/sections/Hero'
+import { Tour } from '@/components/sections/Tour'
 import { Platform } from '@/components/sections/Platform'
 import { About } from '@/components/sections/About'
 import { HowItWorks } from '@/components/sections/HowItWorks'
@@ -29,7 +29,7 @@ export default function App() {
       </div>
       {/* overflow-x: clip (not hidden) keeps position: sticky working */}
       <main className="overflow-x-clip">
-        <Hero ready={ready} />
+        <Tour ready={ready} />
         <Platform />
         <About />
         <HowItWorks />

@@ -18,8 +18,9 @@
   --brand-1-rgb: 140 200 255;
   --on-brand: #ffffff; /* text on primary buttons */
   --brand-line: rgb(66 166 255 / 0.3);
-  --candle-up: #72b5ff;
-  --candle-down: #1b4f9c;
+  /* candles stay green/red in every theme: the universal trader code (bull/bear readable at a glance) */
+  --candle-up: #2fd08e;
+  --candle-down: #ff5b6e;
   --theme-ink: #020916;
 }
 [data-theme='gold'] {

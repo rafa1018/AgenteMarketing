@@ -8,11 +8,11 @@ import { BotFigure, type BotMood } from './BotFigure'
 import { MAX_CANDLES, PHASE_LEN, SPEC, START_BALANCE, TRADES, initialState, money, price, staticState, step, type SceneState, type Side } from './engine'
 
 /** Two compositions: wide (laptop + phone side by side) and compact for phones (laptop on top, bot + phone below). */
-const LAYOUT = {
+export const LAYOUT = {
   wide: { w: 760, h: 560, laptop: { left: 30, top: 18 }, robot: { left: 0, top: 334 }, phone: { left: 566, top: 150 }, bubble: 300 },
   compact: { w: 560, h: 790, laptop: { left: 0, top: 0 }, robot: { left: 0, top: 400 }, phone: { left: 372, top: 392 }, bubble: 210 },
 }
-type Layout = (typeof LAYOUT)['wide']
+export type Layout = (typeof LAYOUT)['wide']
 const TICK_MS = 650
 const OPEN_MS = 1300 // lid opening
 const BOOT_MS = 2400 // logo loading screen
@@ -152,71 +152,7 @@ function Laptop({ state, sideLabel, L, intro }: { state: SceneState; sideLabel: 
           {/* screen glare while it opens */}
           <motion.div aria-hidden initial={false} animate={{ opacity: intro === 'opening' ? 1 : 0 }} transition={{ duration: 0.6 }} className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-br from-white/15 via-transparent to-transparent" />
           <motion.div initial={false} animate={{ opacity: live ? 1 : 0 }} transition={{ duration: 0.6 }} className="h-full">
-          {/* symbol tabs (trading-platform style) */}
-          <div className="flex h-7 items-center gap-1 border-b border-white/5 bg-[#071022] px-2">
-            {[state.sym, state.sym === 'NQ' ? 'ES' : 'NQ'].map((s, i) => (
-              <span
-                key={s}
-                className={cn(
-                  'flex h-5 items-center gap-1 rounded-md border px-1.5 font-mono text-[8.5px] font-bold',
-                  i === 0 ? 'border-volt/60 bg-volt/10 text-fg shadow-[0_0_10px_-2px_rgb(var(--brand-rgb)/0.6)]' : 'border-white/10 text-muted',
-                )}
-              >
-                {i === 0 && <span className="size-1 rounded-full bg-long" />}M{s}1!
-                {i === 0 && (
-                  <>
-                    <Star size={7} className="fill-cyan text-cyan" />
-                    <X size={7} className="text-dim" />
-                  </>
-                )}
-              </span>
-            ))}
-            <Plus size={10} className="ml-1 text-muted" />
-            <span className="ml-auto flex items-center gap-1.5">
-              <img src="/images/logo-128.webp" alt="" className="size-3.5" />
-              <span className="font-display text-[8.5px] font-semibold">
-                MiMatt <span className="text-gold">PRO</span>
-              </span>
-              <span className="ml-1 flex items-center gap-0.5 font-mono text-[7.5px] text-long">
-                <span className="size-1 animate-pulse rounded-full bg-long" /> LIVE
-              </span>
-            </span>
-          </div>
-          {/* timeframes + drawing tools + layouts */}
-          <div className="flex h-7 items-center gap-0.5 border-b border-volt/25 bg-[#081329] px-2 text-muted">
-            {['1m', '5m', '15m', '1h', '4h', 'D', 'W', 'M'].map((tf) => (
-              <span key={tf} className={cn('grid h-5 min-w-5 place-items-center rounded px-1 font-mono text-[8px] font-bold', tf === '1m' ? 'border border-volt/60 bg-volt/15 text-fg' : 'text-muted')}>
-                {tf}
-              </span>
-            ))}
-            <span className="mx-1.5 h-3.5 w-px bg-white/10" />
-            {[CandlestickChart, Columns2, Slash, Square, Type, Spline, AlignJustify].map((Icon, i) => (
-              <span key={i} className={cn('grid size-5 place-items-center rounded', i === 0 && 'bg-volt/15 text-cyan')}>
-                <Icon size={9} />
-              </span>
-            ))}
-            <span className="ml-auto flex items-center gap-1.5 font-mono text-[7.5px]">
-              Layouts <ChevronDown size={7} />
-              <Camera size={9} />
-              <Maximize2 size={8} />
-            </span>
-          </div>
-          <div className="flex h-[274px]">
-            {/* left drawing rail */}
-            <div className="flex w-7 shrink-0 flex-col items-center gap-2 border-r border-white/5 bg-[#060e1f] pt-2 text-muted">
-              <span className="grid size-5 place-items-center rounded border border-volt/50 bg-volt/10 text-cyan">
-                <Plus size={9} />
-              </span>
-              {[Slash, Pencil, Square, Ruler, Magnet].map((Icon, i) => (
-                <Icon key={i} size={9} />
-              ))}
-            </div>
-            <Chart state={state} sideLabel={sideLabel} />
-            <div className="flex w-[160px] shrink-0 flex-col gap-2 border-l border-white/5 p-2">
-              <Radar state={state} />
-              <Balance state={state} />
-            </div>
-          </div>
+          <Workspace state={state} sideLabel={sideLabel} />
           </motion.div>
         </div>
         </div>
@@ -413,18 +349,40 @@ function Level({ y, w, color, label, solid }: { y: number; w: number; color: str
 
 /* ───────────────────────── radar ───────────────────────── */
 
-const BLIPS = [
-  [62, 40],
-  [104, 58],
-  [48, 96],
-  [96, 104],
-  [76, 70],
-]
+/**
+ * Zones the radar detects, each with its direction (CALL = buy, PUT = sell) and hit probability.
+ * Illustrative values; they breathe a little while the radar runs.
+ */
+export const RADAR_ZONES = [
+  { x: 56, y: 34, side: 'CALL', pct: 95 },
+  { x: 110, y: 50, side: 'PUT', pct: 60 },
+  { x: 40, y: 98, side: 'PUT', pct: 20 },
+  { x: 104, y: 106, side: 'CALL', pct: 50 },
+  { x: 80, y: 66, side: 'CALL', pct: 100 },
+] as const
+/** zone each scripted trade locks on (CALL zones for longs, PUT zones for shorts) */
+export const RADAR_LOCK = [0, 1, 3, 1]
+
+/** Live hit percentages: each zone drifts a few points around its base value. */
+export function useLiveZones(): number[] {
+  const reduce = useReducedMotion()
+  const [vals, setVals] = useState<number[]>(() => RADAR_ZONES.map((z) => z.pct))
+  useEffect(() => {
+    if (reduce) return
+    const id = window.setInterval(() => {
+      setVals(RADAR_ZONES.map((z) => Math.max(5, Math.min(100, z.pct + Math.round((Math.random() - (z.pct >= 100 ? 1 : 0.5)) * 6)))))
+    }, 1400)
+    return () => window.clearInterval(id)
+  }, [reduce])
+  return vals
+}
 
 function Radar({ state }: { state: SceneState }) {
   const t = useT()
+  const live = useLiveZones()
   const locked = state.phase === 'signal' || state.phase === 'order'
-  const target = BLIPS[state.tradeIdx % BLIPS.length]
+  const lockIdx = RADAR_LOCK[state.tradeIdx % RADAR_LOCK.length]
+  const target = RADAR_ZONES[lockIdx]
   return (
     <div className="rounded-lg border border-white/5 bg-[#081227] p-2">
       <div className="flex items-baseline justify-between">
@@ -453,21 +411,32 @@ function Radar({ state }: { state: SceneState }) {
         <g className="animate-sweep" style={{ transformOrigin: '75px 70px' }}>
           <path d="M75 70 L139 70 A64 64 0 0 0 120 24.7 Z" fill="url(#sweep)" opacity={0.7} />
         </g>
-        {BLIPS.map(([bx, by], i) => (
-          <circle key={i} cx={bx} cy={by} r={2} fill="#c6cfdc" opacity={0.45} />
-        ))}
+        {/* zones: CALL (green) / PUT (red) + live hit probability */}
+        {RADAR_ZONES.map((z, i) => {
+          const call = z.side === 'CALL'
+          const col = call ? '#2fd08e' : '#ff5b6e'
+          const right = z.x < 92 // label to the right of the dot, or to the left near the edge
+          const isLock = locked && i === lockIdx
+          return (
+            <g key={i} opacity={locked && !isLock ? 0.45 : 1}>
+              <circle cx={z.x} cy={z.y} r={2.4} fill={col} />
+              <circle cx={z.x} cy={z.y} r={2.4} fill="none" stroke={col} className="animate-pulse-ring" style={{ transformOrigin: `${z.x}px ${z.y}px`, animationDelay: `${i * 0.35}s` }} />
+              <text x={right ? z.x + 4.5 : z.x - 4.5} y={z.y + 2.5} textAnchor={right ? 'start' : 'end'} className="font-mono text-[6.5px] font-bold" fill={col}>
+                {z.side} {live[i]}%
+              </text>
+            </g>
+          )
+        })}
         {locked && (
           <g>
-            <circle cx={target[0]} cy={target[1]} r={4} fill="var(--brand-1)" />
-            <circle cx={target[0]} cy={target[1]} r={4} fill="none" stroke="var(--brand-1)" className="animate-pulse-ring" style={{ transformOrigin: `${target[0]}px ${target[1]}px` }} />
-            <path d={`M${target[0] - 10} ${target[1]} h6 M${target[0] + 4} ${target[1]} h6 M${target[0]} ${target[1] - 10} v6 M${target[0]} ${target[1] + 4} v6`} stroke="var(--brand-1)" strokeWidth={1} />
+            <circle cx={target.x} cy={target.y} r={5} fill="none" stroke="var(--brand-1)" strokeWidth={1.2} className="animate-pulse-ring" style={{ transformOrigin: `${target.x}px ${target.y}px` }} />
+            <path d={`M${target.x - 11} ${target.y} h6 M${target.x + 5} ${target.y} h6 M${target.x} ${target.y - 11} v6 M${target.x} ${target.y + 5} v6`} stroke="var(--brand-1)" strokeWidth={1} />
           </g>
         )}
       </svg>
     </div>
   )
 }
-
 /* ───────────────────────── balance ───────────────────────── */
 
 function Balance({ state }: { state: SceneState }) {
@@ -549,7 +518,7 @@ function Robot({ state, sideLabel, L, booting }: { state: SceneState; sideLabel:
 
 /* ───────────────────────── phone ───────────────────────── */
 
-function Phone({ state, sideLabel, L }: { state: SceneState; sideLabel: string; L: Layout }) {
+export function Phone({ state, sideLabel, L }: { state: SceneState; sideLabel: string; L: Layout }) {
   const t = useT()
   const trade = TRADES[state.tradeIdx]
   const isLong = trade.side === 'long'
@@ -694,5 +663,78 @@ function MiniBars({ state }: { side: Side; state: SceneState }) {
       <line x1={0} x2={150} y1={ey} y2={ey} stroke="var(--brand-1)" strokeDasharray="3 3" strokeWidth={0.8} opacity={0.7} />
       <path d={path} fill="none" stroke={state.openPnl >= 0 ? '#2fd08e' : '#ff5b6e'} strokeWidth={1.8} strokeLinejoin="round" />
     </svg>
+  )
+}
+
+/** The MiMatt PRO workspace shown on the laptop screen: symbol tabs, toolbar, drawing rail, chart, radar and balance. */
+export function Workspace({ state, sideLabel }: { state: SceneState; sideLabel: string }) {
+  return (
+    <>
+        {/* symbol tabs (trading-platform style) */}
+        <div className="flex h-7 items-center gap-1 border-b border-white/5 bg-[#071022] px-2">
+          {[state.sym, state.sym === 'NQ' ? 'ES' : 'NQ'].map((s, i) => (
+            <span
+              key={s}
+              className={cn(
+                'flex h-5 items-center gap-1 rounded-md border px-1.5 font-mono text-[8.5px] font-bold',
+                i === 0 ? 'border-volt/60 bg-volt/10 text-fg shadow-[0_0_10px_-2px_rgb(var(--brand-rgb)/0.6)]' : 'border-white/10 text-muted',
+              )}
+            >
+              {i === 0 && <span className="size-1 rounded-full bg-long" />}M{s}1!
+              {i === 0 && (
+                <>
+                  <Star size={7} className="fill-cyan text-cyan" />
+                  <X size={7} className="text-dim" />
+                </>
+              )}
+            </span>
+          ))}
+          <Plus size={10} className="ml-1 text-muted" />
+          <span className="ml-auto flex items-center gap-1.5">
+            <img src="/images/logo-128.webp" alt="" className="size-3.5" />
+            <span className="font-display text-[8.5px] font-semibold">
+              MiMatt <span className="text-gold">PRO</span>
+            </span>
+            <span className="ml-1 flex items-center gap-0.5 font-mono text-[7.5px] text-long">
+              <span className="size-1 animate-pulse rounded-full bg-long" /> LIVE
+            </span>
+          </span>
+        </div>
+        {/* timeframes + drawing tools + layouts */}
+        <div className="flex h-7 items-center gap-0.5 border-b border-volt/25 bg-[#081329] px-2 text-muted">
+          {['1m', '5m', '15m', '1h', '4h', 'D', 'W', 'M'].map((tf) => (
+            <span key={tf} className={cn('grid h-5 min-w-5 place-items-center rounded px-1 font-mono text-[8px] font-bold', tf === '1m' ? 'border border-volt/60 bg-volt/15 text-fg' : 'text-muted')}>
+              {tf}
+            </span>
+          ))}
+          <span className="mx-1.5 h-3.5 w-px bg-white/10" />
+          {[CandlestickChart, Columns2, Slash, Square, Type, Spline, AlignJustify].map((Icon, i) => (
+            <span key={i} className={cn('grid size-5 place-items-center rounded', i === 0 && 'bg-volt/15 text-cyan')}>
+              <Icon size={9} />
+            </span>
+          ))}
+          <span className="ml-auto flex items-center gap-1.5 font-mono text-[7.5px]">
+            Layouts <ChevronDown size={7} />
+            <Camera size={9} />
+            <Maximize2 size={8} />
+          </span>
+        </div>
+        <div className="flex h-[274px]">
+          {/* left drawing rail */}
+          <div className="flex w-7 shrink-0 flex-col items-center gap-2 border-r border-white/5 bg-[#060e1f] pt-2 text-muted">
+            <span className="grid size-5 place-items-center rounded border border-volt/50 bg-volt/10 text-cyan">
+              <Plus size={9} />
+            </span>
+            {[Slash, Pencil, Square, Ruler, Magnet].map((Icon, i) => (
+              <Icon key={i} size={9} />
+            ))}
+          </div>
+          <Chart state={state} sideLabel={sideLabel} />
+          <div className="flex w-[160px] shrink-0 flex-col gap-2 border-l border-white/5 p-2">
+            <Radar state={state} />
+            <Balance state={state} />
+          </div>
+        </div>
+    </>
   )
 }

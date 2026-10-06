@@ -89,6 +89,30 @@ export const ui = {
     newSession: p('Nueva sesión', 'New session'),
   },
 
+  /** scroll-driven tour (Tour.tsx) */
+  tour: {
+    welcome: p('Bienvenido a', 'Welcome to'),
+    sub: p('Inteligencia algorítmica para el mercado de futuros', 'Algorithmic intelligence for the futures market'),
+    scroll: p('Desliza para descubrirlo', 'Scroll to discover it'),
+    keywords: [p('Order flow', 'Order flow'), p('Liquidez', 'Liquidity'), p('Estructura', 'Structure'), p('Entradas accionables', 'Actionable entries')],
+    boot: p('Iniciando plataforma', 'Starting platform'),
+    steps: [
+      { title: p('Velas en tiempo real', 'Real-time candles'), text: p('El workspace lee el precio tick a tick: estructura, momentum y niveles clave del mercado.', 'The workspace reads price tick by tick: structure, momentum and key market levels.') },
+      { title: p('El radar escanea la liquidez', 'The radar scans liquidity'), text: p('MiMatt Radar rastrea order flow y zonas de liquidez para encontrar dónde reacciona el mercado.', 'MiMatt Radar tracks order flow and liquidity zones to find where the market reacts.') },
+      { title: p('Señal: entra aquí', 'Signal: enter here'), text: p('Cuando el setup se confirma, MiMatt Bot te avisa la dirección, la entrada, el objetivo y el stop.', 'When the setup confirms, MiMatt Bot tells you the direction, entry, target and stop.') },
+      { title: p('Ejecutas desde tu celular', 'You execute from your phone'), text: p('Recibes la alerta y operas en tu broker con disciplina. Tú decides, MiMatt PRO te da la claridad.', 'You get the alert and trade in your broker with discipline. You decide, MiMatt PRO gives you clarity.') },
+    ],
+    intro: p('Así trabaja MiMatt PRO', 'This is how MiMatt PRO works'),
+    liqTitle: p('Zona de liquidez detectada', 'Liquidity zone detected'),
+    hit: p('Probabilidad de acierto', 'Hit probability'),
+    zone: p('Zona', 'Zone'),
+    otherZones: p('Otras zonas en el radar', 'Other zones on the radar'),
+    sigTitle: p('Señal confirmada', 'Signal confirmed'),
+    rr: p('Riesgo / beneficio', 'Risk / reward'),
+    result: p('Resultado de la operación', 'Trade result'),    mark: [p('Velas en vivo', 'Live candles'), p('Zona de liquidez', 'Liquidity zone'), p('Entrada LONG', 'LONG entry'), p('Orden ejecutada', 'Order filled')],
+    cta: p('Empezar ahora', 'Start now'),
+  },
+
   features: {
     kicker: p('La plataforma', 'The platform'),
     title: p('Todo lo que necesitas para leer el mercado', 'Everything you need to read the market'),

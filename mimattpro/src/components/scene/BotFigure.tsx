@@ -80,7 +80,8 @@ export function BotFigure({ mood, size = 150, lookX }: { mood: BotMood; size?: n
           <stop offset="0%" stopColor={GOLD} stopOpacity="0.9" />
           <stop offset="100%" stopColor={GOLD} stopOpacity="0" />
         </radialGradient>
-        <filter id="bot-glow" x="-50%" y="-50%" width="200%" height="200%">
+        {/* fixed region (user space): a bounding-box region collapses to nothing for flat shapes such as the "sad" eye lines */}
+        <filter id="bot-glow" filterUnits="userSpaceOnUse" x="-20" y="-20" width="210" height="250">
           <feGaussianBlur stdDeviation="2.4" result="b" />
           <feMerge>
             <feMergeNode in="b" />

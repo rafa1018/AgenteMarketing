@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { Background } from '@/components/layout/Background'
 import { Brand } from '@/components/layout/Navbar'
@@ -89,9 +89,9 @@ export function LoginPage() {
         </div>
       </header>
 
-      <main className="container-x grid min-h-[calc(100dvh-4rem)] items-center gap-12 pt-6 pb-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
-        {/* ── brand side ── */}
-        <motion.section initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.9, ease: EASE_OUT }} className="order-2 lg:order-1">
+      <main className="container-x grid min-h-[calc(100dvh-4rem)] items-center gap-12 pt-2 pb-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:pt-6 lg:pb-14">
+        {/* ── brand side (desktop only: on phones the form is the whole page) ── */}
+        <motion.section initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.9, ease: EASE_OUT }} className="hidden lg:block">
           <p className="chip !text-cyan">
             <span className="size-1.5 animate-pulse rounded-full bg-long" /> {t(ui.login.kicker)}
           </p>
@@ -101,21 +101,14 @@ export function LoginPage() {
             <span className="text-gold">{t(ui.login.title2)}</span>
           </h1>
           <p className="mt-5 max-w-lg text-[16px] leading-relaxed text-muted">{t(ui.login.text)}</p>
-          <ul className="mt-7 space-y-3">
-            {ui.login.bullets.map((b, i) => (
-              <motion.li key={b.en} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.12 }} className="flex items-center gap-3 text-[15px] text-fg/90">
-                <CheckCircle2 size={18} className="shrink-0 text-cyan" /> {t(b)}
-              </motion.li>
-            ))}
-          </ul>
           <MarketPanel />
         </motion.section>
 
         {/* ── form side ── */}
-        <motion.section initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: EASE_OUT, delay: 0.1 }} className="order-1 mx-auto w-full max-w-[440px] pt-24 lg:order-2">
+        <motion.section initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: EASE_OUT, delay: 0.1 }} className="mx-auto w-full max-w-[420px] pt-20 sm:pt-24">
           <div className="relative">
             {/* the bot peeks over the card */}
-            <div className="absolute -top-[118px] left-1/2 z-0 -translate-x-1/2">
+            <div className="absolute -top-[118px] left-1/2 z-0 origin-bottom -translate-x-1/2 scale-[0.82] sm:scale-100">
               <BotFigure mood={mood} lookX={lookX} size={128} />
             </div>
             <AnimatePresence mode="wait">
@@ -126,7 +119,7 @@ export function LoginPage() {
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.25 }}
                 className={cn(
-                  'absolute -top-[96px] left-[calc(50%+66px)] z-20 max-w-[170px] rounded-2xl rounded-bl-sm border px-3 py-2 text-[12px] leading-snug shadow-xl backdrop-blur-md',
+                  'absolute -top-[84px] left-[calc(50%+46px)] z-20 max-w-[140px] rounded-2xl rounded-bl-sm border px-3 py-2 text-[11.5px] leading-snug shadow-xl backdrop-blur-md sm:-top-[96px] sm:left-[calc(50%+66px)] sm:max-w-[170px] sm:text-[12px]',
                   hasError ? 'border-short/50 bg-[#22070c]/90 text-short' : submitting ? 'border-cyan/60 bg-abyss/90 text-cyan' : 'border-line bg-abyss/90 text-fg/90',
                 )}
                 aria-live="polite"
@@ -140,7 +133,7 @@ export function LoginPage() {
               action={links.loginAction}
               onSubmit={onSubmit}
               noValidate
-              className="relative z-10 rounded-3xl border border-line-strong bg-gradient-to-b from-[#132a52]/85 to-[#071226]/95 p-7 shadow-[0_40px_100px_-30px_rgb(0_0_0/0.9),0_0_80px_-40px_rgb(var(--brand-rgb)/0.5)] backdrop-blur-xl sm:p-8"
+              className="relative z-10 rounded-3xl border border-line-strong bg-gradient-to-b from-[#132a52]/85 to-[#071226]/95 p-7 shadow-[0_40px_100px_-30px_rgb(0_0_0/0.9),0_0_80px_-40px_rgb(var(--brand-rgb)/0.5)] backdrop-blur-xl max-sm:p-5 sm:p-8"
             >
               <div aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-cyan/70 to-transparent" />
               <h2 className="font-display text-2xl font-semibold">{t(ui.login.cardTitle)}</h2>

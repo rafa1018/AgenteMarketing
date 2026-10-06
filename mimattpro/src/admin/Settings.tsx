@@ -6,8 +6,8 @@ import { api, markPasswordChanged, toast } from './api'
 import { btnPrimary } from './AdminApp'
 
 const THEMES: { id: Theme; name: string; note: string }[] = [
-  { id: 'blue', name: 'Azul', note: 'Tema por defecto · azul eléctrico, velas azules' },
-  { id: 'gold', name: 'Dorado', note: 'Como el logo · dorado metálico, velas verde/rojo' },
+  { id: 'blue', name: 'Azul', note: 'Tema por defecto · azul eléctrico' },
+  { id: 'gold', name: 'Dorado', note: 'Como el logo · dorado metálico' },
 ]
 
 const field = 'h-12 w-full rounded-xl border border-line-strong bg-ink/60 px-3.5 text-[15px] text-fg placeholder:text-dim focus:border-cyan/70 focus:outline-none'
