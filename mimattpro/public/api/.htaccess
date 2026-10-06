@@ -1,0 +1,10 @@
+# Only the endpoints are reachable; config, helpers (_*.php) and data are private.
+Options -Indexes
+
+<FilesMatch "^(config|config\.example|_.*)\.php$">
+  Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(json|log)$">
+  Require all denied
+</FilesMatch>
