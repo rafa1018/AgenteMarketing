@@ -15,7 +15,8 @@
     "admin-password": "php scripts/admin-password.php",
     "zip": "node scripts/zip.mjs",
     "deploy": "npm run build && node scripts/deploy.mjs",
-    "user": "php scripts/user.php"
+    "user": "php scripts/user.php",
+    "characters": "node scripts/characters.mjs"
   },
   "dependencies": {
     "@fontsource-variable/fredoka": "^5.2.0",

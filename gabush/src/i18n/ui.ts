@@ -29,6 +29,16 @@ export const ui = {
     hello: { es: '¡Hola! Soy Gabush', en: "Hi! I'm Gabush" },
     perClass: { es: 'niños máximo por salón', en: 'children max. per class' },
     levels: { es: 'niveles, de Párvulos a Transición', en: 'levels, Toddlers to Transition' },
+    // new hero
+    headA: { es: 'Creciendo con las', en: 'Growing up with the' },
+    headB: { es: 'Artes', en: 'Arts' },
+    subtitle: { es: 'Educamos con arte, amor y atención personalizada.', en: 'We teach with art, love and personal attention.' },
+    quote: { es: 'Un espacio donde cada niño aprende jugando, creando y descubriendo a su propio ritmo.', en: 'A place where every child learns by playing, creating and discovering at their own pace.' },
+    discover: { es: 'Conoce Gabush', en: 'Meet Gabush' },
+    signUp: { es: 'Inscríbete', en: 'Enrol now' },
+    small: { es: 'Máx. 12 niños por salón', en: 'Max. 12 children per class' },
+    levelsShort: { es: 'Párvulos a Transición', en: 'Toddlers to Transition' },
+    place: { es: 'Valledupar', en: 'Valledupar' },
   },
   programs: {
     kicker: { es: 'Niveles y programas', en: 'Levels & programmes' },

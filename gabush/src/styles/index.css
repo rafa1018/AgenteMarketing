@@ -74,6 +74,23 @@
     84% { transform: rotate(7deg); }
     92% { transform: rotate(-4deg); }
   }
+
+  /* modern accents for the new hero */
+  --color-turquoise: #12b5c9;
+  --color-turquoise-dark: #0b8fa1;
+}
+
+/* gentle floating of the Gabush characters (independent of the blink) */
+@keyframes gabush-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.gabush-float {
+  animation: gabush-float 4s ease-in-out infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gabush-float { animation: none; }
 }
 
 @layer base {
@@ -204,6 +221,14 @@
     box-shadow: 0 4px 0 #a80f5a, 0 14px 24px -14px rgb(229 25 126 / 0.9);
   }
   .btn-pink:active { box-shadow: 0 1px 0 #a80f5a; }
+  /* turquoise, dark enough for white text (≈4.6:1) */
+  .btn-turquoise {
+    background: #0b8495;
+    color: #fff;
+    box-shadow: 0 4px 0 #075d69, 0 14px 24px -14px rgb(11 132 149 / 0.9);
+  }
+  .btn-turquoise:hover { background: #0a9aad; }
+  .btn-turquoise:active { box-shadow: 0 1px 0 #075d69; }
   .btn-ghost {
     background: #fff;
     color: var(--color-ink);
