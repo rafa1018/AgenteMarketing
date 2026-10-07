@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { Bell, BellRing, CalendarDays, Images, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
+import { BarChart3, Bell, BellRing, CalendarDays, Globe, Images, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
 import { useEffect, useState, type ComponentType } from 'react'
 import { checkAdmin, loadEvents, logout, reloadEvents, useCalendar, type Perm } from '@/lib/calendar'
 import { cn } from '@/lib/utils'
@@ -18,6 +18,8 @@ import { CalendarPage, Settings } from './pages/Settings'
 import { FeedPage } from './pages/Feed'
 import { UsersPage } from './pages/Users'
 import { NotificationsPage } from './pages/Notifications'
+import { SitePage } from './pages/SiteSettings'
+import { VisitsPage } from './pages/Visits'
 import { roleColor, roleLabel } from './roles'
 
 /** perm: the page is only shown to users with that permission (the server enforces it too). */
@@ -30,6 +32,8 @@ const ALL_PAGES: Page[] = [
   { id: 'inscripciones', label: 'Inscripciones', icon: Bell, view: Inscriptions, perm: 'inscripciones' },
   { id: 'calendario', label: 'Calendario', icon: CalendarDays, view: CalendarPage, perm: 'calendario' },
   { id: 'feed', label: 'Momentos', icon: Images, view: FeedPage, perm: 'feed' },
+  { id: 'visitas', label: 'Visitas', icon: BarChart3, view: VisitsPage, perm: 'ajustes' },
+  { id: 'sitio', label: 'Sitio web', icon: Globe, view: SitePage, perm: 'ajustes' },
   { id: 'usuarios', label: 'Usuarios', icon: ShieldCheck, view: UsersPage, perm: 'usuarios' },
   { id: 'notificaciones', label: 'Notificaciones', icon: BellRing, view: NotificationsPage },
   { id: 'ajustes', label: 'Ajustes', icon: SettingsIcon, view: Settings, perm: 'ajustes' },

@@ -55,7 +55,7 @@ function rp_migrate_data(string $from, string $to): void
 }
 
 /** Data files that make up a backup (keys, rate limits and logs are left out). */
-const RP_BACKUP_FILES = ['students', 'attendance', 'billing', 'inscriptions', 'events', 'settings', 'visits', 'push', 'feed', 'users'];
+const RP_BACKUP_FILES = ['students', 'attendance', 'billing', 'inscriptions', 'events', 'settings', 'visits', 'push', 'feed', 'users', 'visitlog'];
 
 /** Once a day: copy the JSON data to <data>/backups/YYYY-MM-DD and keep the last 14 days. */
 function rp_daily_backup(): void
@@ -226,6 +226,71 @@ function rp_require_admin_read(): void
         rp_json(401, ['ok' => false, 'error' => 'unauthorized']);
     }
     header('Cache-Control: private, no-store');
+}
+
+/* ───────────── Visitors: IP, location, device ───────────── */
+
+/** Visitor IP (Hostinger's CDN passes the real one in REMOTE_ADDR). */
+function rp_client_ip(): string
+{
+    $ip = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '0.0.0.0';
+}
+
+/** Sends the JSON response now and keeps running (the visitor doesn't wait for geolocation). */
+function rp_json_then_continue(array $body, int $status = 200): void
+{
+    ignore_user_abort(true);
+    http_response_code($status);
+    echo json_encode($body, JSON_UNESCAPED_UNICODE);
+    if (function_exists('litespeed_finish_request')) litespeed_finish_request();
+    elseif (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+}
+
+/** Country / region / city / ISP of an IP (approximate), cached in geo.json: each IP is looked up only once. */
+function rp_geo(string $ip): array
+{
+    $none = ['country' => '', 'cc' => '', 'region' => '', 'city' => '', 'isp' => ''];
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+        return ['country' => 'Red local'] + $none;
+    }
+    $file = rp_data_dir() . '/geo.json';
+    $cache = rp_read_json($file);
+    if (isset($cache[$ip])) return $cache[$ip];
+
+    $geo = null;
+    $ctx = stream_context_create(['http' => ['timeout' => 4, 'ignore_errors' => true]]);
+    $r = json_decode((string) @file_get_contents('http://ip-api.com/json/' . rawurlencode($ip) . '?fields=status,country,countryCode,regionName,city,isp&lang=es', false, $ctx), true);
+    if (($r['status'] ?? '') === 'success') {
+        $geo = ['country' => $r['country'], 'cc' => $r['countryCode'], 'region' => $r['regionName'], 'city' => $r['city'], 'isp' => $r['isp']];
+    } else {
+        $r = json_decode((string) @file_get_contents('https://ipwho.is/' . rawurlencode($ip) . '?fields=success,country,country_code,region,city,connection&lang=es', false, $ctx), true);
+        if (!empty($r['success'])) {
+            $geo = ['country' => $r['country'], 'cc' => $r['country_code'], 'region' => $r['region'], 'city' => $r['city'], 'isp' => $r['connection']['isp'] ?? ''];
+        }
+    }
+    if (!$geo) return $none;
+    rp_with_json($file, function (array $data) use ($ip, $geo) {
+        $data[$ip] = $geo;
+        if (count($data) > 5000) $data = array_slice($data, -4000, null, true);
+        return [$data, null];
+    });
+    return $geo;
+}
+
+/** "Chrome · Android" style label + device kind from the User-Agent. */
+function rp_device(string $ua): array
+{
+    $os = 'Otro';
+    foreach (['Android' => '/android/i', 'iPhone' => '/iphone/i', 'iPad' => '/ipad/i', 'Windows' => '/windows/i', 'macOS' => '/macintosh|mac os x/i', 'Linux' => '/linux/i'] as $name => $re) {
+        if (preg_match($re, $ua)) { $os = $name; break; }
+    }
+    $browser = 'Otro';
+    foreach (['Edge' => '/edg\//i', 'Opera' => '/opr\//i', 'Samsung' => '/samsungbrowser/i', 'Facebook' => '/fban|fbav/i', 'Instagram' => '/instagram/i', 'Chrome' => '/chrome|crios/i', 'Firefox' => '/firefox|fxios/i', 'Safari' => '/safari/i'] as $name => $re) {
+        if (preg_match($re, $ua)) { $browser = $name; break; }
+    }
+    $kind = preg_match('/ipad|tablet/i', $ua) ? 'tablet' : (preg_match('/mobi|iphone|android/i', $ua) ? 'mobile' : 'desktop');
+    return ['label' => "$browser · $os", 'kind' => $kind];
 }
 
 /* ───────────── Users, roles and permissions ─────────────

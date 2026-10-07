@@ -129,11 +129,17 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="container-x mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/20 pt-6 text-sm sm:flex-row">
+        <div className="container-x mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/20 pt-6 text-center text-sm sm:flex-row sm:text-left">
           <p>
             © {new Date().getFullYear()} {site.fullName}. {t(ui.footer.rights)}
           </p>
-          <VisitCounter />
+          <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-5">
+            <VisitCounter />
+            <a href="https://rafaelpedraza.dev/" target="_blank" rel="noopener" className="group inline-flex items-center gap-1.5 text-white/75 hover:text-white">
+              {t({ es: 'Hecho con', en: 'Made with' })} <span className="transition-transform group-hover:scale-125">💛</span> {t({ es: 'por', en: 'by' })}
+              <span className="rounded-md bg-white/15 px-2 py-0.5 font-serif font-semibold text-white group-hover:bg-white/25">RP Technologies</span>
+            </a>
+          </div>
         </div>
       </div>
     </footer>

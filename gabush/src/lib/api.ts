@@ -48,7 +48,16 @@ export function loadVisits(): Promise<number | null> {
   } catch {
     /* ignore */
   }
-  visitsPromise = fetch(`${BASE}/visits.php`, { method: counted ? 'GET' : 'POST' })
+  // where the visit comes from (shown in the admin panel → Visitas, with the approximate location of the IP)
+  const visit = counted
+    ? undefined
+    : JSON.stringify({
+        ref: document.referrer,
+        lang: navigator.language,
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        screen: `${screen.width}x${screen.height}`,
+      })
+  visitsPromise = fetch(`${BASE}/visits.php`, { method: counted ? 'GET' : 'POST', headers: visit ? { 'Content-Type': 'application/json' } : undefined, body: visit })
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => {
       if (!d?.ok) return null
