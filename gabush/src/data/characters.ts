@@ -16,11 +16,11 @@ export interface Character {
 
 export const CHARACTERS: Record<CharacterId, Character> = {
   leon: { name: { es: 'León Gabush', en: 'Gabush the lion' }, width: 800, height: 1017 },
-  elefante: { name: { es: 'Elefante Gabush', en: 'Gabush elephant' }, width: 800, height: 949 },
-  tigre: { name: { es: 'Tigre Gabush', en: 'Gabush tiger' }, width: 800, height: 1050 },
-  conejo: { name: { es: 'Conejo Gabush', en: 'Gabush rabbit' }, width: 800, height: 1224 },
-  oso: { name: { es: 'Oso Gabush', en: 'Gabush bear' }, width: 800, height: 1042 },
-  buho: { name: { es: 'Búho Gabush', en: 'Gabush owl' }, width: 800, height: 814 },
+  elefante: { name: { es: 'Elefante Gabush', en: 'Gabush elephant' }, width: 800, height: 955 },
+  tigre: { name: { es: 'Tigre Gabush', en: 'Gabush tiger' }, width: 800, height: 1058 },
+  conejo: { name: { es: 'Conejo Gabush', en: 'Gabush rabbit' }, width: 800, height: 1248 },
+  oso: { name: { es: 'Oso Gabush', en: 'Gabush bear' }, width: 800, height: 1047 },
+  buho: { name: { es: 'Búho Gabush', en: 'Gabush owl' }, width: 800, height: 825 },
 }
 
 export const characterSrc = (id: CharacterId, frame: 'open' | 'closed') => ({

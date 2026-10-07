@@ -16,12 +16,15 @@ export interface SiteMusic {
 }
 export interface SiteSettings {
   preloader: boolean
+  /** how long the intro stays, 1.5–8 s */
+  preloaderSeconds: number
   music: SiteMusic
 }
 
 /** Used when the API is unreachable (e.g. `npm run dev` without `npm run api`). */
 const FALLBACK: SiteSettings = {
   preloader: true,
+  preloaderSeconds: 2.5,
   music: { enabled: false, mode: 'none', file: '', name: '', url: '', autoplay: true, volume: 60, updatedAt: null, src: null },
 }
 

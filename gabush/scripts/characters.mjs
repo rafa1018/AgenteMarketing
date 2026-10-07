@@ -16,6 +16,14 @@ const IN = 'public/images/animals'
 const OUT = 'public/images/characters'
 const ANIMALS = ['leon', 'elefante', 'tigre', 'conejo', 'oso', 'buho']
 const WIDTHS = [480, 800]
+// Manual eye boxes [x0, y0, x1, y1] (source pixels) where auto-detection fails: the tiger's stripes
+// differ a lot between its two drawings, so the difference blobs don't land on the eyes.
+const EYES = {
+  tigre: [
+    [398, 238, 520, 362],
+    [662, 292, 786, 418],
+  ],
+}
 await mkdir(OUT, { recursive: true })
 
 /**
@@ -23,7 +31,7 @@ await mkdir(OUT, { recursive: true })
  * becomes transparent; the soft grey floor shadow keeps a partial alpha so it stays a real shadow.
  * Returns alpha 0..255.
  */
-function cutoutAlpha(data, w, h, c) {
+function cutoutAlpha(data, w, h, c, keepShadow = true) {
   const isBg = (i) => {
     const r = data[i], g = data[i + 1], b = data[i + 2]
     const max = Math.max(r, g, b), min = Math.min(r, g, b)
@@ -31,7 +39,7 @@ function cutoutAlpha(data, w, h, c) {
   }
   const bgAlpha = (i) => {
     const light = (data[i] + data[i + 1] + data[i + 2]) / 3
-    return light >= 244 ? 0 : Math.min(150, Math.round((244 - light) * 5))
+    return light >= 244 || !keepShadow ? 0 : Math.min(150, Math.round((244 - light) * 5))
   }
   const alpha = new Uint8Array(w * h).fill(255)
   const seen = new Uint8Array(w * h)
@@ -65,7 +73,7 @@ function cutoutAlpha(data, w, h, c) {
 }
 
 /** Eye areas: dense blobs of difference between the two frames inside the head. Returns a soft mask 0..1. */
-function eyeMask(A, B, w, h, c) {
+function eyeMask(A, B, w, h, c, override) {
   const CELL = 12
   const gw = Math.ceil(w / CELL), gh = Math.ceil(h / CELL)
   const dens = new Float32Array(gw * gh)
@@ -102,12 +110,16 @@ function eyeMask(A, B, w, h, c) {
     }
     blobs.push(b)
   }
-  const eyes = blobs.sort((a, b) => b.n - a.n).slice(0, 2)
+  const eyes = blobs.sort((a, b) => b.n - a.n).slice(0, 2).map((b) => [b.x0 * CELL, b.y0 * CELL, (b.x1 + 1) * CELL, (b.y1 + 1) * CELL])
+  return softEyes(override ?? eyes, w, h)
+}
+
+/** Soft mask 0..1: a padded, feathered ellipse around each eye box [x0, y0, x1, y1]. */
+function softEyes(eyes, w, h) {
   const mask = new Float32Array(w * h)
-  for (const b of eyes) {
-    // ellipse around the blob, padded, with a soft edge
-    const cx = ((b.x0 + b.x1 + 1) / 2) * CELL, cy = ((b.y0 + b.y1 + 1) / 2) * CELL
-    const rx = ((b.x1 - b.x0 + 1) / 2) * CELL + 22, ry = ((b.y1 - b.y0 + 1) / 2) * CELL + 22
+  for (const [x0, y0, x1, y1] of eyes) {
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2
+    const rx = (x1 - x0) / 2 + 22, ry = (y1 - y0) / 2 + 22
     for (let y = Math.max(0, Math.floor(cy - ry - 16)); y < Math.min(h, cy + ry + 16); y++)
       for (let x = Math.max(0, Math.floor(cx - rx - 16)); x < Math.min(w, cx + rx + 16); x++) {
         const d = Math.hypot((x - cx) / rx, (y - cy) / ry) // 1 = ellipse edge
@@ -116,7 +128,7 @@ function eyeMask(A, B, w, h, c) {
         if (m > mask[p]) mask[p] = m
       }
   }
-  return { mask, eyes: eyes.map((b) => [b.x0 * CELL, b.y0 * CELL, (b.x1 + 1) * CELL, (b.y1 + 1) * CELL]) }
+  return { mask, eyes }
 }
 
 for (const name of ANIMALS) {
@@ -130,7 +142,7 @@ for (const name of ANIMALS) {
   const B = await sharp(closedF).removeAlpha().resize(A.info.width, A.info.height).raw().toBuffer()
   const { width: w, height: h, channels: c } = A.info
   const alpha = cutoutAlpha(A.data, w, h, c)
-  const { mask, eyes } = eyeMask(A.data, B, w, h, c)
+  const { mask, eyes } = eyeMask(A.data, B, w, h, c, EYES[name])
 
   const open = Buffer.alloc(w * h * 4)
   const closed = Buffer.alloc(w * h * 4)
@@ -151,4 +163,23 @@ for (const name of ANIMALS) {
     }
   }
   console.log(`[characters] ${name}: ${box.width}×${box.height} · ojos ${JSON.stringify(eyes)}`)
+}
+
+// Single poses (no blink): cut out without the floor shadow — the page draws its own, so a jumping
+// character can move away from it. Output: public/images/characters/<pose>-{240|480}.webp
+const POSES = ['leon-saltando', 'tigre-saltando']
+for (const pose of POSES) {
+  const { data, info } = await sharp(`${IN}/${pose}.png`).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  const { width: w, height: h, channels: c } = info
+  const alpha = cutoutAlpha(data, w, h, c, false)
+  const rgba = Buffer.alloc(w * h * 4)
+  for (let p = 0; p < w * h; p++) {
+    for (let k = 0; k < 3; k++) rgba[p * 4 + k] = data[p * c + k]
+    rgba[p * 4 + 3] = alpha[p]
+  }
+  const img = sharp(rgba, { raw: { width: w, height: h, channels: 4 } }).trim({ threshold: 1 })
+  const buf = await img.png().toBuffer()
+  for (const width of [240, 480]) await sharp(buf).resize({ width }).webp({ quality: 86, alphaQuality: 92 }).toFile(`${OUT}/${pose}-${width}.webp`)
+  const m = await sharp(buf).metadata()
+  console.log(`[characters] ${pose}: ${m.width}×${m.height}`)
 }

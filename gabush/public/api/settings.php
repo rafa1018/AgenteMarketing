@@ -4,6 +4,7 @@
 //
 // Website options (permission "ajustes"):
 // POST {action:"preloader", enabled}        → show / skip the intro (letters + lion) when the site opens
+// POST {action:"preloaderSeconds", seconds} → how long the intro stays (1.5–8 s, in half seconds)
 // POST {action:"musicEnabled", enabled}     → background music on / off (the music button disappears when off)
 // POST {action:"musicAutoplay", autoplay}   → start playing by itself or wait for the visitor
 // POST {action:"musicVolume", volume}       → starting volume 0–100
@@ -17,6 +18,13 @@ rp_check_origin($CONFIG);
 
 const MAX_SLOTS = 3;
 const MAX_MUSIC_BYTES = 20 * 1024 * 1024;
+
+/** Intro length in seconds: 1.5–8, rounded to half a second (default 2.5). */
+function preloader_seconds($v): float
+{
+    $n = is_numeric($v) ? (float) $v : 2.5;
+    return max(1.5, min(8.0, round($n * 2) / 2));
+}
 
 function default_schedule(): array
 {
@@ -32,6 +40,7 @@ function site_settings(array $data): array
     $m = (array) ($s['music'] ?? []);
     return [
         'preloader' => ($s['preloader'] ?? true) !== false,
+        'preloaderSeconds' => preloader_seconds($s['preloaderSeconds'] ?? 2.5),
         'music' => [
             'enabled' => !empty($m['enabled']),
             'mode' => in_array($m['mode'] ?? '', ['file', 'url'], true) ? $m['mode'] : 'none',
@@ -119,6 +128,10 @@ if ($action !== 'schedule') {
         case 'preloader':
             $on = !empty($in['enabled']);
             $site = save_site($file, function ($s) use ($on) { $s['preloader'] = $on; return $s; });
+            break;
+        case 'preloaderSeconds':
+            $sec = preloader_seconds($in['seconds'] ?? null);
+            $site = save_site($file, function ($s) use ($sec) { $s['preloaderSeconds'] = $sec; return $s; });
             break;
         case 'musicEnabled':
             $on = !empty($in['enabled']);

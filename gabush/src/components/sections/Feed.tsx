@@ -17,7 +17,7 @@ function Avatar({ size = 'size-11' }: { size?: string }) {
   return (
     <span className={`grid shrink-0 place-items-center rounded-full bg-[conic-gradient(#f8c21c,#f26b1d,#e5197e,#8e44c9,#1fa3dd,#5cb531,#f8c21c)] p-[3px] ${size}`}>
       <span className="grid size-full place-items-center rounded-full bg-cream p-0.5">
-        <img src="/images/opt/lion-head-160.webp" alt="" width={160} height={150} className="size-full object-contain" />
+        <img src="/images/opt/lion-head-160.webp" alt="" width={160} height={161} className="size-full object-contain" />
       </span>
     </span>
   )

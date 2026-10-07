@@ -11,6 +11,12 @@ import { ShareButton } from '@/components/ui/ShareButton'
 import { BlockLogo, Cloud } from '@/components/fx/Fx'
 import { NAV } from './Navbar'
 
+/** jumping poses from scripts/characters.mjs (height of the 240 px image) */
+const JUMPERS = [
+  { src: 'leon-saltando', h: 290 },
+  { src: 'tigre-saltando', h: 294 },
+]
+
 function VisitCounter() {
   const t = useT()
   const count = useVisits()
@@ -33,18 +39,34 @@ export function Footer() {
       <div className="relative h-[max(150px,calc(13vw+70px))] bg-[linear-gradient(180deg,#ffffff_0%,#cdeeff_100%)]">
         <Cloud className="top-6" size={150} duration={80} delay={15} />
         <Cloud className="top-16" size={100} duration={65} delay={45} opacity={0.8} />
-        <motion.img
-          src="/images/opt/lion-200.webp"
-          alt=""
-          aria-hidden
-          width={200}
-          loading="lazy"
-          className="absolute bottom-[calc(min(13vw,260px)*0.25)] left-[12%] z-10 w-16 sm:w-24"
-          initial={{ y: 40, opacity: 0 }}
-          whileInView={{ y: 0, opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ type: 'spring', stiffness: 200, damping: 12 }}
-        />
+        {/* the lion and the tiger jumping in turns on the left hill, each over its own shadow */}
+        <div aria-hidden className="absolute bottom-[calc(min(13vw,260px)*0.25)] left-[5%] z-10 flex items-end gap-3 sm:left-[8%] sm:gap-6">
+          {JUMPERS.map((j, i) => (
+            <motion.div
+              key={j.src}
+              className="relative w-16 sm:w-24 lg:w-28"
+              initial={{ y: 40, opacity: 0 }}
+              whileInView={{ y: 0, opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ type: 'spring', stiffness: 200, damping: 12, delay: i * 0.12 }}
+            >
+              <span className="gabush-jump-shadow absolute inset-x-[18%] -bottom-1 h-2.5 rounded-[50%] bg-[#2f4a10]/25 blur-[2px]" style={{ animationDelay: `${i * 1.2}s` }} />
+              <img
+                src={`/images/characters/${j.src}-240.webp`}
+                srcSet={`/images/characters/${j.src}-240.webp 240w, /images/characters/${j.src}-480.webp 480w`}
+                sizes="112px"
+                width={240}
+                height={j.h}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                draggable={false}
+                className="gabush-jump relative w-full select-none"
+                style={{ animationDelay: `${i * 1.2}s` }}
+              />
+            </motion.div>
+          ))}
+        </div>
         <img src="/images/opt/anim-7.webp" alt="" aria-hidden loading="lazy" width={70} className="absolute top-6 right-[10%] w-12 animate-float sm:w-16" />
         <img
           src="/images/opt/grass-1000.webp"

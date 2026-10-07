@@ -36,7 +36,8 @@ export default function App() {
   const reduce = useReducedMotionPref()
   const [introDone, setIntroDone] = useState(introSeen)
   // the intro can be turned off in the admin panel (Sitio web); null while that setting loads
-  const preloader = useSite()?.preloader ?? null
+  const site = useSite()
+  const preloader = site?.preloader ?? null
   const ready = introDone || reduce || preloader === false
   const finishIntro = useCallback(() => {
     setIntroDone(true)
@@ -52,7 +53,7 @@ export default function App() {
       <a href="#programas" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[200] focus:rounded-full focus:bg-ink focus:px-5 focus:py-3 focus:text-white">
         {t(ui.nav.skip)}
       </a>
-      {!ready && preloader === true && <Intro onDone={finishIntro} />}
+      {!ready && preloader === true && <Intro seconds={site?.preloaderSeconds ?? 2.5} onDone={finishIntro} />}
       {/* a moment while the setting arrives: plain sky cover (same as the intro) so nothing flashes */}
       {!ready && preloader === null && <div aria-hidden className="fixed inset-0 z-[100] bg-[#bfe8ff]" />}
       <Navbar visible={ready} />

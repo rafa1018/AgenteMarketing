@@ -207,7 +207,7 @@ export function Calendar({ embedded = false }: { embedded?: boolean }) {
   return (
     <section id={embedded ? undefined : 'calendario'} className={embedded ? '' : 'relative py-20 sm:py-28'}>
       <div className={embedded ? '' : 'container-x'}>
-        {!embedded && <SectionHeader kicker={ui.calendar.kicker} title={ui.calendar.title} sub={ui.calendar.sub} />}
+        {!embedded && <SectionHeader kicker={ui.calendar.kicker} title={ui.calendar.title} sub={ui.calendar.sub} mascot="tigre" />}
 
         <div className={cn(!embedded && 'mt-12', 'grid gap-6 lg:grid-cols-[1fr_340px] lg:items-start')}>
           {/* calendar */}

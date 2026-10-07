@@ -8,7 +8,6 @@ import { ui } from '@/i18n/ui'
 import { FadeIn } from '@/components/animations'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { WhatsappIcon } from '@/components/ui/BrandIcons'
-import { Deco, useSectionScroll } from '@/components/fx/Fx'
 import { EnrollForm } from './EnrollForm'
 
 function Row({ icon, label, children, color, soft }: { icon: ReactNode; label: string; children: ReactNode; color: string; soft: string }) {
@@ -30,16 +29,14 @@ export function Contact() {
   const { lang } = useLang()
   const schedule = useCalendar((s) => s.schedule)
   const hours = summarizeSchedule(schedule, lang)
-  const { ref, progress } = useSectionScroll<HTMLElement>()
   useEffect(() => {
     loadEvents()
   }, [])
 
   return (
-    <section id="contacto" ref={ref} className="dots-bg relative overflow-clip bg-paper py-20 sm:py-28">
-      <Deco src="/images/opt/anim-1.webp" width={86} className="top-16 right-[5%] hidden md:block" anim="sway" progress={progress} scroll={-90} />
+    <section id="contacto" className="dots-bg relative overflow-clip bg-paper py-20 sm:py-28">
       <div className="container-x relative">
-        <SectionHeader kicker={ui.contact.kicker} title={ui.contact.title} sub={ui.contact.sub} />
+        <SectionHeader kicker={ui.contact.kicker} title={ui.contact.title} sub={ui.contact.sub} mascot="oso" />
 
         <div className="mt-12 grid gap-6 lg:grid-cols-[0.85fr_1.15fr] lg:items-start [&>*]:min-w-0">
           <FadeIn direction="right" className="space-y-5">

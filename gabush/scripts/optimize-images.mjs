@@ -1,7 +1,7 @@
 // Generates optimized web assets from the original files in public/images.
 // Run with: npm run images
 // - logo.png (GABUSH block letters) → wordmark WebP/PNG
-// - 22bd…png (lion, high-res) → mascot WebP, favicons and PWA icons
+// - animals/leon-asomado.png (lion) → mascot WebP, favicons and PWA icons (scripts/lion.mjs)
 // - anim-icon-*.png → floating decorations (WebP)
 // - slider-gabushkids.jpg + real photos → hero / gallery / programs (WebP)
 // - 01…05.jpg → initial Instagram-style feed (the admin panel manages it afterwards)
@@ -16,46 +16,13 @@ const FEED = 'public/images/feed'
 await mkdir(OUT, { recursive: true })
 await mkdir(FEED, { recursive: true })
 
-const C = { cream: '#fff8e7', sky: '#e6f6ff' }
-const clear = { r: 0, g: 0, b: 0, alpha: 0 }
-
 /* ── Wordmark ── */
 const logo = sharp(`${IN}/logo.png`).trim({ threshold: 2 })
 for (const w of [240, 480]) await logo.clone().resize({ width: w }).webp({ quality: 90, alphaQuality: 95 }).toFile(`${OUT}/logo-${w}.webp`)
 await logo.clone().resize({ width: 480 }).png({ compressionLevel: 9 }).toFile(`${OUT}/logo-480.png`)
 
-/* ── Lion mascot ── */
-const LION = `${IN}/22bd0015-2767-436c-8899-319733bc63a3_20251013_203745_0000.png`
-const lion = sharp(existsSync(LION) ? LION : `${IN}/gabushV2.png`).trim({ threshold: 2 })
-for (const w of [200, 400, 640]) await lion.clone().resize({ width: w }).webp({ quality: 88, alphaQuality: 95 }).toFile(`${OUT}/lion-${w}.webp`)
-// waving lion (other pose)
-for (const w of [200, 400]) await sharp(`${IN}/gabushV2.png`).trim({ threshold: 2 }).resize({ width: w }).webp({ quality: 90 }).toFile(`${OUT}/lion-wave-${w}.webp`)
-
-// Head only (top ~52 %) → favicons: legible at 16 px
-const lm = await lion.clone().png().toBuffer().then((b) => sharp(b).metadata())
-const lionBuf = await lion.clone().png().toBuffer()
-const head = await sharp(lionBuf).extract({ left: 0, top: 0, width: lm.width, height: Math.round(lm.height * 0.5) }).trim({ threshold: 2 }).png().toBuffer()
-await sharp(head).resize({ width: 160 }).webp({ quality: 90 }).toFile(`${OUT}/lion-head-160.webp`)
-
-async function icon(size, file, pad = 0.08, bg = C.cream, rounded = true, art = head) {
-  const inner = Math.round(size * (1 - pad * 2))
-  const img = await sharp(art).resize(inner, inner, { fit: 'contain', background: clear }).png().toBuffer()
-  const r = rounded ? Math.round(size * 0.22) : 0
-  const tile = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><rect width="${size}" height="${size}" rx="${r}" fill="${bg}"/></svg>`)
-  await sharp(tile).composite([{ input: img, gravity: 'center' }]).png().toFile(file)
-}
-await icon(32, 'public/favicon-32.png', 0.02, C.cream, false)
-await icon(48, 'public/favicon-48.png', 0.02, C.cream, false)
-// App icons (installed admin panel): full-bleed sky blue — the same colour as the app's splash screen
-// (manifest background_color), so Android's circle crop blends in — and the lion inside the safe zone.
-const APP_BG = '#bfe8ff'
-// The whole lion (not just the head, which looks cut off at this size).
-await icon(180, 'public/apple-touch-icon.png', 0.12, APP_BG, false, lionBuf)
-await icon(192, 'public/icon-192.png', 0.16, APP_BG, false, lionBuf)
-await icon(512, 'public/icon-512.png', 0.16, APP_BG, false, lionBuf)
-// Android only shows the central ~66 % circle of a maskable icon (launcher and launch screen):
-// the whole lion must fit inside it, so it gets a wide margin here.
-await icon(512, 'public/icon-maskable-512.png', 0.27, APP_BG, false, lionBuf)
+/* ── Lion mascot, favicons and PWA icons → scripts/lion.mjs ── */
+await import('./lion.mjs')
 
 /* ── Floating decorations ── */
 for (const n of [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 16]) {

@@ -16,7 +16,8 @@
     "zip": "node scripts/zip.mjs",
     "deploy": "npm run build && node scripts/deploy.mjs",
     "user": "php scripts/user.php",
-    "characters": "node scripts/characters.mjs"
+    "characters": "node scripts/characters.mjs",
+    "lion": "node scripts/lion.mjs"
   },
   "dependencies": {
     "@fontsource-variable/fredoka": "^5.2.0",

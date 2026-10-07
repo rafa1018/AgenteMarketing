@@ -1,7 +1,7 @@
 // Gabush Kids admin — minimal service worker so the panel can be installed as an app.
 // Network first for everything; the app shell is cached only as an offline fallback.
 // API calls (/api/*) and student photos are never cached here.
-const CACHE = 'gb-admin-v2'
+const CACHE = 'gb-admin-v3'
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => {

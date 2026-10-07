@@ -14,6 +14,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader'
 import { Rich } from '@/components/ui/Rich'
 import { WhatsappIcon } from '@/components/ui/BrandIcons'
 import { BlockWord, Confetti, Deco, Wave, useSectionScroll } from '@/components/fx/Fx'
+import { BlinkingCharacter } from '@/components/fx/BlinkingCharacter'
 
 /** Real parent testimonials only — hidden while src/data/content.ts has none. */
 export function Testimonials() {
@@ -79,17 +80,15 @@ export function CtaBand() {
             viewport={{ once: true }}
             transition={{ type: 'spring', stiffness: 120, damping: 16 }}
           />
-          <motion.img
-            src="/images/opt/lion-wave-400.webp"
-            alt=""
-            width={400}
-            loading="lazy"
+          <motion.div
             className="absolute bottom-0 -left-2 z-20 w-[34%]"
             initial={{ x: -60, opacity: 0, rotate: -20 }}
             whileInView={{ x: 0, opacity: 1, rotate: 0 }}
             viewport={{ once: true }}
             transition={{ type: 'spring', stiffness: 160, damping: 12, delay: 0.3 }}
-          />
+          >
+            <BlinkingCharacter id="leon" decorative sizes="160px" />
+          </motion.div>
           <div aria-hidden className="absolute bottom-0 left-1/2 aspect-square w-[92%] -translate-x-1/2 translate-y-1/3 rounded-full bg-[radial-gradient(circle,#f8c21c_0%,#f26b1d_60%,transparent_61%)] opacity-90" />
         </div>
       </div>
@@ -106,8 +105,8 @@ export function Faq() {
     <section id="preguntas" className="py-20 sm:py-28">
       <div className="container-x grid gap-10 lg:grid-cols-[1fr_1.6fr] lg:gap-16">
         <div>
-          <SectionHeader kicker={ui.faq.kicker} title={ui.faq.title} />
-          <img src="/images/opt/anim-6.webp" alt="" aria-hidden loading="lazy" width={160} className="mt-10 hidden w-40 animate-float lg:block" />
+          {/* the owl sits beside the title on phones and under it on desktop */}
+          <SectionHeader kicker={ui.faq.kicker} title={ui.faq.title} mascot="buho" mascotClassName="absolute top-0 right-0 w-[84px] sm:w-28 lg:static lg:mt-10 lg:w-48" />
         </div>
         <ScrollReveal className="space-y-3" stagger={0.06}>
           {faq.map((f, i) => {

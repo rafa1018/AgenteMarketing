@@ -89,8 +89,25 @@
   animation: gabush-float 4s ease-in-out infinite;
   will-change: transform;
 }
+/* footer: the jumping lion and tiger go up and land in turns; the shadow shrinks while they are up */
+@keyframes gabush-jump {
+  0%, 50%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-20%); animation-timing-function: ease-in; }
+}
+@keyframes gabush-jump-shadow {
+  0%, 50%, 100% { transform: scaleX(1); opacity: 1; }
+  25% { transform: scaleX(0.6); opacity: 0.45; animation-timing-function: ease-in; }
+}
+.gabush-jump {
+  animation: gabush-jump 2.4s ease-out infinite;
+}
+.gabush-jump-shadow {
+  animation: gabush-jump-shadow 2.4s ease-out infinite;
+}
 @media (prefers-reduced-motion: reduce) {
-  .gabush-float { animation: none; }
+  .gabush-float,
+  .gabush-jump,
+  .gabush-jump-shadow { animation: none; }
 }
 
 @layer base {

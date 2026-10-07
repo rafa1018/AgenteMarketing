@@ -17,7 +17,7 @@ export function Steps() {
   return (
     <section id="como-empezar" className="relative py-20 sm:py-28">
       <div className="container-x">
-        <SectionHeader kicker={steps.kicker} title={steps.title} />
+        <SectionHeader kicker={steps.kicker} title={steps.title} mascot="conejo" />
 
         <ol ref={ref} className="relative mt-14 grid gap-10 md:grid-cols-4 md:gap-6">
           <div aria-hidden className="absolute top-0 bottom-0 left-[31px] w-1.5 rounded-full bg-line md:top-[29px] md:right-0 md:bottom-auto md:left-0 md:h-1.5 md:w-auto">

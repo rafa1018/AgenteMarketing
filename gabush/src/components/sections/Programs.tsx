@@ -111,11 +111,10 @@ export function Programs() {
 
   return (
     <section id="programas" ref={ref} className="dots-bg relative overflow-clip bg-cream py-20 sm:py-28">
-      <Deco src="/images/opt/anim-7.webp" width={90} className="top-16 right-[4%] hidden md:block" anim="float" progress={progress} scroll={-140} duration={8} />
       <Deco src="/images/opt/anim-1.webp" width={80} className="top-[45%] left-[1%] hidden xl:block" anim="sway" progress={progress} scroll={-80} />
 
       <div className="container-x relative">
-        <SectionHeader kicker={ui.programs.kicker} title={ui.programs.title} sub={ui.programs.sub} />
+        <SectionHeader kicker={ui.programs.kicker} title={ui.programs.title} sub={ui.programs.sub} mascot="elefante" />
 
         {grades.length > 0 && (
           <ScrollReveal className={cn('mt-14 grid gap-8 sm:grid-cols-2 lg:gap-6', grades.length >= 4 ? 'lg:grid-cols-4' : grades.length === 3 ? 'lg:grid-cols-3' : '')} stagger={0.1}>

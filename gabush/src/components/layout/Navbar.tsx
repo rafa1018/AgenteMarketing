@@ -58,7 +58,7 @@ export function Navbar({ visible }: { visible: boolean }) {
             aria-label={site.fullName}
             className="group flex shrink-0 items-center gap-2 rounded-xl"
           >
-            <img src="/images/opt/lion-head-160.webp" alt="" width={160} height={150} className="size-10 object-contain transition-transform group-hover:animate-wiggle sm:size-11" />
+            <img src="/images/opt/lion-head-160.webp" alt="" width={160} height={161} className="size-10 object-contain transition-transform group-hover:animate-wiggle sm:size-11" />
             <BlockLogo size="text-[1.05rem] sm:text-[1.3rem]" kids="text-[0.72rem] px-1.5 sm:text-[0.82rem] sm:px-2" className="pt-0.5" />
           </a>
 

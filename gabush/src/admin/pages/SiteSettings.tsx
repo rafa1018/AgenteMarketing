@@ -1,4 +1,4 @@
-import { Link2, Loader2, Music2, Play, Save, Sparkles, Trash2, Upload, Volume2 } from 'lucide-react'
+import { Link2, Loader2, Music2, Play, Save, Sparkles, Timer, Trash2, Upload, Volume2 } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { expireSession, getCsrf } from '@/lib/calendar'
 import type { SiteSettings } from '@/lib/site'
@@ -16,6 +16,9 @@ const ERRORS: Record<string, string> = {
   upload: 'No se pudo subir el archivo. Intenta de nuevo.',
 }
 const PRESETS = [30, 50, 70, 100]
+const SECONDS_PRESETS = [2, 3, 4, 5]
+/** 2.5 → "2,5 segundos" */
+const secs = (s: number) => `${String(s).replace('.', ',')} segundos`
 
 function Toggle({ on, onChange, disabled, label }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean; label: string }) {
   return (
@@ -59,8 +62,9 @@ function uploadSong(file: File, onProgress: (p: number) => void): Promise<{ ok?:
 
 export function SitePage() {
   const [site, setSite] = useState<SiteSettings | null>(null)
-  const [busy, setBusy] = useState<'' | 'pre' | 'music' | 'auto' | 'vol' | 'url' | 'upload' | 'remove'>('')
+  const [busy, setBusy] = useState<'' | 'pre' | 'secs' | 'music' | 'auto' | 'vol' | 'url' | 'upload' | 'remove'>('')
   const [volume, setVolume] = useState(60)
+  const [seconds, setSeconds] = useState(2.5)
   const [url, setUrl] = useState('')
   const [progress, setProgress] = useState(0)
   const [askRemove, setAskRemove] = useState(false)
@@ -71,6 +75,7 @@ export function SitePage() {
       if (!data?.site) return
       setSite(data.site)
       setVolume(data.site.music.volume)
+      setSeconds(data.site.preloaderSeconds ?? 2.5)
       setUrl(data.site.music.mode === 'url' ? data.site.music.url : '')
     })
   }, [])
@@ -79,6 +84,7 @@ export function SitePage() {
     if (data?.ok && data.site) {
       setSite(data.site)
       setVolume(data.site.music.volume)
+      setSeconds(data.site.preloaderSeconds)
       toast(okText)
     } else toast(ERRORS[data?.error ?? ''] ?? 'No se pudo guardar. Revisa tu conexión.')
   }
@@ -145,12 +151,35 @@ export function SitePage() {
                 </h2>
                 <p className="mt-1 text-[15px] text-muted">
                   {site.preloader
-                    ? 'Activa: al entrar, las letras GABUSH caen y el león saluda (unos 2 segundos, se puede saltar). Se muestra una vez por visita.'
+                    ? `Activa: al entrar, las letras GABUSH caen y el león saluda (${secs(site.preloaderSeconds)}, se puede saltar). Se muestra una vez por visita.`
                     : 'Apagada: la página abre directo en la portada.'}
                 </p>
               </div>
               <Toggle on={site.preloader} disabled={busy !== ''} label="Pantalla de bienvenida" onChange={(enabled) => post('pre', { action: 'preloader', enabled }, enabled ? 'Pantalla de bienvenida activada.' : 'Pantalla de bienvenida apagada.')} />
             </div>
+
+            {site.preloader && (
+              <div className="mt-5 rounded-2xl border-2 border-line p-4">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 font-semibold text-ink">
+                    <Timer size={18} className="text-pink" /> Duración
+                  </span>
+                  <span className="font-serif text-xl font-semibold text-pink tabular-nums">{secs(seconds)}</span>
+                </div>
+                <input type="range" min={1.5} max={8} step={0.5} value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} aria-label="Duración de la pantalla de bienvenida" className="mt-3 w-full accent-[#e5197e]" />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {SECONDS_PRESETS.map((p) => (
+                    <button key={p} type="button" onClick={() => setSeconds(p)} className={cn('rounded-full border-2 px-3 py-1 text-sm font-semibold', seconds === p ? 'border-pink bg-[#fde7f2] text-ink' : 'border-line text-muted')}>
+                      {secs(p)}
+                    </button>
+                  ))}
+                  <button type="button" disabled={busy !== '' || seconds === site.preloaderSeconds} onClick={() => post('secs', { action: 'preloaderSeconds', seconds }, `Duración guardada: ${secs(seconds)}.`)} className="btn btn-primary ml-auto !min-h-10 !px-4 !text-sm disabled:opacity-50">
+                    {busy === 'secs' ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Guardar
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-muted">Las letras y el león entran en el primer segundo y medio; el resto del tiempo se quedan en pantalla antes de abrir la página.</p>
+              </div>
+            )}
           </Card>
 
           {/* music */}
