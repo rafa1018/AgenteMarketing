@@ -20,9 +20,9 @@ const lionBuf = await sharp(data, { raw: info }).trim({ threshold: 1 }).png().to
 const lion = sharp(lionBuf)
 const { width, height } = await lion.metadata()
 
-for (const w of [200, 400, 640]) await lion.clone().resize({ width: w }).webp({ quality: 88, alphaQuality: 95 }).toFile(`${OUT}/lion-${w}.webp`)
+for (const w of [200, 400, 640]) await lion.clone().resize({ width: w }).webp({ quality: 88, alphaQuality: 95 }).toFile(`${OUT}/leon-asomado-${w}.webp`)
 // small mark next to the GABUSH blocks (navbar, admin, feed avatar): the whole lion, it is mostly head
-await lion.clone().resize({ width: 160 }).webp({ quality: 90, alphaQuality: 95 }).toFile(`${OUT}/lion-head-160.webp`)
+await lion.clone().resize({ width: 160 }).webp({ quality: 90, alphaQuality: 95 }).toFile(`${OUT}/leon-asomado-160.webp`)
 
 const clear = { r: 0, g: 0, b: 0, alpha: 0 }
 async function icon(size, file, pad, bg) {
@@ -42,4 +42,4 @@ await icon(512, 'public/icon-512.png', 0.16, APP_BG)
 // Android only shows the central ~66 % circle of a maskable icon (launcher and launch screen)
 await icon(512, 'public/icon-maskable-512.png', 0.24, APP_BG)
 
-console.log(`[lion] ${width}×${height} → lion-{200,400,640}, lion-head-160, favicons, PWA icons`)
+console.log(`[lion] ${width}×${height} → leon-asomado-{160,200,400,640}, favicons, PWA icons`)

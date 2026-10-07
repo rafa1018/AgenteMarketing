@@ -123,7 +123,7 @@ function Shell() {
       {/* vertical sidebar (desktop) — room for many modules */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[256px] flex-col border-r-2 border-line bg-white lg:flex">
         <a href={`#/${PAGES[0]?.id ?? ''}`} className="flex items-center gap-2.5 px-5 pt-5 pb-4">
-          <img src="/images/opt/lion-head-160.webp" alt="" width={160} height={161} className="size-11 object-contain" />
+          <img src="/images/opt/leon-asomado-160.webp" alt="" width={160} height={161} className="size-11 object-contain" />
           <span className="leading-none">
             <BlockLogo size="text-[1.05rem]" kids="text-[0.72rem] px-1.5" />
             <span className="mt-2 block text-[10px] font-bold tracking-[0.16em] text-muted uppercase">Administración</span>
@@ -191,7 +191,7 @@ function Shell() {
       {/* top bar (phones / tablets) */}
       <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur lg:hidden">
         <div className="flex h-16 items-center gap-3 px-4">
-          <img src="/images/opt/lion-head-160.webp" alt="" width={160} height={161} className="size-10 object-contain" />
+          <img src="/images/opt/leon-asomado-160.webp" alt="" width={160} height={161} className="size-10 object-contain" />
           <span className="min-w-0 flex-1 leading-tight">
             <span className="block truncate font-serif text-lg font-semibold text-ink">{page.label || 'Gabush Kids'}</span>
             {name && (

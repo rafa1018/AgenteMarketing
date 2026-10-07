@@ -42,7 +42,7 @@ export function Intro({ seconds, onDone }: { seconds: number; onDone: () => void
         {/* a gentle float keeps the lion alive when the intro is set to last longer */}
         <div className="gabush-float mb-4">
           <motion.img
-            src="/images/opt/lion-400.webp"
+            src="/images/opt/leon-asomado-400.webp"
             alt=""
             width={400}
             height={402}

@@ -37,7 +37,7 @@ export function AppIntro({ onDone }: { onDone: () => void }) {
       {/* the lion: same place and size as on Android's launch screen, then it jumps up */}
       <div aria-hidden className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
         <motion.img
-          src="/images/opt/lion-400.webp"
+          src="/images/opt/leon-asomado-400.webp"
           alt=""
           width={400}
           height={402}

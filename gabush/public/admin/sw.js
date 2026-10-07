@@ -35,8 +35,8 @@ self.addEventListener('push', (e) => {
   e.waitUntil(
     self.registration.showNotification(msg.title || 'Gabush Kids', {
       body: msg.body || '',
-      icon: '/icon-192.png',
-      badge: '/favicon-48.png',
+      icon: '/icon-192.png?v=2',
+      badge: '/favicon-48.png?v=2',
       tag: msg.tag || undefined,
       renotify: Boolean(msg.tag),
       data: { url: msg.url || '/admin/' },
