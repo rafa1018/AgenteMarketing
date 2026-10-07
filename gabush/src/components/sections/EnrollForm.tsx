@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, ClipboardList, Loader2, Send } from 'lucid
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { coMobileDigits } from '@/lib/phone'
 import { PhoneInput } from '@/components/ui/PhoneInput'
-import { programs } from '@/data/programs'
+import { tr, useContent } from '@/lib/content'
 import { site, whatsappLink } from '@/data/site'
 import { useLang, useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
@@ -68,6 +68,7 @@ const inputCls = (invalid: boolean) =>
 export function EnrollForm() {
   const t = useT()
   const { lang } = useLang()
+  const programs = useContent('programs')
   const [values, setValues] = useState(EMPTY)
   const [touched, setTouched] = useState<Partial<Record<Field, boolean>>>({})
   const [submitted, setSubmitted] = useState(false)
@@ -206,7 +207,7 @@ export function EnrollForm() {
                     <option value="">{t(ui.form.programAny)}</option>
                     {programs.map((p) => (
                       <option key={p.id} value={p.title.es}>
-                        {t(p.title)}
+                        {tr(p.title, lang)}
                       </option>
                     ))}
                   </select>

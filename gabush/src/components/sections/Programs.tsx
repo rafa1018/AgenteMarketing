@@ -1,10 +1,11 @@
 import { motion } from 'motion/react'
 import { ArrowRight, Check, Users } from 'lucide-react'
 import { useState } from 'react'
-import { programs, TONES, type Program } from '@/data/programs'
+import { TONES } from '@/data/programs'
 import { site, whatsappLink } from '@/data/site'
-import { useT } from '@/i18n'
+import { useLang, useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
+import { iconOf, tr, useContent, type ProgramItem } from '@/lib/content'
 import { cn } from '@/lib/utils'
 import { RevealItem, ScrollReveal } from '@/components/animations'
 import { SectionHeader } from '@/components/ui/SectionHeader'
@@ -13,16 +14,23 @@ import { Rich } from '@/components/ui/Rich'
 import { WhatsappIcon } from '@/components/ui/BrandIcons'
 import { Deco, useSectionScroll } from '@/components/fx/Fx'
 
-function Cover({ p, large = false }: { p: Program; large?: boolean }) {
-  const t = useT()
-  const tone = TONES[p.tone]
+/** Levels and programmes — managed in the admin panel (Niveles). */
+
+/** { es, en } where an empty English text shows the Spanish one */
+const both = (v: { es: string; en: string }) => ({ es: tr(v, 'es'), en: tr(v, 'en') })
+
+function Cover({ p, large = false }: { p: ProgramItem; large?: boolean }) {
+  const { lang } = useLang()
+  const tone = TONES[p.tone] ?? TONES.pink
+  const Icon = iconOf(p.icon)
+  const src = large ? p.img : (p.thumb ?? p.img)
   return (
     <div className={cn('relative overflow-hidden', large ? 'aspect-[16/9]' : 'aspect-[4/3]')} style={{ background: tone.soft }}>
-      {p.image ? (
-        <img src={p.image.src} alt={t(p.image.alt)} loading="lazy" width={640} height={480} className="size-full object-cover transition-transform duration-700 group-hover:scale-110" />
+      {src ? (
+        <img src={src} alt={tr(p.alt, lang)} loading="lazy" width={640} height={480} className="size-full object-cover transition-transform duration-700 group-hover:scale-110" />
       ) : (
         <div aria-hidden className="dots-bg absolute inset-0 grid place-items-center">
-          <p.icon size={large ? 72 : 56} strokeWidth={1.4} style={{ color: tone.solid }} />
+          <Icon size={large ? 72 : 56} strokeWidth={1.4} style={{ color: tone.solid }} />
         </div>
       )}
     </div>
@@ -30,9 +38,11 @@ function Cover({ p, large = false }: { p: Program; large?: boolean }) {
 }
 
 /** Level card: photo in a rounded window + a coloured "tab" with the age. */
-function GradeCard({ p, i, onOpen }: { p: Program; i: number; onOpen: () => void }) {
+function GradeCard({ p, i, onOpen }: { p: ProgramItem; i: number; onOpen: () => void }) {
   const t = useT()
-  const tone = TONES[p.tone]
+  const { lang } = useLang()
+  const tone = TONES[p.tone] ?? TONES.pink
+  const Icon = iconOf(p.icon)
   const dark = p.tone === 'yellow'
   return (
     <motion.button
@@ -47,14 +57,14 @@ function GradeCard({ p, i, onOpen }: { p: Program; i: number; onOpen: () => void
         <Cover p={p} />
       </div>
       <span className="absolute top-6 left-6 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-extrabold shadow" style={{ background: tone.solid, color: dark ? '#23206b' : '#fff' }}>
-        <p.icon size={15} strokeWidth={2.5} />
-        {p.level && <Rich text={p.level} />}
+        <Icon size={15} strokeWidth={2.5} />
+        {p.level?.es && <Rich text={both(p.level)} />}
       </span>
       <div className="flex flex-1 flex-col px-2 pt-4 pb-2">
         <h3 className="text-[1.7rem]" style={{ color: tone.text }}>
-          {t(p.title)}
+          {tr(p.title, lang)}
         </h3>
-        <p className="mt-1 text-[15.5px] font-medium text-text/75">{t(p.short)}</p>
+        <p className="mt-1 text-[15.5px] font-medium text-text/75">{tr(p.short, lang)}</p>
         <span className="mt-auto inline-flex items-center gap-1.5 pt-4 font-serif text-[16px] font-semibold text-ink">
           {t(ui.programs.more)}
           <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" />
@@ -64,20 +74,22 @@ function GradeCard({ p, i, onOpen }: { p: Program; i: number; onOpen: () => void
   )
 }
 
-function ExtraCard({ p, onOpen }: { p: Program; onOpen: () => void }) {
-  const t = useT()
-  const tone = TONES[p.tone]
+function ExtraCard({ p, onOpen }: { p: ProgramItem; onOpen: () => void }) {
+  const { lang } = useLang()
+  const tone = TONES[p.tone] ?? TONES.pink
+  const Icon = iconOf(p.icon)
+  const src = p.thumb ?? p.img
   return (
     <button type="button" onClick={onOpen} className="group card flex w-full items-center gap-4 p-3 pr-5 text-left transition-transform hover:-translate-y-1">
-      <span className="size-20 shrink-0 overflow-hidden rounded-2xl sm:size-24">
-        {p.image && <img src={p.image.src} alt="" loading="lazy" width={640} height={480} className="size-full object-cover transition-transform duration-500 group-hover:scale-110" />}
+      <span className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl sm:size-24" style={{ background: tone.soft }}>
+        {src ? <img src={src} alt="" loading="lazy" width={640} height={480} className="size-full object-cover transition-transform duration-500 group-hover:scale-110" /> : <Icon size={34} style={{ color: tone.solid }} />}
       </span>
       <span className="min-w-0">
         <span className="flex items-center gap-2 font-serif text-[1.2rem] leading-tight font-semibold" style={{ color: tone.text }}>
-          <p.icon size={18} strokeWidth={2.4} className="shrink-0" />
-          {t(p.title)}
+          <Icon size={18} strokeWidth={2.4} className="shrink-0" />
+          {tr(p.title, lang)}
         </span>
-        <span className="mt-1 block text-[15px] leading-snug text-muted">{t(p.short)}</span>
+        <span className="mt-1 block text-[15px] leading-snug text-muted">{tr(p.short, lang)}</span>
       </span>
     </button>
   )
@@ -85,11 +97,17 @@ function ExtraCard({ p, onOpen }: { p: Program; onOpen: () => void }) {
 
 export function Programs() {
   const t = useT()
+  const { lang } = useLang()
+  const programs = useContent('programs')
   const [openId, setOpenId] = useState<string | null>(null)
   const current = programs.find((p) => p.id === openId)
   const grades = programs.filter((p) => p.grade)
   const extras = programs.filter((p) => !p.grade)
   const { ref, progress } = useSectionScroll<HTMLElement>()
+  const tone = current ? (TONES[current.tone] ?? TONES.pink) : TONES.pink
+  const CurrentIcon = current ? iconOf(current.icon) : null
+
+  if (!programs.length) return null
 
   return (
     <section id="programas" ref={ref} className="dots-bg relative overflow-clip bg-cream py-20 sm:py-28">
@@ -99,55 +117,65 @@ export function Programs() {
       <div className="container-x relative">
         <SectionHeader kicker={ui.programs.kicker} title={ui.programs.title} sub={ui.programs.sub} />
 
-        <ScrollReveal className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6" stagger={0.1}>
-          {grades.map((p, i) => (
-            <RevealItem key={p.id} className="h-full">
-              <GradeCard p={p} i={i} onOpen={() => setOpenId(p.id)} />
-            </RevealItem>
-          ))}
-        </ScrollReveal>
+        {grades.length > 0 && (
+          <ScrollReveal className={cn('mt-14 grid gap-8 sm:grid-cols-2 lg:gap-6', grades.length >= 4 ? 'lg:grid-cols-4' : grades.length === 3 ? 'lg:grid-cols-3' : '')} stagger={0.1}>
+            {grades.map((p, i) => (
+              <RevealItem key={p.id} className="h-full">
+                <GradeCard p={p} i={i} onOpen={() => setOpenId(p.id)} />
+              </RevealItem>
+            ))}
+          </ScrollReveal>
+        )}
 
-        <h3 className="mt-16 text-2xl">{t(ui.programs.extras)}</h3>
-        <ScrollReveal className="mt-5 grid gap-4 md:grid-cols-3" stagger={0.08}>
-          {extras.map((p) => (
-            <RevealItem key={p.id}>
-              <ExtraCard p={p} onOpen={() => setOpenId(p.id)} />
-            </RevealItem>
-          ))}
-        </ScrollReveal>
+        {extras.length > 0 && (
+          <>
+            <h3 className="mt-16 text-2xl">{t(ui.programs.extras)}</h3>
+            <ScrollReveal className="mt-5 grid gap-4 md:grid-cols-3" stagger={0.08}>
+              {extras.map((p) => (
+                <RevealItem key={p.id}>
+                  <ExtraCard p={p} onOpen={() => setOpenId(p.id)} />
+                </RevealItem>
+              ))}
+            </ScrollReveal>
+          </>
+        )}
       </div>
 
-      <Modal open={Boolean(current)} onClose={() => setOpenId(null)} label={current ? t(current.title) : ''} closeLabel={t(ui.programs.close)}>
-        {current && (
+      <Modal open={Boolean(current)} onClose={() => setOpenId(null)} label={current ? tr(current.title, lang) : ''} closeLabel={t(ui.programs.close)}>
+        {current && CurrentIcon && (
           <div>
             <Cover p={current} large />
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-3">
-                <span className="grid size-12 place-items-center rounded-2xl text-white" style={{ background: TONES[current.tone].solid, boxShadow: `0 4px 0 ${TONES[current.tone].edge}` }}>
-                  <current.icon size={24} strokeWidth={2.2} />
+                <span className="grid size-12 shrink-0 place-items-center rounded-2xl text-white" style={{ background: tone.solid, boxShadow: `0 4px 0 ${tone.edge}` }}>
+                  <CurrentIcon size={24} strokeWidth={2.2} />
                 </span>
-                <h3 className="text-3xl sm:text-[2.2rem]">{t(current.title)}</h3>
+                <h3 className="text-3xl sm:text-[2.2rem]">{tr(current.title, lang)}</h3>
               </div>
-              {current.level && (
-                <p className="mt-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold" style={{ background: TONES[current.tone].soft, color: TONES[current.tone].text }}>
+              {current.level?.es && (
+                <p className="mt-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold" style={{ background: tone.soft, color: tone.text }}>
                   <Users size={15} strokeWidth={2.5} />
-                  {t({ es: 'Edad', en: 'Age' })}: <Rich text={current.level} />
+                  {t({ es: 'Edad', en: 'Age' })}: <Rich text={both(current.level)} />
                 </p>
               )}
-              <p className="mt-4 text-lg leading-relaxed">
-                <Rich text={current.detail} />
+              <p className="mt-4 text-lg leading-relaxed whitespace-pre-line">
+                <Rich text={both(current.detail)} />
               </p>
-              <h4 className="mt-6 text-xl">{t(ui.programs.includes)}</h4>
-              <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-                {current.includes.map((inc, i) => (
-                  <li key={i} className="flex items-start gap-2 rounded-2xl px-3 py-2.5" style={{ background: TONES[current.tone].soft }}>
-                    <Check size={18} strokeWidth={3} className="mt-0.5 shrink-0" style={{ color: TONES[current.tone].solid }} />
-                    <span className="font-semibold">{t(inc)}</span>
-                  </li>
-                ))}
-              </ul>
+              {current.includes.length > 0 && (
+                <>
+                  <h4 className="mt-6 text-xl">{t(ui.programs.includes)}</h4>
+                  <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {current.includes.map((inc, i) => (
+                      <li key={i} className="flex items-start gap-2 rounded-2xl px-3 py-2.5" style={{ background: tone.soft }}>
+                        <Check size={18} strokeWidth={3} className="mt-0.5 shrink-0" style={{ color: tone.solid }} />
+                        <span className="font-semibold">{tr(inc, lang)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
               <a
-                href={whatsappLink(`${t(ui.programs.askWhatsapp)} "${t(current.title)}" — ${site.fullName}`)}
+                href={whatsappLink(`${t(ui.programs.askWhatsapp)} "${tr(current.title, lang)}" — ${site.fullName}`)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-whatsapp mt-7 w-full sm:w-auto"

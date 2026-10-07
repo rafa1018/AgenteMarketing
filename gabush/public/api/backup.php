@@ -25,6 +25,7 @@ foreach (RP_BACKUP_FILES as $f) {
 }
 foreach (glob("$dir/photos/*") ?: [] as $p) $zip->addFile($p, 'photos/' . basename($p));
 foreach (glob("$dir/feed/*") ?: [] as $p) $zip->addFile($p, 'feed/' . basename($p));
+foreach (glob("$dir/content/*.jpg") ?: [] as $p) $zip->addFile($p, 'content/' . basename($p));
 $zip->addFromString('LEEME.txt', "Copia de seguridad de Gabush Kids — " . date('Y-m-d H:i') . "\r\nPara restaurar: sube estos archivos a la carpeta gabush-data del hosting (al lado de public_html).\r\n");
 $zip->close();
 

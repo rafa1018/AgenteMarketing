@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { site } from '@/data/site'
 import { useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
-import { BlockWord, Cloud } from '@/components/fx/Fx'
+import { BlockWord, Cloud, KidsTag } from '@/components/fx/Fx'
 
 const DURATION = 2300 // ms — total, including the exit
 
@@ -46,7 +46,10 @@ export function Intro({ onDone }: { onDone: () => void }) {
           animate={{ y: 0, opacity: 1, scale: 1, rotate: [0, -6, 6, -3, 0] }}
           transition={{ type: 'spring', stiffness: 260, damping: 14, delay: 0.55, rotate: { delay: 1.1, duration: 0.8 } }}
         />
-        <BlockWord size="text-[min(12vw,4.4rem)]" delay={0.05} />
+        <span className="inline-flex flex-col items-end">
+          <BlockWord size="text-[min(12vw,4.4rem)]" delay={0.05} />
+          <KidsTag className="-mt-1 mr-2 px-4 text-[min(6.5vw,2.2rem)]" delay={0.55} />
+        </span>
         <motion.p
           className="mt-4 font-serif text-[min(7vw,2rem)] font-semibold text-ink"
           initial={{ opacity: 0, y: 10 }}

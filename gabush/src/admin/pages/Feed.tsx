@@ -64,7 +64,7 @@ function Composer({ file, onClose, onDone }: { file: File | null; onClose: () =>
   }
 
   return (
-    <Modal open={Boolean(file)} onClose={onClose} label="Nueva publicación" closeLabel="Cerrar" className="w-full max-w-3xl">
+    <Modal open={Boolean(file)} onClose={onClose} label="Nueva publicación" closeLabel="Cerrar" className="w-full sm:!max-w-3xl">
       <form onSubmit={submit} className="grid md:grid-cols-2">
         <div className="bg-ink">{preview && <img src={preview} alt="" className="aspect-square w-full object-cover" />}</div>
         <div className="flex flex-col p-5 sm:p-6">
@@ -115,7 +115,7 @@ function Editor({ post, onClose, onSaved }: { post: FeedPost | null; onClose: ()
     } else toast('No se pudo guardar.')
   }
   return (
-    <Modal open={Boolean(post)} onClose={onClose} label="Editar publicación" closeLabel="Cerrar" className="w-full max-w-3xl">
+    <Modal open={Boolean(post)} onClose={onClose} label="Editar publicación" closeLabel="Cerrar" className="w-full sm:!max-w-3xl">
       {post && (
         <form onSubmit={submit} className="grid md:grid-cols-2">
           <img src={post.img} alt="" className="aspect-square w-full bg-ink object-cover" />
@@ -251,7 +251,7 @@ export function FeedPage() {
               <div className="p-3">
                 <p className="line-clamp-2 min-h-[2.6em] text-sm leading-snug text-text">{p.caption || <span className="text-muted">Sin texto</span>}</p>
                 {p.date && <p className="mt-1 text-xs text-muted first-letter:uppercase">{formatDay(p.date, 'es')}</p>}
-                <div className="mt-2 flex items-center justify-between gap-1 border-t border-line pt-2">
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-1 border-t border-line pt-2">
                   <span className="flex gap-1">
                     <button type="button" onClick={() => move(i, -1)} disabled={i === 0} title="Mover antes" className="grid size-8 place-items-center rounded-lg text-muted hover:bg-paper hover:text-ink disabled:opacity-30">
                       <ArrowLeft size={16} className="hidden sm:block" />

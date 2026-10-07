@@ -1,9 +1,11 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { BarChart3, Bell, BellRing, CalendarDays, Globe, Images, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
-import { useEffect, useState, type ComponentType } from 'react'
+import { BarChart3, Bell, BellRing, CalendarDays, Globe, GraduationCap, Images, LayoutGrid, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
+import { useCallback, useEffect, useState, type ComponentType } from 'react'
 import { checkAdmin, loadEvents, logout, reloadEvents, useCalendar, type Perm } from '@/lib/calendar'
 import { cn } from '@/lib/utils'
 import { AdminLayer, LoginForm } from '@/components/admin/AdminUI'
+import { BlockLogo } from '@/components/fx/Fx'
+import { AppIntro } from './AppIntro'
 import { loadAll, syncNow, useAdmin } from './store'
 import { PhotoViewer, useRoute } from './ui'
 import { Home } from './pages/Home'
@@ -20,23 +22,33 @@ import { UsersPage } from './pages/Users'
 import { NotificationsPage } from './pages/Notifications'
 import { SitePage } from './pages/SiteSettings'
 import { VisitsPage } from './pages/Visits'
+import { GalleryAdminPage } from './pages/GalleryAdmin'
+import { ProgramsAdminPage } from './pages/ProgramsAdmin'
 import { roleColor, roleLabel } from './roles'
 
-/** perm: the page is only shown to users with that permission (the server enforces it too). */
-type Page = { id: string; label: string; icon: ComponentType<{ size?: number; className?: string }>; view: ComponentType; perm?: Perm }
+/** perm: the page is only shown to users with that permission (the server enforces it too). group: menu section. */
+type Group = 'jardin' | 'web' | 'cuenta'
+type Page = { id: string; label: string; icon: ComponentType<{ size?: number; className?: string }>; view: ComponentType; perm?: Perm; group: Group }
+const GROUPS: { id: Group; label: string }[] = [
+  { id: 'jardin', label: 'El jardín' },
+  { id: 'web', label: 'Página web' },
+  { id: 'cuenta', label: 'Cuenta' },
+]
 const ALL_PAGES: Page[] = [
-  { id: 'inicio', label: 'Inicio', icon: House, view: Home, perm: 'pagos' },
-  { id: 'asistencia', label: 'Asistencia', icon: ClipboardCheck, view: Attendance, perm: 'asistencia' },
-  { id: 'estudiantes', label: 'Estudiantes', icon: Users, view: Students, perm: 'estudiantes' },
-  { id: 'pagos', label: 'Pagos', icon: Wallet, view: Payments, perm: 'pagos' },
-  { id: 'inscripciones', label: 'Inscripciones', icon: Bell, view: Inscriptions, perm: 'inscripciones' },
-  { id: 'calendario', label: 'Calendario', icon: CalendarDays, view: CalendarPage, perm: 'calendario' },
-  { id: 'feed', label: 'Momentos', icon: Images, view: FeedPage, perm: 'feed' },
-  { id: 'visitas', label: 'Visitas', icon: BarChart3, view: VisitsPage, perm: 'ajustes' },
-  { id: 'sitio', label: 'Sitio web', icon: Globe, view: SitePage, perm: 'ajustes' },
-  { id: 'usuarios', label: 'Usuarios', icon: ShieldCheck, view: UsersPage, perm: 'usuarios' },
-  { id: 'notificaciones', label: 'Notificaciones', icon: BellRing, view: NotificationsPage },
-  { id: 'ajustes', label: 'Ajustes', icon: SettingsIcon, view: Settings, perm: 'ajustes' },
+  { id: 'inicio', label: 'Inicio', icon: House, view: Home, perm: 'pagos', group: 'jardin' },
+  { id: 'asistencia', label: 'Asistencia', icon: ClipboardCheck, view: Attendance, perm: 'asistencia', group: 'jardin' },
+  { id: 'estudiantes', label: 'Estudiantes', icon: Users, view: Students, perm: 'estudiantes', group: 'jardin' },
+  { id: 'pagos', label: 'Pagos', icon: Wallet, view: Payments, perm: 'pagos', group: 'jardin' },
+  { id: 'inscripciones', label: 'Inscripciones', icon: Bell, view: Inscriptions, perm: 'inscripciones', group: 'jardin' },
+  { id: 'calendario', label: 'Calendario', icon: CalendarDays, view: CalendarPage, perm: 'calendario', group: 'jardin' },
+  { id: 'feed', label: 'Momentos', icon: Images, view: FeedPage, perm: 'feed', group: 'web' },
+  { id: 'galeria', label: 'Galería', icon: LayoutGrid, view: GalleryAdminPage, perm: 'feed', group: 'web' },
+  { id: 'niveles', label: 'Niveles y programas', icon: GraduationCap, view: ProgramsAdminPage, perm: 'feed', group: 'web' },
+  { id: 'visitas', label: 'Visitas', icon: BarChart3, view: VisitsPage, perm: 'ajustes', group: 'web' },
+  { id: 'sitio', label: 'Sitio web', icon: Globe, view: SitePage, perm: 'ajustes', group: 'web' },
+  { id: 'usuarios', label: 'Usuarios', icon: ShieldCheck, view: UsersPage, perm: 'usuarios', group: 'cuenta' },
+  { id: 'notificaciones', label: 'Notificaciones', icon: BellRing, view: NotificationsPage, group: 'cuenta' },
+  { id: 'ajustes', label: 'Ajustes', icon: SettingsIcon, view: Settings, perm: 'ajustes', group: 'cuenta' },
 ]
 
 function NoAccess() {
@@ -62,7 +74,7 @@ function Shell() {
   const newIns = useAdmin((s) => s.inscriptions.filter((i) => i.status === 'pendiente').length)
   const toast = useAdmin((s) => s.toast)
   const name = useCalendar((s) => s.name)
-  const page = PAGES.find((p) => p.id === route) ?? PAGES[0] ?? { id: 'none', label: '', icon: House, view: NoAccess }
+  const page = PAGES.find((p) => p.id === route) ?? PAGES[0] ?? { id: 'none', label: '', icon: House, view: NoAccess, group: 'cuenta' as Group }
   const View = page.view
 
   useEffect(() => {
@@ -113,23 +125,34 @@ function Shell() {
         <a href={`#/${PAGES[0]?.id ?? ''}`} className="flex items-center gap-2.5 px-5 pt-5 pb-4">
           <img src="/images/opt/lion-head-160.webp" alt="" width={160} height={150} className="size-11 object-contain" />
           <span className="leading-none">
-            <img src="/images/opt/logo-240.webp" alt="Gabush Kids" width={240} height={101} className="h-9 w-auto" />
-            <span className="mt-1 block text-[10px] font-bold tracking-[0.16em] text-muted uppercase">Administración</span>
+            <BlockLogo size="text-[1.05rem]" kids="text-[0.72rem] px-1.5" />
+            <span className="mt-2 block text-[10px] font-bold tracking-[0.16em] text-muted uppercase">Administración</span>
           </span>
         </a>
-        <nav aria-label="Módulos" className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
-          {PAGES.map((p) => (
-            <a
-              key={p.id}
-              href={`#/${p.id}`}
-              aria-current={p.id === page.id ? 'page' : undefined}
-              className={cn('flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-semibold transition-colors', p.id === page.id ? 'bg-ink text-white shadow-[0_4px_0_#14124a]' : 'text-text hover:bg-paper hover:text-ink')}
-            >
-              <p.icon size={19} className={p.id === page.id ? 'text-yellow' : 'text-royal'} />
-              <span className="flex-1">{p.label}</span>
-              {badge(p.id)}
-            </a>
-          ))}
+        <nav aria-label="Módulos" className="flex-1 overflow-y-auto px-3 py-2">
+          {GROUPS.map((g) => {
+            const list = PAGES.filter((p) => p.group === g.id)
+            if (!list.length) return null
+            return (
+              <div key={g.id} className="mb-3">
+                <p className="px-3 pt-2 pb-1 text-[11px] font-extrabold tracking-[0.14em] text-muted uppercase">{g.label}</p>
+                <div className="space-y-0.5">
+                  {list.map((p) => (
+                    <a
+                      key={p.id}
+                      href={`#/${p.id}`}
+                      aria-current={p.id === page.id ? 'page' : undefined}
+                      className={cn('flex items-center gap-3 rounded-xl px-3 py-2 text-[15px] font-semibold transition-colors', p.id === page.id ? 'bg-ink text-white shadow-[0_4px_0_#14124a]' : 'text-text hover:bg-paper hover:text-ink')}
+                    >
+                      <p.icon size={19} className={p.id === page.id ? 'text-yellow' : 'text-royal'} />
+                      <span className="flex-1">{p.label}</span>
+                      {badge(p.id)}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
         </nav>
         <div className="border-t-2 border-line p-3">
           {name && (
@@ -237,11 +260,20 @@ function Shell() {
         <AnimatePresence>
           {more && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute inset-x-3 bottom-full mb-2 rounded-xl border border-line bg-white p-2 shadow-[0_20px_40px_-20px_rgba(35,32,107,0.5)]">
-              {PAGES.filter((p) => !MOBILE_MAIN.includes(p.id)).map((p) => (
-                <a key={p.id} href={`#/${p.id}`} className={cn('flex items-center gap-3 rounded-lg px-3 py-3 font-semibold', p.id === page.id ? 'bg-paper text-ink' : 'text-text')}>
-                  <p.icon size={19} className="text-royal" /> <span className="flex-1">{p.label}</span> {badge(p.id)}
-                </a>
-              ))}
+              {GROUPS.map((g) => {
+                const list = PAGES.filter((p) => p.group === g.id && !MOBILE_MAIN.includes(p.id))
+                if (!list.length) return null
+                return (
+                  <div key={g.id}>
+                    <p className="px-3 pt-2 pb-0.5 text-[11px] font-extrabold tracking-[0.14em] text-muted uppercase">{g.label}</p>
+                    {list.map((p) => (
+                      <a key={p.id} href={`#/${p.id}`} className={cn('flex items-center gap-3 rounded-lg px-3 py-2.5 font-semibold', p.id === page.id ? 'bg-paper text-ink' : 'text-text')}>
+                        <p.icon size={19} className="text-royal" /> <span className="flex-1">{p.label}</span> {badge(p.id)}
+                      </a>
+                    ))}
+                  </div>
+                )
+              })}
             </motion.div>
           )}
         </AnimatePresence>
@@ -265,30 +297,54 @@ function Shell() {
   )
 }
 
+/** The same welcome animation as the website, once each time the app is opened (sessionStorage = per launch / tab). */
+const INTRO_KEY = 'gb-admin-intro'
+const introSeen = () => {
+  try {
+    return sessionStorage.getItem(INTRO_KEY) === '1' || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  } catch {
+    return false
+  }
+}
+
 export function AdminApp() {
   const checked = useCalendar((s) => s.sessionChecked)
   const admin = useCalendar((s) => s.admin)
+  const [intro, setIntro] = useState(() => !introSeen())
+  const finishIntro = useCallback(() => {
+    setIntro(false)
+    try {
+      sessionStorage.setItem(INTRO_KEY, '1')
+    } catch {
+      /* ignore */
+    }
+  }, [])
   useEffect(() => {
     checkAdmin(true)
   }, [])
 
-  if (!checked)
-    return (
-      <div className="grid min-h-svh place-items-center bg-paper text-muted">
-        <Loader2 className="animate-spin" />
+  // the panel (session check, data) loads underneath while the animation plays
+  const body = !checked ? (
+    <div className="grid min-h-svh place-items-center bg-paper text-muted">
+      <Loader2 className="animate-spin" />
+    </div>
+  ) : !admin ? (
+    <div className="grid min-h-svh place-items-center bg-paper p-4">
+      <div className="flex w-full flex-col items-center gap-6">
+        <BlockLogo size="text-[2.4rem]" kids="text-[1.4rem] px-3" />
+        <LoginForm />
+        <a href="/" className="text-sm font-semibold text-royal">
+          ← Volver a la página
+        </a>
       </div>
-    )
-  if (!admin)
-    return (
-      <div className="grid min-h-svh place-items-center bg-paper p-4">
-        <div className="flex w-full flex-col items-center gap-6">
-          <img src="/images/opt/logo-480.webp" alt="Gabush Kids" width={480} height={202} className="h-20 w-auto" />
-          <LoginForm />
-          <a href="/" className="text-sm font-semibold text-royal">
-            ← Volver a la página
-          </a>
-        </div>
-      </div>
-    )
-  return <Shell />
+    </div>
+  ) : (
+    <Shell />
+  )
+  return (
+    <>
+      {intro && <AppIntro onDone={finishIntro} />}
+      {body}
+    </>
+  )
 }

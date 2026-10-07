@@ -1,0 +1,201 @@
+{
+  "programs": [
+    {
+      "id": "parvulos",
+      "active": true,
+      "grade": true,
+      "icon": "Baby",
+      "tone": "pink",
+      "title": { "es": "Párvulos", "en": "Toddlers" },
+      "level": { "es": "2 a 3 años", "en": "2 to 3 years" },
+      "short": { "es": "Primeros pasos con docente titular y auxiliar.", "en": "First steps with a lead teacher and an assistant." },
+      "detail": {
+        "es": "Cada grupo de Párvulos tiene máximo 12 niños, acompañados por su docente titular y una auxiliar: atención individual, acompañamiento constante y un entorno seguro y amoroso para sus primeras experiencias fuera de casa.",
+        "en": "Each Toddlers group has at most 12 children, with a lead teacher and an assistant: individual attention, constant support and a safe, loving environment for their first experiences away from home."
+      },
+      "includes": [
+        { "es": "Docente titular + auxiliar", "en": "Lead teacher + assistant" },
+        { "es": "Estimulación sensorial", "en": "Sensory stimulation" },
+        { "es": "Música y movimiento", "en": "Music and movement" },
+        { "es": "Hábitos y autonomía", "en": "Routines and independence" }
+      ],
+      "img": "/images/opt/prog-parvulos-640.webp",
+      "alt": { "es": "Niño pequeño tocando un tambor de juguete", "en": "Toddler playing a toy drum" }
+    },
+    {
+      "id": "prejardin",
+      "active": true,
+      "grade": true,
+      "icon": "Blocks",
+      "tone": "yellow",
+      "title": { "es": "Prejardín", "en": "Pre-kindergarten" },
+      "level": { "es": "3 a 4 años", "en": "3 to 4 years" },
+      "short": { "es": "Lenguaje, juego y creatividad en grupo.", "en": "Language, play and creativity together." },
+      "detail": {
+        "es": "Fortalecemos el lenguaje, la motricidad y la socialización a través del juego, la pintura y la expresión corporal, en salones de máximo 12 niños.",
+        "en": "We strengthen language, motor skills and social skills through play, painting and body expression, in classes of no more than 12 children."
+      },
+      "includes": [
+        { "es": "Lenguaje y expresión oral", "en": "Language and speaking" },
+        { "es": "Motricidad fina y gruesa", "en": "Fine and gross motor skills" },
+        { "es": "Pintura y manualidades", "en": "Painting and crafts" },
+        { "es": "Juego en grupo", "en": "Group play" }
+      ],
+      "img": "/images/opt/prog-prejardin-640.webp",
+      "alt": { "es": "Niña pintando con las manos", "en": "Girl finger painting" }
+    },
+    {
+      "id": "jardin",
+      "active": true,
+      "grade": true,
+      "icon": "Palette",
+      "tone": "blue",
+      "title": { "es": "Jardín", "en": "Kindergarten" },
+      "level": { "es": "4 a 5 años", "en": "4 to 5 years" },
+      "short": { "es": "Pensamiento, arte y emociones.", "en": "Thinking, art and emotions." },
+      "detail": {
+        "es": "Los niños exploran números, letras y el mundo que los rodea con proyectos artísticos, música y actividades que desarrollan sus habilidades emocionales.",
+        "en": "Children explore numbers, letters and the world around them through art projects, music and activities that build emotional skills."
+      },
+      "includes": [
+        { "es": "Pre-lectura y pre-escritura", "en": "Pre-reading and pre-writing" },
+        { "es": "Pensamiento lógico", "en": "Logical thinking" },
+        { "es": "Proyectos artísticos", "en": "Art projects" },
+        { "es": "Habilidades emocionales", "en": "Emotional skills" }
+      ],
+      "img": "/images/opt/prog-jardin-640.webp",
+      "alt": { "es": "Niña y niño haciendo manualidades", "en": "Girl and boy doing crafts" }
+    },
+    {
+      "id": "transicion",
+      "active": true,
+      "grade": true,
+      "icon": "GraduationCap",
+      "tone": "green",
+      "title": { "es": "Transición", "en": "Transition (Pre-K)" },
+      "level": { "es": "5 a 6 años", "en": "5 to 6 years" },
+      "short": { "es": "Listos y felices para el colegio.", "en": "Ready and happy for school." },
+      "detail": {
+        "es": "El último año del preescolar: lectura, escritura, matemáticas iniciales y autonomía para llegar al colegio con confianza, sin dejar de crear y jugar.",
+        "en": "The last pre-school year: reading, writing, early maths and independence to start school with confidence — while still creating and playing."
+      },
+      "includes": [
+        { "es": "Lectoescritura", "en": "Reading and writing" },
+        { "es": "Matemáticas iniciales", "en": "Early maths" },
+        { "es": "Autonomía y hábitos de estudio", "en": "Independence and study habits" },
+        { "es": "Ceremonia de grado", "en": "Graduation ceremony" }
+      ],
+      "img": "/images/opt/prog-transicion-640.webp",
+      "alt": { "es": "Salón de clase de Gabush con niños y su profesora", "en": "Gabush classroom with children and their teacher" }
+    },
+    {
+      "id": "artes",
+      "active": true,
+      "grade": false,
+      "icon": "Music2",
+      "tone": "orange",
+      "title": { "es": "Artes: música, danza y pintura", "en": "Arts: music, dance & painting" },
+      "level": { "es": "", "en": "" },
+      "short": { "es": "Nuestro sello: creciendo con las artes.", "en": "Our hallmark: growing up with the arts." },
+      "detail": {
+        "es": "El arte atraviesa todo lo que hacemos: estimulamos la creatividad, la expresión corporal, la música y las habilidades emocionales desde los primeros años.",
+        "en": "Art runs through everything we do: we stimulate creativity, body expression, music and emotional skills from the very first years."
+      },
+      "includes": [
+        { "es": "Música y canto", "en": "Music and singing" },
+        { "es": "Danza y expresión corporal", "en": "Dance and body expression" },
+        { "es": "Pintura y artes plásticas", "en": "Painting and visual arts" },
+        { "es": "Teatro y títeres", "en": "Theatre and puppets" }
+      ],
+      "img": "/images/opt/prog-artes-640.webp",
+      "alt": { "es": "Dos niñas en clase de ballet", "en": "Two girls in ballet class" }
+    },
+    {
+      "id": "ingles",
+      "active": true,
+      "grade": false,
+      "icon": "Globe2",
+      "tone": "indigo",
+      "title": { "es": "Inglés divertido", "en": "Fun English" },
+      "level": { "es": "", "en": "" },
+      "short": { "es": "Canciones, juegos y primeras palabras.", "en": "Songs, games and first words." },
+      "detail": {
+        "es": "Un primer acercamiento al inglés con canciones, cuentos y juegos para que los niños se familiaricen con el idioma de forma natural.",
+        "en": "A first approach to English with songs, stories and games so children get familiar with the language naturally."
+      },
+      "includes": [
+        { "es": "Canciones y rimas", "en": "Songs and rhymes" },
+        { "es": "Vocabulario con juegos", "en": "Vocabulary through games" }
+      ],
+      "img": "/images/opt/prog-ingles-640.webp",
+      "alt": { "es": "Niña sonriente con gafas y la frase I love English", "en": "Smiling girl with glasses and the words I love English" }
+    },
+    {
+      "id": "vacaciones",
+      "active": true,
+      "grade": false,
+      "icon": "Sun",
+      "tone": "yellow",
+      "title": { "es": "Vacaciones recreativas", "en": "Holiday camps" },
+      "level": { "es": "", "en": "" },
+      "short": { "es": "Diversión, magia y arte en temporada de vacaciones.", "en": "Fun, magic and art during the holidays." },
+      "detail": {
+        "es": "Planes de vacaciones con juegos, shows, manualidades y salidas. Consulta las fechas en nuestro calendario.",
+        "en": "Holiday plans with games, shows, crafts and outings. Check the dates in our calendar."
+      },
+      "includes": [{ "es": "Juegos, shows y manualidades", "en": "Games, shows and crafts" }],
+      "img": "/images/opt/prog-vacaciones-640.webp",
+      "alt": { "es": "Niños disfrazados en un show de magia", "en": "Children in costumes at a magic show" }
+    }
+  ],
+  "gallery": [
+    {
+      "id": "salon",
+      "active": true,
+      "caption": { "es": "Nuestros salones", "en": "Our classrooms" },
+      "alt": { "es": "Salón de clase con murales de colores, niños y su profesora", "en": "Classroom with colourful murals, children and their teacher" },
+      "img": "/images/opt/espacio-salon-1280.webp",
+      "thumb": "/images/opt/espacio-salon-640.webp"
+    },
+    {
+      "id": "psico",
+      "active": true,
+      "caption": { "es": "Psicomotricidad", "en": "Motor skills" },
+      "alt": { "es": "Niños en circuito de psicomotricidad con aros y bloques", "en": "Children on a motor-skills circuit with hoops and blocks" },
+      "img": "/images/opt/espacio-psico-1280.webp",
+      "thumb": "/images/opt/espacio-psico-640.webp"
+    },
+    {
+      "id": "arte",
+      "active": true,
+      "caption": { "es": "Arte y pintura", "en": "Art and painting" },
+      "alt": { "es": "Niños pintando sobre tapetes de colores", "en": "Children painting on colourful mats" },
+      "img": "/images/opt/espacio-arte-1280.webp",
+      "thumb": "/images/opt/espacio-arte-640.webp"
+    },
+    {
+      "id": "salida",
+      "active": true,
+      "caption": { "es": "Salidas pedagógicas", "en": "School outings" },
+      "alt": { "es": "Niños felices en una salida pedagógica", "en": "Happy children on a school outing" },
+      "img": "/images/opt/espacio-salida-1280.webp",
+      "thumb": "/images/opt/espacio-salida-640.webp"
+    },
+    {
+      "id": "fachada",
+      "active": true,
+      "caption": { "es": "Nuestra sede", "en": "Our school" },
+      "alt": { "es": "Fachada del Jardín Infantil Gabush Kids", "en": "Front of Gabush Kids kindergarten" },
+      "img": "/images/opt/espacio-fachada-1280.webp",
+      "thumb": "/images/opt/espacio-fachada-640.webp"
+    },
+    {
+      "id": "promo",
+      "active": true,
+      "caption": { "es": "Promoción 2025", "en": "Class of 2025" },
+      "alt": { "es": "Mural de la Promoción 2025 con fotos de los graduandos", "en": "Class of 2025 mural with photos of the graduates" },
+      "img": "/images/opt/espacio-promo-1280.webp",
+      "thumb": "/images/opt/espacio-promo-640.webp"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { motion, useMotionValue, useScroll, useSpring, useTransform, type MotionValue } from 'motion/react'
+import { motion, useInView, useMotionValue, useScroll, useSpring, useTransform, type MotionValue } from 'motion/react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useFinePointer, useReducedMotionPref } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
@@ -139,6 +139,44 @@ export function BlockWord({ className, size = 'text-5xl', delay = 0, play = true
           {l.c}
         </motion.span>
       ))}
+    </span>
+  )
+}
+
+const KIDS = [
+  { c: 'K', color: '#4aa52a' },
+  { c: 'i', color: '#e5197e' },
+  { c: 'd', color: '#8e44c9' },
+  { c: 's', color: '#1fa3dd' },
+]
+
+/** The colourful "Kids" tag of the logo; pops in after the letter blocks. */
+export function KidsTag({ className = 'text-[1.35rem] px-3', delay = 0.6, play = true }: { className?: string; delay?: number; play?: boolean }) {
+  return (
+    <motion.span
+      aria-hidden
+      className={cn('inline-flex rounded-full bg-white py-0.5 font-serif leading-tight font-bold shadow-[0_4px_10px_-4px_rgba(35,32,107,0.45)]', className)}
+      initial={{ scale: 0, rotate: -12, opacity: 0 }}
+      animate={play ? { scale: 1, rotate: -4, opacity: 1 } : undefined}
+      transition={{ type: 'spring', stiffness: 420, damping: 13, delay }}
+    >
+      {KIDS.map((l) => (
+        <span key={l.c} style={{ color: l.color }}>
+          {l.c}
+        </span>
+      ))}
+    </motion.span>
+  )
+}
+
+/** The Gabush Kids logo built from the letter blocks (like the welcome screen); plays when it scrolls into view. */
+export function BlockLogo({ size = 'text-[2.1rem]', kids = 'text-[1.35rem] px-3', className }: { size?: string; kids?: string; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const inView = useInView(ref, { once: true, amount: 0.6 })
+  return (
+    <span ref={ref} role="img" aria-label="Gabush Kids" className={cn('inline-flex flex-col items-end', className)}>
+      <BlockWord size={size} play={inView} />
+      <KidsTag className={cn('-mt-1 mr-1', kids)} play={inView} />
     </span>
   )
 }

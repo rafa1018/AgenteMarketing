@@ -7,7 +7,7 @@ export const PERMS: { id: Perm; label: string; detail: string }[] = [
   { id: 'pagos', label: 'Pagos', detail: 'Ver y registrar pagos, cobros extra y lo que debe cada familia.' },
   { id: 'inscripciones', label: 'Inscripciones', detail: 'Ver los formularios que llegan desde la página.' },
   { id: 'calendario', label: 'Calendario', detail: 'Crear eventos públicos o privados y festivos.' },
-  { id: 'feed', label: 'Momentos (feed)', detail: 'Publicar fotos en la sección Momentos de la página.' },
+  { id: 'feed', label: 'Contenido de la página', detail: 'Momentos (feed), Galería y Niveles y programas: fotos, textos e imágenes.' },
   { id: 'ajustes', label: 'Ajustes', detail: 'Planes y precios, horario, recordatorios, notificaciones y copias de seguridad.' },
   { id: 'usuarios', label: 'Usuarios y permisos', detail: 'Crear usuarios y decidir qué puede hacer cada uno.' },
 ]

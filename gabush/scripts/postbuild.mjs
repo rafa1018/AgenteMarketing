@@ -1,5 +1,5 @@
 // Runs after `vite build`: removes source-only files from dist/ and checks deploy essentials.
-import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 const DIST = 'dist'
@@ -16,6 +16,10 @@ for (const f of SOURCE_ONLY) {
     removed++
   }
 }
+// Content the site starts with (gallery, levels) — read by api/content.php until edited in the panel
+mkdirSync(join(DIST, 'api', 'seed'), { recursive: true })
+copyFileSync(join('src', 'data', 'content-seed.json'), join(DIST, 'api', 'seed', 'content.json'))
+
 // Never ship local runtime data
 const dataDir = join(DIST, 'api', 'data')
 if (existsSync(dataDir)) for (const f of readdirSync(dataDir)) if (f.endsWith('.json')) rmSync(join(dataDir, f))
@@ -40,6 +44,10 @@ const must = [
   'api/students.php',
   'api/photo.php',
   'api/feed.php',
+  'api/content.php',
+  'api/seed/content.json',
+  'api/stats.php',
+  'api/media.php',
   'api/users.php',
   'api/attendance.php',
   'api/billing.php',

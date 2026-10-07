@@ -44,16 +44,6 @@ export const steps = {
   ] as { icon: LucideIcon; tone: Tone; title: L; text: L }[],
 }
 
-/* ───────────── Galería (fotos reales del jardín) ───────────── */
-export const gallery = [
-  { id: 'salon', alt: { es: 'Salón de clase con murales de colores, niños y su profesora', en: 'Classroom with colourful murals, children and their teacher' }, caption: { es: 'Nuestros salones', en: 'Our classrooms' } },
-  { id: 'psico', alt: { es: 'Niños en circuito de psicomotricidad con aros y bloques', en: 'Children on a motor-skills circuit with hoops and blocks' }, caption: { es: 'Psicomotricidad', en: 'Motor skills' } },
-  { id: 'arte', alt: { es: 'Niños pintando sobre tapetes de colores', en: 'Children painting on colourful mats' }, caption: { es: 'Arte y pintura', en: 'Art and painting' } },
-  { id: 'salida', alt: { es: 'Niños felices en una salida pedagógica', en: 'Happy children on a school outing' }, caption: { es: 'Salidas pedagógicas', en: 'School outings' } },
-  { id: 'fachada', alt: { es: 'Fachada del Jardín Infantil Gabush Kids', en: 'Front of Gabush Kids kindergarten' }, caption: { es: 'Nuestra sede', en: 'Our school' } },
-  { id: 'promo', alt: { es: 'Mural de la Promoción 2025 con fotos de los graduandos', en: 'Class of 2025 mural with photos of the graduates' }, caption: { es: 'Promoción 2025', en: 'Class of 2025' } },
-] as { id: string; alt: L; caption: L }[]
-
 /* ───────────── Testimonios ─────────────
  * Solo testimonios REALES de padres (con su autorización). Mientras la lista esté vacía,
  * la sección no se muestra. Ejemplo:

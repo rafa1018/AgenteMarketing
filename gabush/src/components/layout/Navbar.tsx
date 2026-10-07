@@ -9,6 +9,7 @@ import { cn, scrollToId } from '@/lib/utils'
 import { LanguageToggle } from '@/components/ui/LanguageToggle'
 import { WhatsappIcon } from '@/components/ui/BrandIcons'
 import { AdminButton } from '@/components/admin/AdminUI'
+import { BlockLogo } from '@/components/fx/Fx'
 
 export const NAV = [
   { id: 'inicio', label: ui.nav.home, color: '#e5197e' },
@@ -58,7 +59,7 @@ export function Navbar({ visible }: { visible: boolean }) {
             className="group flex shrink-0 items-center gap-2 rounded-xl"
           >
             <img src="/images/opt/lion-head-160.webp" alt="" width={160} height={150} className="size-10 object-contain transition-transform group-hover:animate-wiggle sm:size-11" />
-            <img src="/images/opt/logo-240.webp" srcSet="/images/opt/logo-240.webp 240w, /images/opt/logo-480.webp 480w" sizes="150px" alt="" width={240} height={101} className="h-11 w-auto sm:h-[50px]" />
+            <BlockLogo size="text-[1.05rem] sm:text-[1.3rem]" kids="text-[0.72rem] px-1.5 sm:text-[0.82rem] sm:px-2" className="pt-0.5" />
           </a>
 
           <ul className="hidden items-center gap-0.5 lg:flex">

@@ -55,7 +55,7 @@ function rp_migrate_data(string $from, string $to): void
 }
 
 /** Data files that make up a backup (keys, rate limits and logs are left out). */
-const RP_BACKUP_FILES = ['students', 'attendance', 'billing', 'inscriptions', 'events', 'settings', 'visits', 'push', 'feed', 'users', 'visitlog'];
+const RP_BACKUP_FILES = ['students', 'attendance', 'billing', 'inscriptions', 'events', 'settings', 'visits', 'push', 'feed', 'users', 'visitlog', 'content'];
 
 /** Once a day: copy the JSON data to <data>/backups/YYYY-MM-DD and keep the last 14 days. */
 function rp_daily_backup(): void
@@ -316,7 +316,7 @@ function rp_current_user(): ?array
     }
     foreach (rp_read_json(rp_data_dir() . '/users.json')['users'] ?? [] as $u) {
         if (($u['id'] ?? '') === $uid && !empty($u['active'])) {
-            $me = ['id' => $u['id'], 'user' => $u['user'], 'name' => $u['name'], 'role' => $u['role'], 'perms' => array_values(array_intersect(RP_PERMS, (array) ($u['perms'] ?? [])))];
+            $me = ['id' => $u['id'], 'user' => $u['user'], 'name' => $u['name'], 'role' => $u['role'], 'perms' => rp_role_perms($u)];
             return $me;
         }
     }
@@ -326,12 +326,19 @@ function rp_current_user(): ?array
     return null;
 }
 
+/** A user's permissions: the "rectora" role always gets all of them (also future ones); others, what was ticked. */
+function rp_role_perms(array $u): array
+{
+    if (($u['role'] ?? '') === 'rectora') return RP_PERMS;
+    return array_values(array_intersect(RP_PERMS, (array) ($u['perms'] ?? [])));
+}
+
 /** Permissions of any user id (for work done without a session, e.g. notifications). [] when unknown or inactive. */
 function rp_user_perms(string $uid): array
 {
     if ($uid === '' || $uid === RP_ROOT) return RP_PERMS;
     foreach (rp_read_json(rp_data_dir() . '/users.json')['users'] ?? [] as $u) {
-        if (($u['id'] ?? '') === $uid) return empty($u['active']) ? [] : array_values(array_intersect(RP_PERMS, (array) ($u['perms'] ?? [])));
+        if (($u['id'] ?? '') === $uid) return empty($u['active']) ? [] : rp_role_perms($u);
     }
     return [];
 }

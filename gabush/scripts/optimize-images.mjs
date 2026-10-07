@@ -46,10 +46,16 @@ async function icon(size, file, pad = 0.08, bg = C.cream, rounded = true, art = 
 }
 await icon(32, 'public/favicon-32.png', 0.02, C.cream, false)
 await icon(48, 'public/favicon-48.png', 0.02, C.cream, false)
-await icon(180, 'public/apple-touch-icon.png', 0.08, C.cream, false)
-await icon(192, 'public/icon-192.png')
-await icon(512, 'public/icon-512.png')
-await icon(512, 'public/icon-maskable-512.png', 0.18, C.cream, false)
+// App icons (installed admin panel): full-bleed sky blue — the same colour as the app's splash screen
+// (manifest background_color), so Android's circle crop blends in — and the lion inside the safe zone.
+const APP_BG = '#bfe8ff'
+// The whole lion (not just the head, which looks cut off at this size).
+await icon(180, 'public/apple-touch-icon.png', 0.12, APP_BG, false, lionBuf)
+await icon(192, 'public/icon-192.png', 0.16, APP_BG, false, lionBuf)
+await icon(512, 'public/icon-512.png', 0.16, APP_BG, false, lionBuf)
+// Android only shows the central ~66 % circle of a maskable icon (launcher and launch screen):
+// the whole lion must fit inside it, so it gets a wide margin here.
+await icon(512, 'public/icon-maskable-512.png', 0.27, APP_BG, false, lionBuf)
 
 /* ── Floating decorations ── */
 for (const n of [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 16]) {

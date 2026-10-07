@@ -8,7 +8,7 @@ import { scrollToId } from '@/lib/utils'
 import { AnimatedCounter } from '@/components/animations'
 import { FacebookIcon, InstagramIcon, WhatsappIcon } from '@/components/ui/BrandIcons'
 import { ShareButton } from '@/components/ui/ShareButton'
-import { Cloud } from '@/components/fx/Fx'
+import { BlockLogo, Cloud } from '@/components/fx/Fx'
 import { NAV } from './Navbar'
 
 function VisitCounter() {
@@ -62,9 +62,8 @@ export function Footer() {
       <div className="relative bg-[linear-gradient(180deg,#789b34_0%,#4f7219_140px)] pb-24">
         <div className="container-x grid gap-10 pt-8 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1.3fr]">
           <div>
-            <span className="inline-block rounded-2xl bg-white p-3">
-              <img src="/images/opt/logo-240.webp" alt={site.fullName} width={240} height={101} loading="lazy" className="h-16 w-auto" />
-            </span>
+            <BlockLogo />
+            <span className="sr-only">{site.fullName}</span>
             <p className="mt-4 font-serif text-xl font-semibold text-white">{t(site.motto)} 🎨</p>
             <p className="mt-1 text-sm text-white/75">
               {site.license} · DANE {site.dane}

@@ -147,6 +147,24 @@ export async function preparePhoto(file: File, size = 640): Promise<Blob> {
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('photo'))), 'image/jpeg', 0.85))
 }
 
+/** Shrinks a photo to at most `maxW` px wide (keeps its shape, no crop) as JPEG before upload. */
+export async function resizePhoto(file: File, maxW = 1280): Promise<Blob> {
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(async () => {
+    const img = new Image()
+    img.src = URL.createObjectURL(file)
+    await img.decode()
+    return img
+  })
+  const w = 'width' in bitmap ? bitmap.width : 0
+  const h = 'height' in bitmap ? bitmap.height : 0
+  const scale = Math.min(1, maxW / w)
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(w * scale)
+  canvas.height = Math.round(h * scale)
+  canvas.getContext('2d')!.drawImage(bitmap as CanvasImageSource, 0, 0, canvas.width, canvas.height)
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('photo'))), 'image/jpeg', 0.85))
+}
+
 /** Tiny hash router: #/asistencia → 'asistencia'. */
 export function useRoute(fallback: string): [string, (r: string) => void] {
   const read = () => location.hash.replace(/^#\/?/, '').split('?')[0] || fallback
