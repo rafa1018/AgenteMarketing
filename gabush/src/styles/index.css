@@ -1,0 +1,271 @@
+@import 'tailwindcss';
+
+/*
+ * Gabush Kids: the six colours of the GABUSH block letters (magenta, yellow, indigo, sky,
+ * green, orange) + the lion's warm tones, on a light sky background.
+ * Token names are shared with the admin panel (ink, royal, gold, leaf, berry…).
+ */
+@theme {
+  /* brand (logo blocks) */
+  --color-pink: #e5197e;
+  --color-yellow: #f8c21c;
+  --color-indigo: #23206b;
+  --color-blue: #1fa3dd;
+  --color-green: #5cb531;
+  --color-orange: #f26b1d;
+  --color-lion: #f4a45c;
+  --color-mane: #ef7a3c;
+
+  /* semantic (also used by the admin panel) */
+  --color-ink: #23206b; /* headings, primary buttons */
+  --color-navy: #2c2a85;
+  --color-royal: #3a36a8;
+  --color-ocean: #1588c2;
+  --color-sky: #1fa3dd;
+  --color-gold: #f8c21c;
+  --color-honey: #e5a800;
+  --color-sun: #f26b1d;
+  --color-butter: #fff3c4;
+  --color-grape: #8e44c9;
+  --color-leaf: #3f9a1f;
+  --color-berry: #d92d20;
+  --color-cream: #fff9ec;
+  --color-paper: #f2f8ff;
+  --color-cloud: #e6f6ff;
+  --color-text: #2a2850;
+  --color-muted: #615f86;
+  --color-line: #e3e5f3;
+  --color-whatsapp: #25d366;
+
+  /* --font-serif = headings (rounded display), --font-sans = body/UI */
+  --font-serif: 'Fredoka Variable', 'Baloo 2', 'Trebuchet MS', system-ui, sans-serif;
+  --font-display: 'Fredoka Variable', 'Trebuchet MS', system-ui, sans-serif;
+  --font-sans: 'Nunito Variable', 'Segoe UI', system-ui, sans-serif;
+
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --animate-pulse-ring: pulse-ring 2.2s ease-out infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-sway: sway 5s ease-in-out infinite;
+  --animate-drift: drift 60s linear infinite;
+  --animate-wiggle: wiggle 2.4s ease-in-out infinite;
+  --animate-spin-slow: spin 28s linear infinite;
+
+  @keyframes pulse-ring {
+    0% { transform: scale(1); opacity: 0.55; }
+    100% { transform: scale(1.7); opacity: 0; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-14px); }
+  }
+  @keyframes sway {
+    0%, 100% { transform: rotate(-6deg); }
+    50% { transform: rotate(6deg); }
+  }
+  @keyframes drift {
+    from { transform: translateX(-30%); }
+    to { transform: translateX(130vw); }
+  }
+  @keyframes wiggle {
+    0%, 70%, 100% { transform: rotate(0); }
+    76% { transform: rotate(-8deg); }
+    84% { transform: rotate(7deg); }
+    92% { transform: rotate(-4deg); }
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  html {
+    background: #fff;
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: 84px;
+  }
+  body {
+    background: #fff;
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    overflow-x: clip;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    color: var(--color-ink);
+    line-height: 1.1;
+    letter-spacing: -0.005em;
+  }
+  ::selection {
+    background: var(--color-yellow);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-blue);
+    outline-offset: 3px;
+    border-radius: 8px;
+  }
+  img {
+    user-select: none;
+  }
+}
+
+@layer components {
+  .container-x {
+    width: 100%;
+    max-width: 1200px;
+    margin-inline: auto;
+    padding-inline: 1.125rem;
+  }
+  @media (min-width: 640px) {
+    .container-x { padding-inline: 1.75rem; }
+  }
+
+  /* little coloured pill above section titles */
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.9rem 0.35rem 0.45rem;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 0 0 2px var(--color-line);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.875rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-ink);
+  }
+  .kicker::before {
+    content: '';
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 50% 50%, #fff 0 22%, transparent 23%),
+      conic-gradient(var(--color-pink) 0 25%, var(--color-yellow) 0 50%, var(--color-blue) 0 75%, var(--color-green) 0);
+  }
+
+  .section-title {
+    font-size: clamp(2.1rem, 4.8vw, 3.3rem);
+    font-weight: 600;
+  }
+
+  .card {
+    background: #fff;
+    border: 2px solid var(--color-line);
+    border-radius: 24px;
+    box-shadow: 0 1px 2px rgb(35 32 107 / 0.04), 0 18px 40px -28px rgb(35 32 107 / 0.35);
+  }
+
+  /* chunky "toy" buttons: a solid bottom edge that sinks when pressed */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    min-height: 52px;
+    padding: 0.75rem 1.5rem;
+    border-radius: 999px;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.05rem;
+    line-height: 1;
+    white-space: nowrap;
+    transition: transform 0.2s var(--ease-bounce), box-shadow 0.2s, background-color 0.2s, color 0.2s, border-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn:active { transform: translateY(2px); }
+  .btn-primary {
+    background: var(--color-ink);
+    color: #fff;
+    box-shadow: 0 4px 0 #14124a, 0 14px 24px -14px rgb(35 32 107 / 0.8);
+  }
+  .btn-primary:hover { background: var(--color-royal); }
+  .btn-primary:active { box-shadow: 0 1px 0 #14124a; }
+  .btn-gold {
+    background: var(--color-yellow);
+    color: var(--color-ink);
+    box-shadow: 0 4px 0 #c99a00, 0 14px 24px -14px rgb(201 154 0 / 0.9);
+  }
+  .btn-gold:hover { background: #ffd23f; }
+  .btn-gold:active { box-shadow: 0 1px 0 #c99a00; }
+  .btn-pink {
+    background: var(--color-pink);
+    color: #fff;
+    box-shadow: 0 4px 0 #a80f5a, 0 14px 24px -14px rgb(229 25 126 / 0.9);
+  }
+  .btn-pink:active { box-shadow: 0 1px 0 #a80f5a; }
+  .btn-ghost {
+    background: #fff;
+    color: var(--color-ink);
+    border: 2px solid var(--color-line);
+    box-shadow: 0 4px 0 var(--color-line);
+  }
+  .btn-ghost:hover { border-color: var(--color-ink); }
+  .btn-whatsapp {
+    background: var(--color-whatsapp);
+    color: #06301a;
+    box-shadow: 0 4px 0 #1a9e4b, 0 14px 24px -14px rgb(37 211 102 / 0.9);
+  }
+  .btn-whatsapp:active { box-shadow: 0 1px 0 #1a9e4b; }
+
+  /* visible "[AGREGAR …]" placeholders */
+  .ph {
+    display: inline;
+    padding: 0.05em 0.4em;
+    border: 1.5px dashed var(--color-orange);
+    border-radius: 6px;
+    background: #fff4e0;
+    color: #a24f00;
+    font-weight: 700;
+    font-size: 0.92em;
+  }
+
+  /* playful dotted background */
+  .grid-bg,
+  .dots-bg {
+    background-image: radial-gradient(rgb(35 32 107 / 0.09) 1.6px, transparent 1.7px);
+    background-size: 22px 22px;
+  }
+
+  /* GABUSH-style letter block (logo look) */
+  .block-letter {
+    display: inline-grid;
+    place-items: center;
+    width: 1.15em;
+    height: 1.15em;
+    border-radius: 0.14em;
+    border: 0.06em solid #fff;
+    box-shadow: 0 0.06em 0 rgb(0 0 0 / 0.15), 0 0.18em 0.4em -0.2em rgb(35 32 107 / 0.5);
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+    -webkit-text-stroke: 0.02em rgb(0 0 0 / 0.08);
+  }
+}
+
+@layer utilities {
+  /* soft wave edges between sections */
+  .wave-top {
+    mask: radial-gradient(28px 18px at 50% 0, transparent 98%, #000) 50% / 56px 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  html { scroll-behavior: auto; }
+}

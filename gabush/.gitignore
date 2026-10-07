@@ -1,0 +1,20 @@
+node_modules
+dist
+*.local
+.DS_Store
+
+# API secrets & runtime data (never commit / never deploy local data)
+public/api/config.php
+public/api/data/*.json
+.api-data/
+
+# Hostinger upload package
+gabush-hostinger.zip
+
+# local dev admin credentials (never commit / never deploy)
+admin-credentials.local.txt
+public/api/data/photos/
+gabush-data/
+
+# deploy settings (host, user, key path)
+.deploy.local.json

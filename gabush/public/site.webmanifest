@@ -1,0 +1,16 @@
+{
+  "name": "Gabush Kids · Jardín Infantil",
+  "short_name": "Gabush Kids",
+  "description": "Jardín infantil en Valledupar: Párvulos, Prejardín, Jardín y Transición. Creciendo con las artes.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "lang": "es-CO",
+  "background_color": "#ffffff",
+  "theme_color": "#23206b",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
