@@ -178,6 +178,16 @@ final class CheckoutService
         return $this->state((int) $co['id']);
     }
 
+    /**
+     * Checkouts the family opened and abandoned (closed the payment window): after 3 hours with no answer from
+     * the gateway they are marked "expirado". If the gateway approves one later anyway, confirm() still
+     * applies it — an expired checkout never blocks a real payment.
+     */
+    public function expireAbandoned(): int
+    {
+        return $this->db->run("UPDATE checkouts SET status = 'expirado' WHERE status IN ('creado','pendiente') AND payment_id IS NULL AND created_at < NOW() - INTERVAL 3 HOUR")->rowCount();
+    }
+
     /** @return array<string,mixed> */
     public function state(int $checkoutId): array
     {

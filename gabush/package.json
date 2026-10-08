@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Gabush Kids Jardín Infantil — sitio web",
+  "description": "Gabush Kids JardÃ­n Infantil â€” sitio web",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/postbuild.mjs",
@@ -17,6 +17,7 @@
     "admin-password": "php scripts/admin-password.php",
     "zip": "node scripts/zip.mjs",
     "deploy": "npm run build && node scripts/deploy.mjs",
+    "backup:pull": "node scripts/backup-pull.mjs",
     "user": "php scripts/user.php",
     "characters": "node scripts/characters.mjs",
     "lion": "node scripts/lion.mjs"

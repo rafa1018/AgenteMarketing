@@ -39,12 +39,38 @@ export function PaymentsPage() {
   const toPay = payable.filter((c) => chosen.includes(c.id)).reduce((s, c) => s + c.balance, 0)
   const toggle = (id: number) => setSelected(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id])
 
+  const [left, setLeft] = useState(false)
+  // Back from the gateway without finishing (back button, closed the payment window in the installed app):
+  // the page comes back as it was, so the button must stop spinning and the account must be re-read.
+  useEffect(() => {
+    const back = () => {
+      if (document.visibilityState !== 'visible') return
+      setBusy((b) => {
+        if (b) {
+          setLeft(true)
+          q.reload()
+        }
+        return false
+      })
+    }
+    const onShow = (e: PageTransitionEvent) => e.persisted && back()
+    window.addEventListener('pageshow', onShow)
+    document.addEventListener('visibilitychange', back)
+    return () => {
+      window.removeEventListener('pageshow', onShow)
+      document.removeEventListener('visibilitychange', back)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const pay = async () => {
     setBusy(true)
     setError(null)
+    setLeft(false)
     try {
       const r = await api.post<{ url: string }>('/portal/checkout', { chargeIds: chosen })
       location.href = r.url
+      // if the gateway opens outside this page and nothing navigates, do not spin forever
+      window.setTimeout(() => setBusy(false), 15000)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'No se pudo iniciar el pago.')
       setBusy(false)
@@ -136,6 +162,11 @@ export function PaymentsPage() {
               (a.onlinePayments ? (
                 <div className="sticky bottom-24 z-10 mt-3">
                   {error && <Problem message={error} />}
+                  {left && (
+                    <p className="rounded-xl bg-butter px-4 py-3 text-sm text-[#8a5716]">
+                      No se completó el pago: no se te cobró nada. Si alcanzaste a pagar en {a.provider === 'mercadopago' ? 'Mercado Pago' : 'Wompi'}, en unos minutos se verá aquí y te llegará el aviso; no pagues de nuevo.
+                    </p>
+                  )}
                   <button type="button" onClick={pay} disabled={busy || toPay <= 0} className="btn btn-primary mt-2 w-full shadow-lg">
                     {busy ? <Loader2 size={18} className="animate-spin" /> : null}
                     {toPay > 0 ? `Pagar ${money(toPay)} en línea` : 'Elige qué pagar'}

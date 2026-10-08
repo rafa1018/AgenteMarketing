@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { BarChart3, Bell, FileSpreadsheet, BellRing, BookOpenCheck, CalendarDays, CreditCard, FileCheck2, Globe, GraduationCap, Images, KeyRound, LayoutGrid, Mail, MessagesSquare, PiggyBank, School, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
+import { Archive, BarChart3, Bell, FileSpreadsheet, BellRing, BookOpenCheck, CalendarDays, CreditCard, FileCheck2, Globe, GraduationCap, Images, KeyRound, LayoutGrid, Mail, MessagesSquare, PiggyBank, School, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
 import { useCallback, useEffect, useState, type ComponentType } from 'react'
 import { checkAdmin, loadEvents, logout, reloadEvents, useCalendar, type Perm } from '@/lib/calendar'
 import { cn } from '@/lib/utils'
@@ -16,6 +16,7 @@ import { StudentFile } from './features/students/StudentFile'
 import { AttendancePage } from './features/attendance/AttendancePage'
 import { BillingPage } from './features/billing/BillingPage'
 import { ReportsPage } from './features/reports/ReportsPage'
+import { BackupsPage } from './features/settings/BackupsPage'
 import { EnrollmentsPage } from './features/enrollments/EnrollmentsPage'
 import { AcademicPage } from './features/academics/AcademicPage'
 import { GradesPage } from './features/grades/GradesPage'
@@ -68,6 +69,7 @@ const ALL_PAGES: Page[] = [
   { id: 'niveles', label: 'Niveles y programas', icon: GraduationCap, view: ProgramsAdminPage, perm: 'feed', group: 'web' },
   { id: 'visitas', label: 'Visitas', icon: BarChart3, view: VisitsPage, perm: 'ajustes', group: 'web' },
   { id: 'sitio', label: 'Sitio web', icon: Globe, view: SitePage, perm: 'ajustes', group: 'web' },
+  { id: 'copias', label: 'Copias de seguridad', icon: Archive, view: BackupsPage, perm: 'ajustes', group: 'cuenta' },
   { id: 'usuarios', label: 'Usuarios', icon: ShieldCheck, view: UsersPage, perm: 'usuarios', group: 'cuenta' },
   { id: 'notificaciones', label: 'Notificaciones', icon: BellRing, view: NotificationsPage, group: 'cuenta' },
   { id: 'ajustes', label: 'Ajustes', icon: SettingsIcon, view: Settings, perm: 'ajustes', group: 'cuenta' },

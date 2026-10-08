@@ -4,7 +4,9 @@ declare(strict_types=1);
 namespace Gabush\Application;
 
 use Gabush\App;
+use Gabush\Application\Backup\BackupService;
 use Gabush\Application\Billing\BillingService;
+use Gabush\Application\Payments\CheckoutService;
 use Gabush\Application\Email\EmailService;
 use Gabush\Application\Notifications\Notifier;
 use Gabush\Application\Shared\Actor;
@@ -16,6 +18,8 @@ use Gabush\Application\Shared\Settings;
  *   - late fees, once a day
  *   - payment reminders to families with overdue / soon-due charges, once a day after 8:00
  *   - e-mail queue
+ *   - abandoned online checkouts → expirado (after 3 h)
+ *   - backup of the database + private files, once a day (weekly on Sundays)
  */
 final class Scheduler
 {
@@ -48,6 +52,18 @@ final class Scheduler
         }
 
         $done['email'] = EmailService::from($this->app)->flush(40);
+        $done['expiredCheckouts'] = CheckoutService::from($this->app)->expireAbandoned();
+
+        // backup once a day, early in the morning (Sundays: the weekly one, kept 8 weeks)
+        if ((int) $now->format('G') >= 2 && ($state['backupDay'] ?? '') !== $now->format('Y-m-d')) {
+            try {
+                $done['backup'] = BackupService::from($this->app)->scheduled($now);
+                $state['backupDay'] = $now->format('Y-m-d');
+            } catch (\Throwable $e) {
+                $done['backup'] = 'ERROR ' . $e->getMessage();
+                error_log('[gabush backup] ' . $e->getMessage());
+            }
+        }
         $settings->set('scheduler', $state + ['lastRun' => $now->format('c')]);
         return $done;
     }

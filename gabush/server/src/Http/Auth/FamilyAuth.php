@@ -13,10 +13,23 @@ final class FamilyAuth
     private const COOKIE = 'gbfamily';
     private const IDLE = 60 * 60 * 24 * 30; // 30 days: families stay signed in on their phone
 
+    /** @var array{student:int,user:string,seen:int}|false|null read once per request (false = no family) */
+    private static array|false|null $cache = null;
+    private static string $csrf = '';
+
     public static function start(): void
     {
-        if (session_status() === PHP_SESSION_ACTIVE) return;
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            if (session_name() === self::COOKIE) return;
+            session_write_close(); // another session (the panel's) is open: save it before switching
+        }
         session_name(self::COOKIE);
+        // always the family's own id: never fall into whatever session was open before in this request
+        $id = $_COOKIE[self::COOKIE] ?? '';
+        session_id(is_string($id) && preg_match('/^[A-Za-z0-9,-]{22,256}$/', $id) ? $id : '');
+        // own folder, apart from the panel's: each one is cleaned with its own idle time (30 days here)
+        $dir = \rp_data_dir() . '/sessions/familias';
+        if (is_dir($dir) || @mkdir($dir, 0700, true)) session_save_path($dir);
         session_set_cookie_params([
             'lifetime' => self::IDLE,
             'path' => '/api/v2', // portal routes + photo / receipt / document files of the own student
@@ -35,7 +48,10 @@ final class FamilyAuth
         session_regenerate_id(true);
         $_SESSION['family'] = ['student' => $studentId, 'user' => $username, 'seen' => time()];
         $_SESSION['csrf'] = bin2hex(random_bytes(16));
-        return $_SESSION['csrf'];
+        self::$cache = $_SESSION['family'];
+        self::$csrf = $_SESSION['csrf'];
+        session_write_close();
+        return self::$csrf;
     }
 
     public static function logout(): void
@@ -43,33 +59,38 @@ final class FamilyAuth
         self::start();
         $_SESSION = [];
         session_destroy();
+        self::$cache = false;
+        self::$csrf = '';
     }
 
     /**
-     * The family of this request, if any. The session is read and closed right away (its data stays in
-     * $_SESSION for the request), so a staff session can still be opened in the same request — e.g. a
-     * teacher who is also a parent on the same browser.
+     * The family of this request, if any. Read once and the session closed right away, so a staff session can
+     * still be opened in the same request (a teacher who is also a parent on the same browser).
      */
     public static function current(): ?Actor
     {
-        if (empty($_COOKIE[self::COOKIE])) return null;
-        if (session_status() !== PHP_SESSION_ACTIVE && session_name() === self::COOKIE && isset($_SESSION['family'])) {
-            $f = $_SESSION['family']; // already read in this request
-        } else {
-            self::start();
-            $f = $_SESSION['family'] ?? null;
-            if ($f && time() - (int) $f['seen'] <= self::IDLE) $_SESSION['family']['seen'] = time();
-            session_write_close();
-            session_id(''); // next session_start() (staff) reads its own cookie
+        if (self::$cache === null) {
+            self::$cache = false;
+            if (!empty($_COOKIE[self::COOKIE])) {
+                self::start();
+                $f = $_SESSION['family'] ?? null;
+                if ($f && time() - (int) $f['seen'] <= self::IDLE) {
+                    $_SESSION['family']['seen'] = time();
+                    self::$cache = $_SESSION['family'];
+                    self::$csrf = (string) ($_SESSION['csrf'] ?? '');
+                }
+                session_write_close();
+                $_SESSION = [];
+            }
         }
-        if (!$f || time() - (int) $f['seen'] > self::IDLE) return null;
-        return Actor::family((int) $f['student'], (string) $f['user']);
+        $f = self::$cache;
+        return $f ? Actor::family((int) $f['student'], (string) $f['user']) : null;
     }
 
     public static function require(Request $req, bool $write = false): Actor
     {
         $actor = self::current() ?? throw HttpError::unauthorized();
-        if ($write && !hash_equals((string) ($_SESSION['csrf'] ?? ''), $req->header('x-csrf-token'))) {
+        if ($write && (self::$csrf === '' || !hash_equals(self::$csrf, $req->header('x-csrf-token')))) {
             throw new HttpError(403, 'csrf');
         }
         return $actor;
@@ -77,6 +98,7 @@ final class FamilyAuth
 
     public static function csrf(): string
     {
-        return (string) ($_SESSION['csrf'] ?? '');
+        self::current();
+        return self::$csrf;
     }
 }

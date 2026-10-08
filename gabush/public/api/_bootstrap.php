@@ -148,6 +148,11 @@ function rp_session_start(): void
         return;
     }
     session_name('gbadmin');
+    // own session folder: the hosting's shared one deletes idle sessions after 24 min (php default), which
+    // logged the staff out long before RP_ADMIN_IDLE
+    $dir = rp_data_dir() . '/sessions/panel';
+    if (is_dir($dir) || @mkdir($dir, 0700, true)) session_save_path($dir);
+    ini_set('session.gc_maxlifetime', (string) RP_ADMIN_IDLE);
     session_set_cookie_params([
         'lifetime' => 0,
         'path'     => '/api',
@@ -156,6 +161,10 @@ function rp_session_start(): void
         'samesite' => 'Strict',
     ]);
     ini_set('session.use_strict_mode', '1');
+    // a request may have opened the family portal session first (photos, receipts): without this PHP would
+    // start a NEW empty session here and send it as the admin cookie, logging the staff out
+    $id = $_COOKIE['gbadmin'] ?? '';
+    if (is_string($id) && preg_match('/^[A-Za-z0-9,-]{22,256}$/', $id)) session_id($id);
     session_start();
 }
 

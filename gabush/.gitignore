@@ -24,3 +24,6 @@ gabush-data/
 
 # local development database (MariaDB data dir)
 .devdb/
+
+# copias de seguridad descargadas del servidor (datos personales)
+.backups/

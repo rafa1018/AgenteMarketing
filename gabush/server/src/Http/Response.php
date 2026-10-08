@@ -16,10 +16,10 @@ final class Response
         return new self($status, ['Content-Type' => 'text/html; charset=utf-8'], $html);
     }
 
-    public static function file(string $path, string $mime, ?string $downloadName = null, int $maxAge = 0): self
+    public static function file(string $path, string $mime, ?string $downloadName = null, int $maxAge = 0, bool $attachment = false): self
     {
         $h = ['Content-Type' => $mime, 'Content-Length' => (string) filesize($path), 'Cache-Control' => $maxAge ? "private, max-age=$maxAge" : 'no-store'];
-        if ($downloadName !== null) $h['Content-Disposition'] = 'inline; filename="' . addcslashes($downloadName, '"\\') . '"';
+        if ($downloadName !== null) $h['Content-Disposition'] = ($attachment ? 'attachment' : 'inline') . '; filename="' . addcslashes($downloadName, '"\\') . '"';
         return new self(200, $h, '', $path);
     }
 
