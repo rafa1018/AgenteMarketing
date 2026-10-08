@@ -289,7 +289,17 @@ final class BillingController extends Controller
     public function settingsShow(Request $req): array
     {
         $this->staff($req, 'pagos', 'ajustes');
-        return ['lateFee' => $this->billing()->lateFeePolicy()->toArray(), 'pensionMonths' => $this->billing()->pensionMonths(), 'enrollmentDueDays' => $this->billing()->enrollmentDueDays()];
+        $year = $this->year($req);
+        $y = $this->db()->one('SELECT starts_on, ends_on, enrollment_due_on FROM academic_years WHERE id = ?', [$year]);
+        return [
+            'year' => $year,
+            'lateFee' => $this->billing()->lateFeePolicy()->toArray(),
+            'pensionMonths' => $this->billing()->pensionMonthsFor($year), // of the chosen year
+            'enrollmentDueDays' => $this->billing()->enrollmentDueDays(),
+            'enrollmentDueOn' => $y['enrollment_due_on'] ?? null,
+            'startsOn' => $y['starts_on'] ?? null,
+            'endsOn' => $y['ends_on'] ?? null,
+        ];
     }
 
     /** Late-fee rule and the months in which the pension is charged. */
@@ -305,10 +315,25 @@ final class BillingController extends Controller
             $policy = LateFeePolicy::fromSettings($lf + $this->billing()->lateFeePolicy()->toArray());
             $this->settings()->set('late_fee', $policy->toArray());
         }
-        if ($months) $this->settings()->patch('billing', ['pensionMonths' => $months]);
         if ($v->has('enrollmentDueDays')) $this->settings()->patch('billing', ['enrollmentDueDays' => max(0, min(120, (int) $req->json()['enrollmentDueDays']))]);
-        $this->audit()->log($actor, 'billing.settings', 'settings', 'billing', ['lateFee' => $lf, 'months' => $months]);
-        return $this->settingsShow($req);
+        // dates of the chosen year: pension months and the matrícula deadline
+        $year = $this->year($req);
+        $moved = 0;
+        if ($this->db()->value('SELECT 1 FROM academic_years WHERE id = ?', [$year])) {
+            if ($months) {
+                sort($months);
+                $this->db()->update('academic_years', ['pension_months' => implode(',', $months)], ['id' => $year]);
+            }
+            if ($v->has('enrollmentDueOn')) {
+                $due = (string) ($req->json()['enrollmentDueOn'] ?? '');
+                $this->db()->update('academic_years', ['enrollment_due_on' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $due) ? $due : null], ['id' => $year]);
+                $moved = $this->billing()->moveEnrollmentDeadline($year);
+            }
+        } elseif ($months) {
+            $this->settings()->patch('billing', ['pensionMonths' => $months]);
+        }
+        $this->audit()->log($actor, 'billing.settings', 'settings', 'billing', ['lateFee' => $lf, 'months' => $months, 'year' => $year]);
+        return $this->settingsShow($req) + ['movedEnrollmentCharges' => $moved];
     }
 
     /** Price table of a year: concept × grade level. */

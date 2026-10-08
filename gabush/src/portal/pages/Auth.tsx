@@ -19,6 +19,9 @@ function Frame({ children }: { children: React.ReactNode }) {
         <a href="/" className="mt-4 block text-center text-sm font-semibold text-royal">
           ← Ir a la página del jardín
         </a>
+        <a href="/admin/" className="mt-2 block text-center text-[13px] font-semibold text-muted hover:text-ink">
+          Acceso del personal del jardín
+        </a>
       </div>
     </div>
   )
@@ -114,7 +117,7 @@ export function ChangePassword({ first = false, onDone }: { first?: boolean; onD
       <h1 className="flex items-center gap-2 text-[1.4rem]">
         <KeyRound className="text-pink" /> {first ? 'Crea tu contraseña' : 'Cambiar contraseña'}
       </h1>
-      {first && <p className="text-sm text-muted">Por seguridad, cambia la contraseña inicial por una tuya (mínimo 8 caracteres, con letras y números).</p>}
+      {first && <p className="text-sm text-muted">Puedes crear una contraseña tuya (mínimo 6 caracteres, pueden ser solo números) o seguir con la que te dio el jardín.</p>}
       <PasswordInput value={current} onChange={setCurrent} label={first ? 'Contraseña con la que entraste' : 'Contraseña actual'} autoComplete="current-password" />
       <PasswordInput value={next} onChange={setNext} label="Contraseña nueva" autoComplete="new-password" />
       <PasswordInput value={again} onChange={setAgain} label="Repite la contraseña nueva" autoComplete="new-password" />
@@ -123,9 +126,29 @@ export function ChangePassword({ first = false, onDone }: { first?: boolean; onD
         {busy && <Loader2 size={18} className="animate-spin" />} Guardar contraseña
       </button>
       {first && (
-        <button type="button" onClick={logout} className="block w-full text-center text-sm font-semibold text-muted">
-          Salir
-        </button>
+        <>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true)
+              try {
+                await api.post('/portal/password/keep')
+                passwordChanged()
+              } catch (err) {
+                setError(err instanceof ApiError ? err.message : 'No se pudo continuar.')
+              } finally {
+                setBusy(false)
+              }
+            }}
+            className="btn btn-ghost w-full"
+          >
+            Seguir con mi contraseña actual
+          </button>
+          <button type="button" onClick={logout} className="block w-full text-center text-sm font-semibold text-muted">
+            Salir
+          </button>
+        </>
       )}
     </form>
   )

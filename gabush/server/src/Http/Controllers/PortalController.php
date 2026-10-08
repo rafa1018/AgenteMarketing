@@ -30,6 +30,7 @@ final class PortalController extends Controller
         $r->add('POST', '/portal/logout', [$c, 'logout']);
         $r->add('GET', '/portal/me', [$c, 'me']);
         $r->add('POST', '/portal/password', [$c, 'password']);
+        $r->add('POST', '/portal/password/keep', [$c, 'keepPassword']);
         $r->add('POST', '/portal/forgot', [$c, 'forgot']);
         $r->add('POST', '/portal/reset', [$c, 'reset']);
         // content
@@ -118,6 +119,14 @@ final class PortalController extends Controller
         $j = $req->json();
         $this->accountsSvc()->changePassword((int) $f->studentId, (string) ($j['current'] ?? ''), (string) ($j['password'] ?? ''));
         $this->audit()->log($f, 'portal.password', 'student', $f->studentId);
+        return [];
+    }
+
+    public function keepPassword(Request $req): array
+    {
+        $f = $this->family($req, true);
+        $this->accountsSvc()->keepPassword((int) $f->studentId);
+        $this->audit()->log($f, 'portal.password_kept', 'student', $f->studentId);
         return [];
     }
 

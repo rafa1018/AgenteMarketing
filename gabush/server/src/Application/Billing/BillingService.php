@@ -48,18 +48,54 @@ final class BillingService
         return LateFeePolicy::fromSettings((array) $this->settings->get('late_fee', []));
     }
 
-    /** Pension months of a year (default February–November). @return list<int> */
     /** Days the family has to pay the matrícula after the student is enrolled (0 = the same day). */
     public function enrollmentDueDays(): int
     {
         return max(0, min(120, (int) (((array) $this->settings->get('billing', []))['enrollmentDueDays'] ?? 0)));
     }
 
+    /** Default pension months (configuration; February–November). @return list<int> */
     public function pensionMonths(): array
     {
         $m = (array) (((array) $this->settings->get('billing', []))['pensionMonths'] ?? []);
         $m = array_values(array_filter(array_map('intval', $m), static fn($x) => $x >= 1 && $x <= 12));
         return $m ?: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+    }
+
+    /** Pension months of one academic year: its own list, else the default. @return list<int> */
+    public function pensionMonthsFor(int $year): array
+    {
+        $own = (string) ($this->db->value('SELECT pension_months FROM academic_years WHERE id = ?', [$year]) ?? '');
+        $m = array_values(array_filter(array_map('intval', explode(',', $own)), static fn($x) => $x >= 1 && $x <= 12));
+        return $m ?: $this->pensionMonths();
+    }
+
+    /**
+     * Due date of the matrícula of $year for someone enrolled today: the year's deadline when it is still
+     * ahead, otherwise today + the configured days.
+     */
+    public function enrollmentDueOn(int $year): string
+    {
+        $deadline = $this->db->value('SELECT enrollment_due_on FROM academic_years WHERE id = ?', [$year]);
+        $byDays = $this->today->modify('+' . $this->enrollmentDueDays() . ' days')->format('Y-m-d');
+        return $deadline && $deadline >= $byDays ? (string) $deadline : $byDays;
+    }
+
+    /**
+     * After the dates of a year change: pending matrícula charges of that year that were not paid at all
+     * move to the new deadline (so a family enrolled early does not appear overdue). @return int moved
+     */
+    public function moveEnrollmentDeadline(int $year): int
+    {
+        $deadline = $this->db->value('SELECT enrollment_due_on FROM academic_years WHERE id = ?', [$year]);
+        if (!$deadline) return 0;
+        return $this->db->run(
+            "UPDATE charges c JOIN billing_concepts bc ON bc.id = c.concept_id AND bc.apply_on_enrollment = 1
+             SET c.due_on = ?
+             WHERE c.year_id = ? AND c.status = 'abierto' AND c.due_on < ?
+               AND NOT EXISTS (SELECT 1 FROM payment_allocations pa JOIN payments p ON p.id = pa.payment_id AND p.status = 'aprobado' WHERE pa.charge_id = c.id)",
+            [$deadline, $year, $deadline],
+        )->rowCount();
     }
 
     // ───────────────────────── reading ─────────────────────────
@@ -212,7 +248,7 @@ final class BillingService
     public function generateMonthlyCharges(DateTimeImmutable $month, Actor $actor): array
     {
         $first = $month->modify('first day of this month')->setTime(0, 0);
-        if (!in_array((int) $first->format('n'), $this->pensionMonths(), true)) return ['created' => 0, 'skipped' => 0];
+        if (!in_array((int) $first->format('n'), $this->pensionMonthsFor((int) $first->format('Y')), true)) return ['created' => 0, 'skipped' => 0];
         $year = (int) $first->format('Y');
         $concept = $this->db->one("SELECT id FROM billing_concepts WHERE code = 'PENSION' AND active = 1");
         if (!$concept) return ['created' => 0, 'skipped' => 0];
@@ -301,7 +337,7 @@ final class BillingService
             $this->db->insert('charges', [
                 'student_id' => $e['student_id'], 'enrollment_id' => $enrollmentId, 'year_id' => $e['year_id'], 'concept_id' => $c['id'],
                 'description' => trim("{$c['name']} " . ($e['grade'] ?? '') . " {$e['year_id']}"), 'amount' => $amount,
-                'due_on' => $this->today->modify('+' . $this->enrollmentDueDays() . ' days')->format('Y-m-d'), 'source' => 'automatico', 'created_by' => $actor->label(),
+                'due_on' => $this->enrollmentDueOn((int) $e['year_id']), 'source' => 'automatico', 'created_by' => $actor->label(),
             ]);
         }
     }

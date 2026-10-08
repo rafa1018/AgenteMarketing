@@ -108,11 +108,18 @@ final class PortalAccounts
         return ['id' => (int) $a['id'], 'student_id' => (int) $a['student_id'], 'username' => $a['username'], 'must_change' => (bool) $a['must_change_password']];
     }
 
+    /** Families may use any password of 6+ characters — also only numbers, like a document number. */
     public static function assertStrong(string $password): void
     {
-        if (mb_strlen($password) < 8 || !preg_match('/\d/', $password) || !preg_match('/\p{L}/u', $password)) {
-            throw new DomainError('weak', 'La contraseña debe tener al menos 8 caracteres, con letras y números.');
+        if (mb_strlen($password) < 6) {
+            throw new DomainError('weak', 'La contraseña debe tener al menos 6 caracteres (pueden ser solo números).');
         }
+    }
+
+    /** First login: the family decides to keep the password the school gave them (e.g. the document). */
+    public function keepPassword(int $studentId): void
+    {
+        $this->db->run('UPDATE portal_accounts SET must_change_password = 0 WHERE student_id = ?', [$studentId]);
     }
 
     public function changePassword(int $studentId, string $current, string $new): void

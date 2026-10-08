@@ -134,6 +134,9 @@ function Shell({ route, param }: { route: string; param?: string }) {
       <footer className="mx-auto mt-8 flex max-w-3xl flex-col items-center gap-2 px-4 pb-6 text-center text-[12px] text-muted">
         <img src="/images/opt/leon-asomado-160.webp" alt="" width={160} height={161} className="h-10 w-auto opacity-80" />
         {[me.school.name, me.school.phone].filter(Boolean).join(' · ')}
+        <a href="/admin/" className="font-semibold text-muted underline-offset-2 hover:text-ink hover:underline">
+          Acceso del personal del jardín
+        </a>
       </footer>
     </div>
   )

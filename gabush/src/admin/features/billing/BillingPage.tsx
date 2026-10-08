@@ -236,8 +236,9 @@ type LateFee = { enabled: boolean; amountPerDay: number; dueDay: number; graceDa
 
 function BillingConfig() {
   const { setup, year } = useSetup()
-  const settings = useQuery('billing-settings', () => api2.get<{ lateFee: LateFee; pensionMonths: number[]; enrollmentDueDays: number }>('/billing/settings'))
+  const settings = useQuery(year ? `billing-settings:${year}` : null, () => api2.get<{ lateFee: LateFee; pensionMonths: number[]; enrollmentDueDays: number; enrollmentDueOn: string | null }>('/billing/settings' + qs({ year })))
   const [dueDays, setDueDays] = useState(0)
+  const [dueOn, setDueOn] = useState('')
   const prices = useQuery(year ? `prices:${year}` : null, () => api2.get<{ prices: { conceptId: number; gradeLevelId: number | null; amount: number }[] }>('/billing/prices' + qs({ year })))
   const [lf, setLf] = useState<LateFee | null>(null)
   const [months, setMonths] = useState<number[]>([])
@@ -249,6 +250,7 @@ function BillingConfig() {
       setLf(settings.data.lateFee)
       setMonths(settings.data.pensionMonths)
       setDueDays(settings.data.enrollmentDueDays ?? 0)
+      setDueOn(settings.data.enrollmentDueOn ?? '')
     }
   }, [settings.data])
   useEffect(() => {
@@ -258,7 +260,8 @@ function BillingConfig() {
   const grades = setup?.gradeLevels.filter((g) => g.active) ?? []
 
   const saveSettings = async () => {
-    if (await m.run(() => api2.put('/billing/settings', { lateFee: lf, pensionMonths: months, enrollmentDueDays: dueDays }))) toast('Configuración guardada')
+    const r = await m.run(() => api2.put<{ movedEnrollmentCharges?: number }>('/billing/settings' + qs({ year }), { lateFee: lf, pensionMonths: months, enrollmentDueDays: dueDays, enrollmentDueOn: dueOn || null }))
+    if (r) toast(r.movedEnrollmentCharges ? `Configuración guardada · ${r.movedEnrollmentCharges} matrículas pendientes ahora vencen el ${date(dueOn)}` : 'Configuración guardada')
   }
   const savePrices = async () => {
     const items = concepts.flatMap((c) => grades.map((g) => ({ conceptId: c.id, gradeLevelId: g.id, amount: grid[`${c.id}:${g.id}`] ? parseMoney(grid[`${c.id}:${g.id}`]) : null })))
@@ -357,7 +360,7 @@ function BillingConfig() {
           )}
         </p>
         <div>
-          <p className="mb-1.5 text-[14px] font-semibold text-ink">Meses en que se cobra pensión</p>
+          <p className="mb-1.5 text-[14px] font-semibold text-ink">Meses en que se cobra pensión en {year} (el primero marcado es el que arranca)</p>
           <div className="flex flex-wrap gap-1.5">
             {MONTH_NAMES.map((name, i) => (
               <button key={name} type="button" onClick={() => setMonths(months.includes(i + 1) ? months.filter((x) => x !== i + 1) : [...months, i + 1].sort((a, b) => a - b))} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold capitalize ${months.includes(i + 1) ? 'bg-ink text-white' : 'bg-paper text-muted'}`}>
@@ -366,14 +369,20 @@ function BillingConfig() {
             ))}
           </div>
         </div>
-        <Field label="Plazo para pagar la matrícula (días después de matricular)" hint={dueDays ? `Al tocar «Matricular» el cobro vence ${dueDays} días después.` : 'Con 0, la matrícula vence el mismo día en que se matricula.'} className="max-w-sm">
-          <input type="number" min={0} max={120} value={dueDays} onChange={(e) => setDueDays(Math.max(0, Number(e.target.value) || 0))} className={inputCls()} />
-        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={`Fecha límite para pagar la matrícula ${year}`} hint="Quien se matricule antes, la paga hasta esta fecha. Las matrículas pendientes de este año se mueven a esta fecha.">
+            <input type="date" value={dueOn} onChange={(e) => setDueOn(e.target.value)} className={inputCls()} />
+          </Field>
+          <Field label="Plazo si se matricula después de esa fecha (días)" hint={dueDays ? `Vence ${dueDays} días después de matricular.` : 'Con 0, vence el mismo día en que se matricula.'}>
+            <input type="number" min={0} max={120} value={dueDays} onChange={(e) => setDueDays(Math.max(0, Number(e.target.value) || 0))} className={inputCls()} />
+          </Field>
+        </div>
         <div className="rounded-xl bg-[#eaf3fa] px-4 py-3 text-[14px] text-[#185a8a]">
-          <p className="font-semibold">Así se cobra en el año:</p>
+          <p className="font-semibold">Así se cobra en {year}:</p>
           <ul className="mt-1 list-disc space-y-0.5 pl-5">
             <li>
-              <b>Matrícula:</b> se genera al tocar «Matricular (activar)» y vence {dueDays ? `${dueDays} días después` : 'ese mismo día'}. No genera mora.
+              <b>Matrícula:</b> se genera al tocar «Matricular (activar)» y vence {dueOn ? `el ${date(dueOn)}` : dueDays ? `${dueDays} días después` : 'ese mismo día'}
+              {dueOn && dueDays ? ` (o ${dueDays} días después si se matricula más tarde)` : ''}. No genera mora.
             </li>
             <li>
               <b>Pensión:</b> se genera sola el día 1 de cada mes marcado ({months.map((x) => MONTH_NAMES[x - 1].slice(0, 3)).join(', ') || 'ninguno'}) y vence el día {lf.dueDay}. La primera es la del primer mes marcado del año; quien entra a mitad de año paga desde el mes en que entra.
