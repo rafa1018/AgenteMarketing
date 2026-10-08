@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { AlertTriangle, Check, Eye, EyeOff, Globe, Loader2, Lock, LockKeyhole, LogIn, Plus, ShieldCheck, X } from 'lucide-react'
+import { AlertTriangle, Check, Eye, EyeOff, Globe, Loader2, Lock, LockKeyhole, LogIn, Plus, ShieldCheck, UsersRound, X } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useLang, useT } from '@/i18n'
 import { ui } from '@/i18n/ui'
@@ -26,17 +26,20 @@ const label = 'mb-1.5 block text-[14px] font-semibold text-ink'
 
 /* ───────────── Navbar button ───────────── */
 
-/** "Ingresar" for visitors; "Administrar" once logged in — both open the admin panel at /admin/. */
+/**
+ * Visitors and parents: "Portal familias" (/familia/). Staff already signed in: "Administrar" (/admin/).
+ * The staff login stays reachable from the footer ("Acceso del personal").
+ */
 export function AdminButton({ className }: { className?: string }) {
   const t = useT()
   const admin = useCalendar((s) => s.admin)
   useEffect(() => {
     checkAdmin()
   }, [])
-  const label = t(admin ? ui.admin.panel : ui.admin.login)
+  const label = t(admin ? ui.admin.panel : ui.admin.families)
   return (
     <a
-      href="/admin/"
+      href={admin ? '/admin/' : '/familia/'}
       aria-label={label}
       className={cn(
         'inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold',
@@ -44,8 +47,9 @@ export function AdminButton({ className }: { className?: string }) {
         className,
       )}
     >
-      {admin ? <ShieldCheck size={17} /> : <LogIn size={17} />}
-      <span className="hidden xl:inline">{label}</span>
+      {admin ? <ShieldCheck size={17} /> : <UsersRound size={17} />}
+      {!admin && <span className="sm:hidden">{t({ es: 'Familias', en: 'Families' })}</span>}
+      <span className="hidden sm:inline">{label}</span>
     </a>
   )
 }

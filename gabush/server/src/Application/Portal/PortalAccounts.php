@@ -74,11 +74,14 @@ final class PortalAccounts
     {
         $code = strtoupper(trim($username));
         $doc = self::normalizeDoc($username);
+        if (strlen($doc) < 5) {
+            return $this->db->all('SELECT pa.* FROM portal_accounts pa WHERE pa.username = ? LIMIT 5', [$code]);
+        }
         return $this->db->all(
             "SELECT pa.* FROM portal_accounts pa JOIN students s ON s.id = pa.student_id
-             WHERE pa.username = ? OR (? <> '' AND CHAR_LENGTH(?) >= 5 AND UPPER(REGEXP_REPLACE(COALESCE(s.doc_number, ''), '[^0-9A-Za-z]', '')) = ?)
+             WHERE pa.username = ? OR UPPER(REGEXP_REPLACE(COALESCE(s.doc_number, ''), '[^0-9A-Za-z]', '')) = ?
              LIMIT 5",
-            [$code, $doc, $doc, $doc],
+            [$code, $doc],
         );
     }
 

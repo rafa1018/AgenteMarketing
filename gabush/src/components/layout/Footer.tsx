@@ -121,6 +121,18 @@ export function Footer() {
                   </a>
                 </li>
               ))}
+              <li>
+                <a href="/familia/" className="inline-flex min-h-10 items-center gap-2 font-semibold hover:text-yellow">
+                  <span className="size-2.5 rounded-[3px] bg-yellow" />
+                  {t(ui.admin.families)}
+                </a>
+              </li>
+              <li>
+                <a href="/admin/" className="inline-flex min-h-10 items-center gap-2 text-white/75 hover:text-yellow">
+                  <span className="size-2.5 rounded-[3px] bg-white/40" />
+                  {t(ui.admin.staff)}
+                </a>
+              </li>
             </ul>
           </nav>
 

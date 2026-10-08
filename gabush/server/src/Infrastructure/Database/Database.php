@@ -25,7 +25,9 @@ final class Database
             PDO::ATTR_EMULATE_PREPARES => false,
             PDO::ATTR_STRINGIFY_FETCHES => false,
         ]);
-        $pdo->exec("SET time_zone = '-05:00'");
+        // same collation as the tables in every server (MariaDB 11 defaults to another one and then text
+        // comparisons between parameters and columns fail with "Illegal mix of collations")
+        $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci, time_zone = '-05:00'");
         return new self($pdo);
     }
 

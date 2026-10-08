@@ -128,6 +128,9 @@ export function Navbar({ visible }: { visible: boolean }) {
                   </motion.li>
                 ))}
               </ul>
+              <a href="/familia/" className="btn btn-primary mb-3 w-full !min-h-12 !text-base">
+                {t(ui.admin.families)}
+              </a>
               <div className="flex items-center justify-between gap-3 border-t-2 border-line px-1 py-3">
                 <LanguageToggle id="lang-mobile" />
                 <a href={whatsappLink(t(site.whatsappMessage))} target="_blank" rel="noopener noreferrer" className="btn btn-whatsapp !min-h-11 flex-1 !px-4 !text-base">

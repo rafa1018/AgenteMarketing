@@ -196,6 +196,8 @@ export const ui = {
   },
   admin: {
     login: { es: 'Ingresar', en: 'Log in' },
+    families: { es: 'Portal familias', en: 'Family portal' },
+    staff: { es: 'Acceso del personal', en: 'Staff access' },
     loginTitle: { es: 'Acceso de administrador', en: 'Administrator access' },
     loginSub: { es: 'Ingresa para administrar el calendario.', en: 'Log in to manage the calendar.' },
     user: { es: 'Usuario', en: 'Username' },
