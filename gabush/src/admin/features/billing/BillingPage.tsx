@@ -236,7 +236,8 @@ type LateFee = { enabled: boolean; amountPerDay: number; dueDay: number; graceDa
 
 function BillingConfig() {
   const { setup, year } = useSetup()
-  const settings = useQuery('billing-settings', () => api2.get<{ lateFee: LateFee; pensionMonths: number[] }>('/billing/settings'))
+  const settings = useQuery('billing-settings', () => api2.get<{ lateFee: LateFee; pensionMonths: number[]; enrollmentDueDays: number }>('/billing/settings'))
+  const [dueDays, setDueDays] = useState(0)
   const prices = useQuery(year ? `prices:${year}` : null, () => api2.get<{ prices: { conceptId: number; gradeLevelId: number | null; amount: number }[] }>('/billing/prices' + qs({ year })))
   const [lf, setLf] = useState<LateFee | null>(null)
   const [months, setMonths] = useState<number[]>([])
@@ -247,6 +248,7 @@ function BillingConfig() {
     if (settings.data) {
       setLf(settings.data.lateFee)
       setMonths(settings.data.pensionMonths)
+      setDueDays(settings.data.enrollmentDueDays ?? 0)
     }
   }, [settings.data])
   useEffect(() => {
@@ -256,7 +258,7 @@ function BillingConfig() {
   const grades = setup?.gradeLevels.filter((g) => g.active) ?? []
 
   const saveSettings = async () => {
-    if (await m.run(() => api2.put('/billing/settings', { lateFee: lf, pensionMonths: months }))) toast('Configuración guardada')
+    if (await m.run(() => api2.put('/billing/settings', { lateFee: lf, pensionMonths: months, enrollmentDueDays: dueDays }))) toast('Configuración guardada')
   }
   const savePrices = async () => {
     const items = concepts.flatMap((c) => grades.map((g) => ({ conceptId: c.id, gradeLevelId: g.id, amount: grid[`${c.id}:${g.id}`] ? parseMoney(grid[`${c.id}:${g.id}`]) : null })))
@@ -363,6 +365,20 @@ function BillingConfig() {
               </button>
             ))}
           </div>
+        </div>
+        <Field label="Plazo para pagar la matrícula (días después de matricular)" hint={dueDays ? `Al tocar «Matricular» el cobro vence ${dueDays} días después.` : 'Con 0, la matrícula vence el mismo día en que se matricula.'} className="max-w-sm">
+          <input type="number" min={0} max={120} value={dueDays} onChange={(e) => setDueDays(Math.max(0, Number(e.target.value) || 0))} className={inputCls()} />
+        </Field>
+        <div className="rounded-xl bg-[#eaf3fa] px-4 py-3 text-[14px] text-[#185a8a]">
+          <p className="font-semibold">Así se cobra en el año:</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            <li>
+              <b>Matrícula:</b> se genera al tocar «Matricular (activar)» y vence {dueDays ? `${dueDays} días después` : 'ese mismo día'}. No genera mora.
+            </li>
+            <li>
+              <b>Pensión:</b> se genera sola el día 1 de cada mes marcado ({months.map((x) => MONTH_NAMES[x - 1].slice(0, 3)).join(', ') || 'ninguno'}) y vence el día {lf.dueDay}. La primera es la del primer mes marcado del año; quien entra a mitad de año paga desde el mes en que entra.
+            </li>
+          </ul>
         </div>
         {m.message && <ErrorBox message={m.message} />}
         <button type="button" disabled={m.busy} onClick={saveSettings} className="btn btn-primary !text-sm">

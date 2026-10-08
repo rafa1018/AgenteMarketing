@@ -285,7 +285,7 @@ final class BillingController extends Controller
     public function settingsShow(Request $req): array
     {
         $this->staff($req, 'pagos', 'ajustes');
-        return ['lateFee' => $this->billing()->lateFeePolicy()->toArray(), 'pensionMonths' => $this->billing()->pensionMonths()];
+        return ['lateFee' => $this->billing()->lateFeePolicy()->toArray(), 'pensionMonths' => $this->billing()->pensionMonths(), 'enrollmentDueDays' => $this->billing()->enrollmentDueDays()];
     }
 
     /** Late-fee rule and the months in which the pension is charged. */
@@ -302,6 +302,7 @@ final class BillingController extends Controller
             $this->settings()->set('late_fee', $policy->toArray());
         }
         if ($months) $this->settings()->patch('billing', ['pensionMonths' => $months]);
+        if ($v->has('enrollmentDueDays')) $this->settings()->patch('billing', ['enrollmentDueDays' => max(0, min(120, (int) $req->json()['enrollmentDueDays']))]);
         $this->audit()->log($actor, 'billing.settings', 'settings', 'billing', ['lateFee' => $lf, 'months' => $months]);
         return $this->settingsShow($req);
     }

@@ -49,6 +49,12 @@ final class BillingService
     }
 
     /** Pension months of a year (default February–November). @return list<int> */
+    /** Days the family has to pay the matrícula after the student is enrolled (0 = the same day). */
+    public function enrollmentDueDays(): int
+    {
+        return max(0, min(120, (int) (((array) $this->settings->get('billing', []))['enrollmentDueDays'] ?? 0)));
+    }
+
     public function pensionMonths(): array
     {
         $m = (array) (((array) $this->settings->get('billing', []))['pensionMonths'] ?? []);
@@ -210,7 +216,8 @@ final class BillingService
         $year = (int) $first->format('Y');
         $concept = $this->db->one("SELECT id FROM billing_concepts WHERE code = 'PENSION' AND active = 1");
         if (!$concept) return ['created' => 0, 'skipped' => 0];
-        $due = $this->lateFeePolicy()->dueDateFor($first)->format('Y-m-d');
+        // a student enrolled after the due day gets this month's pension due today (no instant late fee)
+        $due = max($this->lateFeePolicy()->dueDateFor($first)->format('Y-m-d'), $this->today->format('Y-m-d'));
         // students on a per-day plan pay the days they attended instead (generateDayCharges)
         $rows = $this->db->all(
             "SELECT e.id, e.student_id, g.name AS grade, e.enrolled_on FROM enrollments e
@@ -294,7 +301,7 @@ final class BillingService
             $this->db->insert('charges', [
                 'student_id' => $e['student_id'], 'enrollment_id' => $enrollmentId, 'year_id' => $e['year_id'], 'concept_id' => $c['id'],
                 'description' => trim("{$c['name']} " . ($e['grade'] ?? '') . " {$e['year_id']}"), 'amount' => $amount,
-                'due_on' => $this->today->format('Y-m-d'), 'source' => 'automatico', 'created_by' => $actor->label(),
+                'due_on' => $this->today->modify('+' . $this->enrollmentDueDays() . ' days')->format('Y-m-d'), 'source' => 'automatico', 'created_by' => $actor->label(),
             ]);
         }
     }
