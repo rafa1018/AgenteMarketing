@@ -174,16 +174,20 @@ export function ChargeFormModal({ studentId, open, onClose, onDone }: { studentI
   )
 }
 
-export function AdjustModal({ charge, onClose, onDone }: { charge: Charge | null; onClose: () => void; onDone: () => void }) {
+export function AdjustModal({ charge, onClose, onDone, defaultReason = '' }: { charge: Charge | null; onClose: () => void; onDone: () => void; defaultReason?: string }) {
   const [kind, setKind] = useState<'descuento' | 'recargo'>('descuento')
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
   const m = useMutation()
   useEffect(() => {
     setAmount('')
-    setReason('')
+    setReason(defaultReason) // discounts start with "Estudiante antiguo (ingresó en …)", editable
     setKind('descuento')
-  }, [charge])
+  }, [charge, defaultReason])
+  // the default reason is for discounts: switching to a surcharge clears it (unless it was edited)
+  useEffect(() => {
+    setReason((r) => (kind === 'recargo' && r === defaultReason ? '' : kind === 'descuento' && r === '' ? defaultReason : r))
+  }, [kind, defaultReason])
   const save = async () => {
     const r = await m.run(() => api2.post(`/billing/charges/${charge!.id}/adjustments`, { kind, amount: parseMoney(amount), reason }))
     if (r) {

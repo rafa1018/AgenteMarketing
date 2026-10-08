@@ -21,6 +21,11 @@ const stack: object[] = []
 /** Accessible dialog: Escape closes, focus moves in and returns, page scroll is locked. */
 export function Modal({ open, onClose, label, closeLabel, children, className, variant = 'sheet' }: ModalProps) {
   const panel = useRef<HTMLDivElement>(null)
+  // callers usually pass a new arrow function on every render: keep the latest one in a ref so the effect
+  // below runs only when the dialog opens/closes (otherwise each keystroke re-ran it and moved the focus
+  // to the close button)
+  const close = useRef(onClose)
+  close.current = onClose
 
   useEffect(() => {
     if (!open) return
@@ -31,7 +36,7 @@ export function Modal({ open, onClose, label, closeLabel, children, className, v
     document.body.style.overflow = 'hidden'
     const onKey = (e: KeyboardEvent) => {
       if (stack[stack.length - 1] !== token) return
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') close.current()
       if (e.key === 'Tab' && panel.current) {
         const f = panel.current.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"])')
         if (!f.length) return
@@ -54,7 +59,7 @@ export function Modal({ open, onClose, label, closeLabel, children, className, v
       document.body.style.overflow = overflow
       prev?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   return createPortal(
     <AnimatePresence>

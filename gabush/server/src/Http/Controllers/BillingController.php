@@ -98,6 +98,10 @@ final class BillingController extends Controller
             'charges' => $b->charges($id, $year),
             'payments' => $b->payments($id, $year),
             'checkouts' => self::intsAll($this->db()->all("SELECT id, reference, provider, amount, status, payment_id AS paymentId, created_at AS createdAt FROM checkouts WHERE student_id = ? ORDER BY id DESC LIMIT 20", [$id]), 'id', 'amount', 'paymentId'),
+            // when the student joined the school (first enrollment) and how many years they have: default
+            // reason of a discount ("Estudiante antiguo (ingresó en febrero de 2022)")
+            'since' => $this->db()->value("SELECT COALESCE(MIN(enrolled_on), CONCAT(MIN(year_id), '-02-01')) FROM enrollments WHERE student_id = ? AND status <> 'prematricula'", [$id]),
+            'years' => (int) $this->db()->value("SELECT COUNT(*) FROM enrollments WHERE student_id = ? AND status <> 'prematricula'", [$id]),
         ];
     }
 

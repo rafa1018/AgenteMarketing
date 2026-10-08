@@ -2,7 +2,7 @@ import { Ban, ChevronDown, FilePlus2, HandCoins, Percent, Printer, Receipt, Shie
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@/shared/useQuery'
-import { date, money } from '@/shared/format'
+import { date, discountReason, money } from '@/shared/format'
 import { toast } from '../../store'
 import { api2, qs, useSetup } from '../../v2/api'
 import { Badge, ErrorBox, Spinner, Stat, StatusBadge } from '../../v2/kit'
@@ -212,7 +212,7 @@ export function StatementView({ studentId }: { studentId: number }) {
 
       <PaymentModal studentId={studentId} preselect={paying} charges={pending} onClose={() => setPaying(null)} onDone={reload} />
       <ChargeFormModal studentId={studentId} open={charging} onClose={() => setCharging(false)} onDone={reload} />
-      <AdjustModal charge={adjusting} onClose={() => setAdjusting(null)} onDone={reload} />
+      <AdjustModal charge={adjusting} onClose={() => setAdjusting(null)} onDone={reload} defaultReason={discountReason(data.since, data.years ?? 0)} />
       <VoidModal target={voiding} onClose={() => setVoiding(null)} onDone={reload} />
     </div>
   )

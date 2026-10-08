@@ -36,7 +36,7 @@ export interface Payment {
   charges: { chargeId: number; description: string; amount: number; year: number | null }[]
 }
 export interface Summary { balance: number; overdue: number; lateFees: number; credit: number; charged: number; paid: number }
-export interface Statement { summary: Summary; total: Summary; charges: Charge[]; payments: Payment[]; checkouts: { id: number; reference: string; provider: string; amount: number; status: string; paymentId: number | null; createdAt: string }[] }
+export interface Statement { summary: Summary; total: Summary; charges: Charge[]; payments: Payment[]; checkouts: { id: number; reference: string; provider: string; amount: number; status: string; paymentId: number | null; createdAt: string }[]; since?: string | null; years?: number }
 
 export const METHODS: [string, string][] = [
   ['efectivo', 'Efectivo'],

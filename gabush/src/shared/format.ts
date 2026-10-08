@@ -54,4 +54,13 @@ export const shortName = (s: Named) => `${s.firstName} ${s.lastName}`
 export const listName = (s: Named) => [s.lastName, s.secondLastName].filter(Boolean).join(' ') + ', ' + [s.firstName, s.middleName].filter(Boolean).join(' ')
 export const initials = (s: Named) => `${s.firstName[0] ?? ''}${s.lastName[0] ?? ''}`.toUpperCase()
 
-export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+/**
+ * Default reason of a discount: "Estudiante antiguo (ingresó en febrero de 2022)" — or "Estudiante nuevo (…)"
+ * during the first year in the school. `since` = date of the first enrollment.
+ */
+export function discountReason(since: string | null | undefined, years: number): string {
+  const when = since && /^\d{4}-\d{2}/.test(since) ? ` (ingresó en ${MONTH_NAMES[Number(since.slice(5, 7)) - 1]} de ${since.slice(0, 4)})` : ''
+  return `${years > 1 ? 'Estudiante antiguo' : 'Estudiante nuevo'}${when}`
+}
+
+export const plural =(n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
