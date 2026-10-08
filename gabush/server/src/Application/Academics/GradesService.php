@@ -175,6 +175,9 @@ final class GradesService
         }
         unset($a);
         uasort($areas, static fn($x, $y) => $x['position'] <=> $y['position']);
+        // periods without any grade of this student are left out (no empty tabs or "—" columns)
+        $graded = array_flip(array_map(static fn($e) => (int) $e['period_id'], $entries));
+        $periods = array_values(array_filter($periods, static fn($p) => isset($graded[(int) $p['id']])));
         return [
             'year' => $year,
             'course' => $enr['course'],
