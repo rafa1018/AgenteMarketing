@@ -1,4 +1,4 @@
-import { ChevronDown, Lock, Save } from 'lucide-react'
+import { ChevronDown, Lock, Save, Send } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { can } from '@/lib/calendar'
 import { cn } from '@/lib/utils'
@@ -11,7 +11,7 @@ import { CourseSelect, Empty, ErrorBox, Spinner, StudentAvatar, Tabs, YearPicker
 
 type Sheet = {
   course: { id: number; name: string; gradeLevelId: number }
-  period: { id: number; number: number; name: string; gradingOpen: boolean; published: boolean }
+  period: { id: number; number: number; name: string; gradingOpen: boolean; published: boolean; publishedForAll: boolean }
   achievements: { id: number; levelId: number | null; period: number | null; description: string }[]
   students: { enrollmentId: number; id: number; code: string; name: string; hasPhoto: boolean; entry: { score: number | null; levelId: number | null; absences: number | null; comments: string | null; achievements: number[] } | null }[]
 }
@@ -55,6 +55,14 @@ function SheetEditor() {
       reload()
     }
   }
+  const publish = async (published: boolean) => {
+    if (published && dirty) return toast('Guarda la planilla antes de publicar')
+    const r = await m.run(() => api2.post('/grades/publish', { courseId: course, periodId: period, published }))
+    if (r) {
+      toast(published ? 'Boletín publicado: las familias del curso reciben el aviso' : 'Boletín oculto para las familias del curso')
+      reload()
+    }
+  }
   const markAll = (aid: number) => {
     const allHave = Object.values(rows).every((r) => r.achievements.includes(aid))
     setRows(Object.fromEntries(Object.entries(rows).map(([k, r]) => [k, { ...r, achievements: allHave ? r.achievements.filter((x) => x !== aid) : [...new Set([...r.achievements, aid])] }])))
@@ -93,6 +101,21 @@ function SheetEditor() {
               <Lock size={16} /> {data.period.name} está cerrado. {can('academico') ? 'Como rectora puedes corregir igual.' : 'Pídele a la rectora que lo abra para calificar.'}
             </p>
           )}
+          <div className={cn('flex flex-wrap items-center gap-3 rounded-xl px-4 py-3 text-[14px]', data.period.published ? 'bg-[#e9f4ee] text-leaf' : 'bg-paper text-muted')}>
+            <Send size={16} className="shrink-0" />
+            <span className="min-w-0 flex-1">
+              {data.period.publishedForAll
+                ? `${data.period.name} está publicado para todo el jardín: las familias ven estas notas.`
+                : data.period.published
+                  ? `Las familias de ${data.course.name} ya ven el boletín de ${data.period.name}. Lo que guardes se actualiza al instante.`
+                  : `Las familias de ${data.course.name} aún no ven el boletín de ${data.period.name}. Publícalo cuando termines todas las materias del curso.`}
+            </span>
+            {!data.period.publishedForAll && (
+              <button type="button" disabled={m.busy} onClick={() => publish(!data.period.published)} className={cn('btn !min-h-10 !text-sm', data.period.published ? 'btn-ghost' : 'btn-primary')}>
+                {data.period.published ? 'Ocultar a las familias' : 'Publicar a las familias'}
+              </button>
+            )}
+          </div>
           {!data.achievements.length ? (
             <Empty title="No hay logros para este grado, materia y periodo">Agrégalos en Gestión académica → Banco de logros.</Empty>
           ) : (

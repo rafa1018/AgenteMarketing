@@ -64,6 +64,14 @@ final class CheckoutService
         $c['provider'] = in_array($provider, ['wompi', 'mercadopago'], true) ? $provider : null;
         foreach (['publicKey', 'integritySecret', 'eventsSecret'] as $k) if (($wompi[$k] ?? '') !== '') $c['wompi'][$k] = trim((string) $wompi[$k]);
         foreach (['accessToken', 'webhookSecret'] as $k) if (($mp[$k] ?? '') !== '') $c['mercadopago'][$k] = trim((string) $mp[$k]);
+        // the keys of the other provider stay saved, so switching back and forth needs no re-typing;
+        // the active one must be complete or families would hit an error when paying
+        if ($c['provider'] === 'wompi' && (empty($c['wompi']['publicKey']) || empty($c['wompi']['integritySecret']))) {
+            throw new DomainError('keys', 'Para activar Wompi escribe la llave pública y el secreto de integridad.');
+        }
+        if ($c['provider'] === 'mercadopago' && empty($c['mercadopago']['accessToken'])) {
+            throw new DomainError('keys', 'Para activar Mercado Pago escribe el access token.');
+        }
         $this->settings->set('payments', $c);
     }
 

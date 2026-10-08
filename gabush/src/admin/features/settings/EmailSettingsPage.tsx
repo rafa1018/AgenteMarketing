@@ -56,7 +56,26 @@ export function EmailSettingsPage() {
             </button>
           ))}
         </div>
-        {preset && <p className="rounded-xl bg-[#eaf3fa] px-4 py-3 text-[14px] text-[#185a8a]">{preset.hint}</p>}
+        {preset?.label === 'Gmail' ? (
+          <div className="rounded-xl bg-[#eaf3fa] px-4 py-3 text-[14px] text-[#185a8a]">
+            <p className="font-semibold">Gmail no acepta tu contraseña normal. Crea una «contraseña de aplicación» (una sola vez):</p>
+            <ol className="mt-1.5 list-decimal space-y-0.5 pl-5">
+              <li>Activa la verificación en 2 pasos de tu cuenta de Google, si no la tienes.</li>
+              <li>
+                Abre{' '}
+                <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener" className="font-semibold underline">
+                  myaccount.google.com/apppasswords
+                </a>
+                , escribe «Gabush» y toca Crear.
+              </li>
+              <li>Copia la clave de 16 letras que te muestra y pégala abajo en Contraseña.</li>
+              <li>En «Correo de envío» y «Usuario» pon tu dirección de Gmail. Guarda y envía una prueba.</li>
+            </ol>
+            <p className="mt-1.5 text-[13px]">Gmail permite unos 500 correos al día: suficiente para el jardín.</p>
+          </div>
+        ) : (
+          preset && <p className="rounded-xl bg-[#eaf3fa] px-4 py-3 text-[14px] text-[#185a8a]">{preset.hint}</p>
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Correo de envío" error={m.fields.fromEmail}>
             <input type="email" value={acc.fromEmail} onChange={(e) => setAcc({ ...acc, fromEmail: e.target.value, username: acc.username || e.target.value })} className={inputCls(m.fields.fromEmail)} placeholder="notificaciones@gabushkids.com" />
@@ -91,7 +110,7 @@ export function EmailSettingsPage() {
         </label>
         {m.message && <ErrorBox message={m.message} />}
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" disabled={m.busy} onClick={async () => { const r = await m.run(() => api2.put<{ account: Account }>('/email/account', acc)); if (r) { toast('Cuenta de correo guardada'); setData({ ...data, account: r.account }) } }} className="btn btn-primary !text-sm">
+          <button type="button" disabled={m.busy} onClick={async () => { const r = await m.run(() => api2.put<{ account: Account }>('/email/account', { ...acc, password: acc.host === 'smtp.gmail.com' ? acc.password.replace(/\s+/g, '') : acc.password })); if (r) { toast('Cuenta de correo guardada'); setData({ ...data, account: r.account }) } }} className="btn btn-primary !text-sm">
             <Save size={17} /> Guardar
           </button>
           <input type="email" value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="Enviar prueba a…" className="min-h-10 rounded-lg border border-line px-3" />

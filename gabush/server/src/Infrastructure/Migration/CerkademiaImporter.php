@@ -443,11 +443,13 @@ final class CerkademiaImporter
                 }
             }
         }
-        // current year: families already see in Cerkademia the periods that have grades → publish those
-        // (the rectora can hide / publish each period from Notas)
-        $this->db->run('UPDATE periods p JOIN academic_years y ON y.id = p.year_id AND y.status = \'active\'
-                        SET p.published = 1
-                        WHERE EXISTS (SELECT 1 FROM grade_entries ge WHERE ge.period_id = p.id)');
+        // current year: families see the periods that already have grades, course by course (from now on each
+        // teacher publishes their course from Calificaciones)
+        $this->db->run("INSERT IGNORE INTO course_period_publications (course_id, period_id, published_by)
+                        SELECT DISTINCT e.course_id, ge.period_id, 'Cerkademia' FROM grade_entries ge
+                        JOIN enrollments e ON e.id = ge.enrollment_id JOIN periods p ON p.id = ge.period_id
+                        JOIN academic_years y ON y.id = p.year_id AND y.status = 'active'
+                        WHERE e.course_id IS NOT NULL");
         // safety net: every subject graded in a course belongs to that course's plan
         $this->db->run('INSERT IGNORE INTO course_subjects (course_id, subject_id)
                         SELECT DISTINCT e.course_id, ge.subject_id FROM grade_entries ge JOIN enrollments e ON e.id = ge.enrollment_id WHERE e.course_id IS NOT NULL');

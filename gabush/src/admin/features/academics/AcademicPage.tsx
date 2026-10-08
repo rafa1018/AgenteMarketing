@@ -77,7 +77,7 @@ function YearsTab() {
                     {p.gradingOpen ? <Unlock size={12} className="text-leaf" /> : <Lock size={12} className="text-muted" />} {p.gradingOpen ? 'Calificando' : 'Cerrado'}
                   </button>
                   <button type="button" onClick={() => act(() => api2.post(`/periods/${p.id}/publish`, { published: !p.published }), p.published ? 'Boletín oculto para las familias' : 'Boletín publicado: las familias reciben el aviso')} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-bold ${p.published ? 'bg-leaf text-white' : 'bg-white text-ink ring-1 ring-line'}`}>
-                    <Send size={12} /> {p.published ? 'Publicado' : 'Publicar boletín'}
+                    <Send size={12} /> {p.published ? 'Publicado para todos' : 'Publicar a todo el jardín'}
                   </button>
                 </div>
               </li>

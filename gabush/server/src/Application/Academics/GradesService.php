@@ -56,7 +56,12 @@ final class GradesService
         }
         return [
             'course' => ['id' => (int) $course['id'], 'name' => $course['name'], 'gradeLevelId' => (int) $course['grade_level_id']],
-            'period' => ['id' => (int) $period['id'], 'number' => (int) $period['number'], 'name' => $period['name'], 'gradingOpen' => (bool) $period['grading_open'], 'published' => (bool) $period['published']],
+            'period' => [
+                'id' => (int) $period['id'], 'number' => (int) $period['number'], 'name' => $period['name'], 'gradingOpen' => (bool) $period['grading_open'],
+                // visible to the families of this course: published for the whole school or for this course
+                'published' => (bool) $period['published'] || (bool) $this->db->value('SELECT 1 FROM course_period_publications WHERE course_id = ? AND period_id = ?', [$courseId, $periodId]),
+                'publishedForAll' => (bool) $period['published'],
+            ],
             'achievements' => array_map(static fn($a) => ['id' => (int) $a['id'], 'levelId' => $a['levelId'] !== null ? (int) $a['levelId'] : null, 'period' => $a['period'] !== null ? (int) $a['period'] : null, 'description' => $a['description']], $achievements),
             'students' => array_map(static fn($s) => ['enrollmentId' => (int) $s['enrollmentId'], 'id' => (int) $s['id'], 'code' => $s['code'], 'name' => trim("{$s['lastName']} {$s['secondLastName']}, {$s['firstName']}"), 'hasPhoto' => (bool) $s['hasPhoto'], 'entry' => $entries[(int) $s['enrollmentId']] ?? null], $students),
         ];
@@ -102,9 +107,15 @@ final class GradesService
     public function reportCard(int $studentId, int $year, bool $onlyPublished = false): array
     {
         $rules = $this->reportCardRules();
-        $enr = $this->db->one('SELECT e.id, c.name AS course, c.grade_level_id FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id WHERE e.student_id = ? AND e.year_id = ?', [$studentId, $year]);
+        $enr = $this->db->one('SELECT e.id, e.course_id, c.name AS course, c.grade_level_id FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id WHERE e.student_id = ? AND e.year_id = ?', [$studentId, $year]);
         if (!$enr) return ['year' => $year, 'course' => null, 'periods' => [], 'areas' => []];
-        $periods = $this->db->all('SELECT id, number, name, weight, published FROM periods WHERE year_id = ? ORDER BY number', [$year]);
+        // a period is published for the whole school (rectora) or for the student's course (its teacher)
+        $periods = $this->db->all(
+            'SELECT p.id, p.number, p.name, p.weight, (p.published OR cpp.course_id IS NOT NULL) AS published
+             FROM periods p LEFT JOIN course_period_publications cpp ON cpp.period_id = p.id AND cpp.course_id = ?
+             WHERE p.year_id = ? ORDER BY p.number',
+            [(int) $enr['course_id'], $year],
+        );
         if ($onlyPublished) $periods = array_values(array_filter($periods, static fn($p) => (bool) $p['published']));
         $pIds = array_map(static fn($p) => (int) $p['id'], $periods);
         $entries = $pIds ? $this->db->all(

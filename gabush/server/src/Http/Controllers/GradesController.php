@@ -23,6 +23,35 @@ final class GradesController extends Controller
         $r->add('GET', '/grades/progress', [$c, 'progress']);
         $r->add('GET', '/students/{id}/report-card', [$c, 'reportCard']);
         $r->add('POST', '/periods/{id}/publish', [$c, 'publish']);
+        $r->add('POST', '/grades/publish', [$c, 'publishCourse']);
+    }
+
+    /**
+     * {courseId, periodId, published}: the teacher publishes (or hides) the report cards of ONE course for a
+     * period; publishing notifies the families of that course.
+     */
+    public function publishCourse(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'calificaciones', 'academico');
+        $v = Validate::of($req);
+        $course = $v->int('courseId', 1, null, true);
+        $period = $v->int('periodId', 1, null, true);
+        $publish = $v->bool('published', true);
+        $v->check();
+        $c = $this->db()->one('SELECT c.id, c.name, c.year_id FROM courses c JOIN periods p ON p.year_id = c.year_id AND p.id = ? WHERE c.id = ?', [$period, $course]) ?? throw HttpError::notFound();
+        $was = (bool) $this->db()->value('SELECT 1 FROM course_period_publications WHERE course_id = ? AND period_id = ?', [$course, $period]);
+        if ($publish && !$was) {
+            $this->db()->run('INSERT INTO course_period_publications (course_id, period_id, published_by) VALUES (?, ?, ?)', [$course, $period, $actor->label()]);
+            $name = (string) $this->db()->value('SELECT name FROM periods WHERE id = ?', [$period]);
+            $n = Notifier::from($this->app);
+            foreach ($this->db()->all("SELECT student_id FROM enrollments WHERE course_id = ? AND status = 'activo'", [$course]) as $e) {
+                $n->gradesPublished((int) $e['student_id'], $name);
+            }
+        } elseif (!$publish) {
+            $this->db()->run('DELETE FROM course_period_publications WHERE course_id = ? AND period_id = ?', [$course, $period]);
+        }
+        $this->audit()->log($actor, $publish ? 'grades.publish' : 'grades.unpublish', 'course', $course, ['period' => $period]);
+        return ['published' => $publish];
     }
 
     private function grades(): GradesService
