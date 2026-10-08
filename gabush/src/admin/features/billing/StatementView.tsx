@@ -48,8 +48,19 @@ export function StatementView({ studentId }: { studentId: number }) {
 
   return (
     <div className="space-y-4">
+      {scope === 'year' && s.balance !== data.summary.balance && (
+        // the totals cover every year; the list below only the chosen one
+        <p className="flex flex-wrap items-center gap-2 rounded-xl bg-butter px-4 py-3 text-[14px] text-[#8a5716]">
+          <span className="flex-1">
+            Debe {money(s.balance - data.summary.balance)} de otros años (no aparecen abajo porque estás viendo {year}).
+          </span>
+          <button type="button" onClick={() => setScope('all')} className="font-semibold underline">
+            Ver todos los años
+          </button>
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Saldo pendiente" value={money(s.balance)} tone={s.balance > 0 ? 'red' : 'green'} />
+        <Stat label="Saldo pendiente (todos los años)" value={money(s.balance)} tone={s.balance > 0 ? 'red' : 'green'} />
         <Stat label="Vencido" value={money(s.overdue)} tone={s.overdue > 0 ? 'red' : 'ink'} />
         <Stat label="Mora acumulada" value={money(s.lateFees)} tone={s.lateFees > 0 ? 'pink' : 'ink'} />
         <Stat label="Saldo a favor" value={money(s.credit)} tone={s.credit > 0 ? 'green' : 'ink'} />
