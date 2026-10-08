@@ -143,7 +143,9 @@ final class EnrollmentController extends Controller
         if (!empty($row['course_id']) && (int) $row['course_id'] !== (int) $e['course_id'] && $e['status'] !== 'retirado') $this->checkCapacity((int) $row['course_id'], $id);
         if ($row) $this->db()->update('enrollments', $row, ['id' => $id]);
         $this->audit()->log($actor, 'enrollment.update', 'enrollment', $id, $row);
-        return [];
+        // a new / changed / removed monthly discount also reaches the pensions still pending
+        $synced = array_key_exists('monthly_discount', $row) || array_key_exists('monthly_discount_reason', $row) ? $this->billing()->syncMonthlyDiscount($id, $actor) : 0;
+        return ['pensionsUpdated' => $synced];
     }
 
     /** prematrícula → activo (matricular), activo → retirado (retirar), retirado → activo (reintegrar). */

@@ -183,9 +183,17 @@ function PlanFields({ enrollment: e, onSave }: { enrollment: Enrollment; onSave:
         </Field>
       </div>
       {dirty && (
-        <button type="button" onClick={() => onSave({ monthlyDiscount: parseMoney(discount) || null, monthlyDiscountReason: reason.trim() || null }, parseMoney(discount) ? 'Descuento guardado: se aplicará desde la próxima pensión' : 'Descuento quitado')} className="btn btn-primary !min-h-10 !text-sm">
-          Guardar descuento
-        </button>
+        <>
+          <button type="button" onClick={() => onSave({ monthlyDiscount: parseMoney(discount) || null, monthlyDiscountReason: reason.trim() || null }, parseMoney(discount) ? 'Descuento guardado: ya se aplicó a las pensiones pendientes y se aplicará a las próximas' : 'Descuento quitado de las pensiones pendientes')} className="btn btn-primary !min-h-10 !text-sm">
+            Guardar descuento
+          </button>
+          <p className="text-[12px] text-muted">Se aplica a las pensiones pendientes y a las próximas. Las ya pagadas no cambian.</p>
+        </>
+      )}
+      {!dirty && (e.monthlyDiscount ?? 0) > 0 && (
+        <p className="text-[12px] text-muted">
+          Cada pensión sale con {money(e.monthlyDiscount ?? 0)} de descuento{e.monthlyDiscountReason ? ` (${e.monthlyDiscountReason})` : ''}. Lo ves en Cartera, en cada pensión.
+        </p>
       )}
     </div>
   )

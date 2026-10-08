@@ -153,13 +153,49 @@ final class BillingService
         return null;
     }
 
-    /** The enrollment's standing monthly discount, applied to a pension that was just created. */
+    /**
+     * The enrollment's standing monthly discount on one charge. It is kept as ONE adjustment per charge
+     * (legacy_ref "mdisc:<charge>") so changing or removing the discount updates it instead of stacking.
+     */
     private function applyMonthlyDiscount(int $chargeId, int $enrollmentId, Actor $actor): void
     {
         $e = $this->db->one('SELECT monthly_discount, monthly_discount_reason FROM enrollments WHERE id = ?', [$enrollmentId]);
         $amount = (int) ($e['monthly_discount'] ?? 0);
-        if ($amount <= 0) return;
-        $this->db->insert('charge_adjustments', ['charge_id' => $chargeId, 'kind' => 'descuento', 'amount' => $amount, 'reason' => $e['monthly_discount_reason'] ?: 'Descuento mensual', 'created_by' => $actor->label()]);
+        $ref = "mdisc:$chargeId";
+        $existing = $this->db->value('SELECT id FROM charge_adjustments WHERE legacy_ref = ?', [$ref]);
+        if ($amount <= 0) {
+            if ($existing) $this->db->run('DELETE FROM charge_adjustments WHERE id = ?', [$existing]);
+            return;
+        }
+        $reason = ($e['monthly_discount_reason'] ?? '') ?: 'Descuento mensual';
+        if ($existing) {
+            $this->db->update('charge_adjustments', ['amount' => $amount, 'reason' => $reason], ['id' => $existing]);
+        } else {
+            $this->db->insert('charge_adjustments', ['charge_id' => $chargeId, 'kind' => 'descuento', 'amount' => $amount, 'reason' => $reason, 'created_by' => $actor->label(), 'legacy_ref' => $ref]);
+        }
+    }
+
+    /**
+     * After the monthly discount of an enrollment changes: puts it on its PENDING pensions too (paid ones keep
+     * what they had). Pensions that already carry another discount (e.g. one from Cerkademia) are skipped,
+     * so nothing is discounted twice. @return int pensions updated
+     */
+    public function syncMonthlyDiscount(int $enrollmentId, Actor $actor): int
+    {
+        $rows = $this->db->all(
+            "SELECT c.id FROM charges c JOIN billing_concepts bc ON bc.id = c.concept_id AND bc.code IN ('PENSION','DIAS')
+             WHERE c.enrollment_id = ? AND c.status = 'abierto'
+               AND NOT EXISTS (SELECT 1 FROM charge_adjustments a WHERE a.charge_id = c.id AND a.kind = 'descuento' AND (a.legacy_ref IS NULL OR a.legacy_ref NOT LIKE 'mdisc:%'))",
+            [$enrollmentId],
+        );
+        foreach ($rows as $r) {
+            $this->db->transaction(function () use ($r, $enrollmentId, $actor): void {
+                $this->applyMonthlyDiscount((int) $r['id'], $enrollmentId, $actor);
+                $this->refreshStatus((int) $r['id']);
+            });
+        }
+        if ($rows) $this->audit->log($actor, 'charges.monthly_discount', 'enrollment', $enrollmentId, ['charges' => count($rows)]);
+        return count($rows);
     }
 
     /**
