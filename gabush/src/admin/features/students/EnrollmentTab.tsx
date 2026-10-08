@@ -98,23 +98,54 @@ export function EnrollmentTab({ detail, onChanged }: { detail: StudentDetail; on
       {e && <DocumentsPanel enrollment={e} />}
       <PortalAccess detail={detail} onChanged={onChanged} />
 
-      <section className="card p-4 sm:p-5">
-        <h3 className="mb-2 text-lg">Historial en el jardín</h3>
-        <ul className="divide-y divide-line">
-          {detail.enrollments.map((x) => (
-            <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-              <span className="font-semibold text-ink">
-                {x.year} · {x.course ?? 'Sin curso'}
-                {x.isNew > 0 && <Badge tone="blue" className="ml-2">Nuevo</Badge>}
-              </span>
-              <StatusBadge status={x.status} />
-            </li>
-          ))}
-        </ul>
-      </section>
+      <Trajectory enrollments={detail.enrollments} />
 
       <WithdrawModal open={withdraw} onClose={() => setWithdraw(false)} onConfirm={(reason, d) => status('retirado', { reason, date: d }, 'Estudiante retirado')} />
     </div>
+  )
+}
+
+/**
+ * The student's path in the school: since when, how many years, and each year with its course. Years already
+ * closed show "Terminó el año" (or "Retirado") instead of the live status.
+ */
+function Trajectory({ enrollments }: { enrollments: Enrollment[] }) {
+  const { setup } = useSetup()
+  if (!enrollments.length) return null
+  const closed = new Set((setup?.years ?? []).filter((y) => y.status === 'closed').map((y) => y.id))
+  const sorted = [...enrollments].sort((a, b) => a.year - b.year)
+  const first = sorted[0]
+  const studied = sorted.filter((x) => x.status !== 'prematricula')
+  const last = sorted[sorted.length - 1]
+  const left = last.status === 'retirado' ? `retirado en ${last.year}` : closed.has(last.year) ? `hasta ${last.year}` : 'hasta hoy'
+  return (
+    <section className="card p-4 sm:p-5">
+      <h3 className="text-lg">Trayectoria en el jardín</h3>
+      <p className="mt-1 text-[15px] text-muted">
+        Con nosotros desde <b className="text-ink">{first.enrolledOn ? date(first.enrolledOn) : first.year}</b> · {studied.length} {studied.length === 1 ? 'año' : 'años'} ({left})
+      </p>
+      <ol className="mt-4 space-y-0">
+        {[...sorted].reverse().map((x, i, arr) => {
+          const done = closed.has(x.year) && x.status === 'activo'
+          return (
+            <li key={x.id} className="relative flex gap-3 pb-4 last:pb-0">
+              {i < arr.length - 1 && <span aria-hidden className="absolute top-6 bottom-0 left-[11px] w-0.5 bg-line" />}
+              <span className={`relative mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white ${x.status === 'retirado' ? 'bg-berry' : done ? 'bg-leaf' : 'bg-royal'}`}>{arr.length - i}</span>
+              <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
+                <span>
+                  <span className="font-semibold text-ink">
+                    {x.year} · {x.course ?? 'Sin curso'}
+                  </span>
+                  {x.isNew > 0 && <Badge tone="blue" className="ml-2">Ingresó</Badge>}
+                  {x.status === 'retirado' && x.withdrawnOn && <span className="block text-[13px] text-muted">Retirado el {date(x.withdrawnOn)}{x.withdrawReason ? ` · ${x.withdrawReason}` : ''}</span>}
+                </span>
+                {done ? <Badge tone="green">Terminó el año</Badge> : <StatusBadge status={x.status} />}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+    </section>
   )
 }
 

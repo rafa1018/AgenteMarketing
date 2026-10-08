@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, ExternalLink, Loader2, Receipt, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, ExternalLink, Loader2, Receipt, ShieldCheck, XCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Charge, Payment, Summary } from '../../admin/features/billing/types'
 import { methodLabel } from '../../admin/features/billing/types'
@@ -78,6 +78,16 @@ export function PaymentsPage() {
             <p className="rounded-xl bg-butter px-4 py-3 text-sm text-[#8a5716]">
               Saldo total de todos los años: <b>{money(a.total.balance)}</b>
             </p>
+          )}
+          {a.total.balance <= 0 && me && (
+            <a href={`/api/v2/billing/students/${me.student.id}/paz-y-salvo`} target="_blank" rel="noopener" className="card flex items-center gap-3 border-l-4 border-l-[#2f8a5b] p-4">
+              <ShieldCheck className="shrink-0 text-leaf" />
+              <span className="flex-1">
+                <span className="block font-semibold text-ink">Paz y salvo</span>
+                <span className="block text-sm text-muted">Estás al día: descárgalo firmado por el jardín.</span>
+              </span>
+              <ExternalLink size={18} className="text-muted" />
+            </a>
           )}
           {a.total.credit > 0 && (
             <p className="rounded-xl bg-[#e9f4ee] px-4 py-3 text-sm text-leaf">

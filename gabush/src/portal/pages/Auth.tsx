@@ -68,8 +68,9 @@ export function Login() {
       <form onSubmit={submit} className="space-y-4">
         <h1 className="text-[1.5rem]">{forgot ? 'Recuperar contraseña' : 'Entrar'}</h1>
         <label className="block">
-          <span className="mb-1.5 block text-[14px] font-semibold text-ink">Usuario (código del estudiante)</span>
-          <input value={user} onChange={(e) => setUser(e.target.value.toUpperCase())} placeholder="GAB-0000" autoComplete="username" autoCapitalize="characters" className={field} required />
+          <span className="mb-1.5 block text-[14px] font-semibold text-ink">Usuario</span>
+          <input value={user} onChange={(e) => setUser(e.target.value.toUpperCase())} placeholder="Documento del estudiante" autoComplete="username" autoCapitalize="characters" className={field} required />
+          <span className="mt-1 block text-[12px] text-muted">El número de documento de tu hijo o hija (o su código GAB).</span>
         </label>
         {!forgot && <PasswordInput value={pass} onChange={setPass} label="Contraseña" autoComplete="current-password" />}
         {error && <Problem message={error} />}
@@ -80,7 +81,7 @@ export function Login() {
         <button type="button" onClick={() => { setForgot((f) => !f); setError(null); setSent(null) }} className="block w-full text-center text-sm font-semibold text-royal">
           {forgot ? '← Volver a entrar' : '¿Olvidaste tu contraseña?'}
         </button>
-        {!forgot && <p className="text-center text-[13px] text-muted">El jardín te entrega el usuario y una contraseña temporal.</p>}
+        {!forgot && <p className="text-center text-[13px] text-muted">La primera vez, la contraseña también es el documento del estudiante (salvo que el jardín te haya dado otra).</p>}
       </form>
     </Frame>
   )
@@ -113,8 +114,8 @@ export function ChangePassword({ first = false, onDone }: { first?: boolean; onD
       <h1 className="flex items-center gap-2 text-[1.4rem]">
         <KeyRound className="text-pink" /> {first ? 'Crea tu contraseña' : 'Cambiar contraseña'}
       </h1>
-      {first && <p className="text-sm text-muted">Por seguridad, cambia la contraseña temporal que te dio el jardín por una tuya (mínimo 8 caracteres, con letras y números).</p>}
-      <PasswordInput value={current} onChange={setCurrent} label={first ? 'Contraseña temporal' : 'Contraseña actual'} autoComplete="current-password" />
+      {first && <p className="text-sm text-muted">Por seguridad, cambia la contraseña inicial por una tuya (mínimo 8 caracteres, con letras y números).</p>}
+      <PasswordInput value={current} onChange={setCurrent} label={first ? 'Contraseña con la que entraste' : 'Contraseña actual'} autoComplete="current-password" />
       <PasswordInput value={next} onChange={setNext} label="Contraseña nueva" autoComplete="new-password" />
       <PasswordInput value={again} onChange={setAgain} label="Repite la contraseña nueva" autoComplete="new-password" />
       {error && <Problem message={error} />}

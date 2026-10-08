@@ -462,6 +462,30 @@ final class BillingService
 
     // ───────────────────────── receipts & reports ─────────────────────────
     /** Data printed on the receipt (comprobante de pago). @return array<string,mixed> */
+    /**
+     * Data of the "paz y salvo" of a student: valid (signed) only when nothing is pending, in any year.
+     * @return array<string,mixed>
+     */
+    public function clearance(int $studentId): array
+    {
+        $s = $this->db->one(
+            "SELECT s.id, s.code, s.first_name, s.middle_name, s.last_name, s.second_last_name, c.name AS course, g.name AS grade, e.year_id
+             FROM students s
+             LEFT JOIN enrollments e ON e.id = (SELECT e2.id FROM enrollments e2 WHERE e2.student_id = s.id ORDER BY e2.year_id DESC LIMIT 1)
+             LEFT JOIN courses c ON c.id = e.course_id LEFT JOIN grade_levels g ON g.id = c.grade_level_id
+             WHERE s.id = ?",
+            [$studentId],
+        ) ?? throw new DomainError('not_found', 'El estudiante no existe.');
+        $sum = $this->summary($studentId);
+        return [
+            'studentId' => (int) $s['id'], 'code' => $s['code'],
+            'student' => trim(trim("{$s['last_name']} {$s['second_last_name']}") . ', ' . trim("{$s['first_name']} {$s['middle_name']}")),
+            'grade' => $s['grade'], 'course' => $s['course'], 'year' => $s['year_id'] ? (int) $s['year_id'] : null,
+            'pending' => $sum['balance'], 'upToDate' => $sum['balance'] <= 0,
+            'school' => $this->settings->get('school', ['name' => 'Jardín Infantil Gabush']),
+        ];
+    }
+
     public function receipt(int $paymentId): array
     {
         $p = $this->db->one(

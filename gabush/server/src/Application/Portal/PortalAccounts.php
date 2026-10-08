@@ -8,7 +8,10 @@ use Gabush\Application\Email\EmailService;
 use Gabush\Domain\Shared\DomainError;
 use Gabush\Infrastructure\Database\Database;
 
-/** One portal account per student (username = student code). Temporary passwords are easy to dictate. */
+/**
+ * One portal account per student. Families sign in with the student code or the student's document number;
+ * the first password is the document (or an easy-to-dictate temporary one) and must be changed on first login.
+ */
 final class PortalAccounts
 {
     private const WORDS = ['leon', 'sol', 'luna', 'nube', 'flor', 'arte', 'color', 'pincel', 'tigre', 'oso', 'buho', 'conejo', 'arcoiris', 'estrella', 'mar', 'rio'];
@@ -29,11 +32,24 @@ final class PortalAccounts
         return self::WORDS[random_int(0, count(self::WORDS) - 1)] . '-' . random_int(1000, 9999);
     }
 
-    /** Creates (or resets) the account of a student; returns the temporary password. */
-    public function issue(int $studentId, bool $sendEmail): array
+    /** Document number as typed by a family: digits/letters only ("1.065.234-5" → "10652345"). */
+    public static function normalizeDoc(?string $doc): string
     {
-        $s = $this->db->one('SELECT code, first_name, last_name FROM students WHERE id = ?', [$studentId]) ?? throw new DomainError('not_found', 'Estudiante no encontrado.');
-        $password = self::temporaryPassword();
+        return strtoupper((string) preg_replace('/[^0-9A-Za-z]/', '', (string) $doc));
+    }
+
+    /**
+     * Creates (or resets) the account of a student; returns the temporary password. With $useDocument the
+     * family signs in with the student's document number as user AND first password (they must change it on
+     * the first login); without a document on file it falls back to a random temporary password.
+     */
+    public function issue(int $studentId, bool $sendEmail, bool $useDocument = false): array
+    {
+        $s = $this->db->one('SELECT code, first_name, last_name, doc_number FROM students WHERE id = ?', [$studentId]) ?? throw new DomainError('not_found', 'Estudiante no encontrado.');
+        $doc = self::normalizeDoc($s['doc_number']);
+        $byDoc = $useDocument && strlen($doc) >= 5;
+        $password = $byDoc ? $doc : self::temporaryPassword();
+        $login = $byDoc ? $doc : $s['code'];
         $hash = password_hash($password, PASSWORD_DEFAULT);
         $this->db->run(
             'INSERT INTO portal_accounts (student_id, username, password_hash, must_change_password, active, failed_logins, locked_until)
@@ -44,17 +60,35 @@ final class PortalAccounts
         $emailed = false;
         if ($sendEmail) {
             foreach ($this->db->all('SELECT full_name, email FROM guardians WHERE family_id = (SELECT family_id FROM students WHERE id = ?) AND email IS NOT NULL ORDER BY is_billing DESC, is_primary DESC', [$studentId]) as $g) {
-                $emailed = $this->email->queue('portal_welcome', $g['email'], $g['full_name'], ['acudiente' => $g['full_name'], 'estudiante' => trim($s['first_name'] . ' ' . $s['last_name']), 'usuario' => $s['code'], 'clave' => $password, 'enlace' => $this->baseUrl . '/familia/', 'boton_texto' => 'Entrar al portal']) || $emailed;
+                $emailed = $this->email->queue('portal_welcome', $g['email'], $g['full_name'], ['acudiente' => $g['full_name'], 'estudiante' => trim($s['first_name'] . ' ' . $s['last_name']), 'usuario' => $login, 'clave' => $password, 'enlace' => $this->baseUrl . '/familia/', 'boton_texto' => 'Entrar al portal']) || $emailed;
             }
         }
-        return ['studentId' => $studentId, 'username' => $s['code'], 'password' => $password, 'student' => trim($s['first_name'] . ' ' . $s['last_name']), 'emailed' => $emailed];
+        return ['studentId' => $studentId, 'username' => $login, 'password' => $password, 'student' => trim($s['first_name'] . ' ' . $s['last_name']), 'emailed' => $emailed, 'byDocument' => $byDoc];
+    }
+
+    /**
+     * Accounts a family may mean with what they typed: the student code (GAB-0170) or the student's document
+     * number (with or without dots). @return list<array<string,mixed>>
+     */
+    private function accountsFor(string $username): array
+    {
+        $code = strtoupper(trim($username));
+        $doc = self::normalizeDoc($username);
+        return $this->db->all(
+            "SELECT pa.* FROM portal_accounts pa JOIN students s ON s.id = pa.student_id
+             WHERE pa.username = ? OR (? <> '' AND CHAR_LENGTH(?) >= 5 AND UPPER(REGEXP_REPLACE(COALESCE(s.doc_number, ''), '[^0-9A-Za-z]', '')) = ?)
+             LIMIT 5",
+            [$code, $doc, $doc, $doc],
+        );
     }
 
     /** @return array{id:int,student_id:int,username:string,must_change:bool} */
     public function authenticate(string $username, string $password): array
     {
-        $username = strtoupper(trim($username));
-        $a = $this->db->one('SELECT * FROM portal_accounts WHERE username = ?', [$username]);
+        // two siblings never share a document, but if the data had a duplicate the password decides
+        $candidates = $this->accountsFor($username);
+        $a = $candidates[0] ?? null;
+        foreach ($candidates as $c) if (password_verify($password, $c['password_hash'])) { $a = $c; break; }
         $hash = $a['password_hash'] ?? password_hash('gabush-dummy', PASSWORD_DEFAULT); // same time for unknown users
         $ok = password_verify($password, $hash);
         if (!$a || !$a['active']) throw new DomainError('credentials', 'Usuario o contraseña incorrectos.');
@@ -89,7 +123,9 @@ final class PortalAccounts
     /** Sends a reset link to the family's e-mails. Always answers the same (does not reveal accounts). */
     public function requestReset(string $username): void
     {
-        $a = $this->db->one('SELECT pa.id, pa.student_id, s.first_name, s.last_name FROM portal_accounts pa JOIN students s ON s.id = pa.student_id WHERE pa.username = ? AND pa.active = 1', [strtoupper(trim($username))]);
+        $found = array_values(array_filter($this->accountsFor($username), static fn($x) => (bool) $x['active']));
+        if (count($found) !== 1) return;
+        $a = $this->db->one('SELECT pa.id, pa.student_id, s.first_name, s.last_name FROM portal_accounts pa JOIN students s ON s.id = pa.student_id WHERE pa.id = ?', [$found[0]['id']]);
         if (!$a) return;
         $token = bin2hex(random_bytes(24));
         $this->db->insert('portal_password_resets', ['account_id' => $a['id'], 'token_hash' => hash('sha256', $token), 'expires_at' => date('Y-m-d H:i:s', time() + 3600)]);

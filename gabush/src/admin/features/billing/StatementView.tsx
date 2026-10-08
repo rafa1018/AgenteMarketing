@@ -1,4 +1,4 @@
-import { Ban, ChevronDown, FilePlus2, HandCoins, Percent, Printer, Receipt, ShieldOff, Trash2, Undo2 } from 'lucide-react'
+import { Ban, ChevronDown, FilePlus2, HandCoins, Percent, Printer, Receipt, ShieldCheck, ShieldOff, Trash2, Undo2 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@/shared/useQuery'
@@ -66,6 +66,9 @@ export function StatementView({ studentId }: { studentId: number }) {
             Aplicar saldo a favor
           </button>
         )}
+        <a href={`/api/v2/billing/students/${studentId}/paz-y-salvo`} target="_blank" rel="noopener noreferrer" className="btn btn-ghost !text-sm" title={s.balance > 0 ? 'Tiene saldo pendiente: sale sin firma' : 'Al día: sale firmado'}>
+          <ShieldCheck size={18} /> Paz y salvo{s.balance > 0 ? ' (sin firma)' : ''}
+        </a>
         <label className="ml-auto flex items-center gap-2 text-sm font-semibold text-muted">
           <select value={scope} onChange={(e) => setScope(e.target.value as 'year' | 'all')} className="rounded-lg border border-line bg-white px-2 py-1.5">
             <option value="year">Año {year}</option>

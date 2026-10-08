@@ -6,6 +6,7 @@ namespace Gabush\Http\Controllers;
 use DateTimeImmutable;
 use Gabush\App;
 use Gabush\Application\Billing\BillingService;
+use Gabush\Application\Billing\Signature;
 use Gabush\Domain\Billing\LateFeePolicy;
 use Gabush\Domain\Shared\DomainError;
 use Gabush\Http\Auth\FamilyAuth;
@@ -14,6 +15,7 @@ use Gabush\Http\Request;
 use Gabush\Http\Response;
 use Gabush\Http\Router;
 use Gabush\Http\Validate;
+use Gabush\Http\Views\PazYSalvoView;
 use Gabush\Http\Views\ReceiptView;
 
 /** Cartera in the panel: statements, charges, adjustments, payments, receipts, reports and billing settings. */
@@ -35,6 +37,10 @@ final class BillingController extends Controller
         $r->add('POST', '/billing/payments', [$c, 'createPayment']);
         $r->add('POST', '/billing/payments/{id}/void', [$c, 'voidPayment']);
         $r->add('GET', '/billing/payments/{id}/receipt', [$c, 'receipt']);
+        $r->add('GET', '/billing/students/{id}/paz-y-salvo', [$c, 'clearance']);
+        $r->add('GET', '/billing/signature', [$c, 'signature']);
+        $r->add('POST', '/billing/signature', [$c, 'saveSignature']);
+        $r->add('DELETE', '/billing/signature', [$c, 'deleteSignature']);
         $r->add('GET', '/billing/payments', [$c, 'paymentsReport']);
         $r->add('GET', '/billing/debtors', [$c, 'debtors']);
         $r->add('POST', '/billing/generate', [$c, 'generate']);
@@ -190,7 +196,45 @@ final class BillingController extends Controller
         $family = FamilyAuth::current();
         if (!$family || $family->studentId !== $r['studentId']) $this->staff($req, 'pagos');
         if ($req->query('format') === 'json') return Response::json(['ok' => true, 'receipt' => $r]);
-        return Response::html(ReceiptView::render($r));
+        return Response::html(ReceiptView::render($r, Signature::from($this->app)->get()));
+    }
+
+    /** Printable "paz y salvo" — staff, or the family of that student. Signed only when nothing is pending. */
+    public function clearance(Request $req): Response
+    {
+        $id = $req->intParam('id');
+        $family = FamilyAuth::current();
+        if (!$family || $family->studentId !== $id) $this->staff($req, 'pagos', 'estudiantes', 'matriculas');
+        return Response::html(PazYSalvoView::render($this->billing()->clearance($id), Signature::from($this->app)->get()));
+    }
+
+    // ───────────────────────── signature ─────────────────────────
+    public function signature(Request $req): array
+    {
+        $this->staff($req, 'pagos', 'ajustes');
+        return ['signature' => Signature::from($this->app)->get()];
+    }
+
+    /** multipart: file (optional when only the name changes), name, title, clean (1/0) */
+    public function saveSignature(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'ajustes');
+        $sig = Signature::from($this->app)->save(
+            $req->files['file'] ?? null,
+            (string) ($req->post['name'] ?? ''),
+            (string) ($req->post['title'] ?? ''),
+            ($req->post['clean'] ?? '1') !== '0',
+        );
+        $this->audit()->log($actor, 'signature.save', 'settings', 'signature');
+        return ['signature' => $sig];
+    }
+
+    public function deleteSignature(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'ajustes');
+        Signature::from($this->app)->remove();
+        $this->audit()->log($actor, 'signature.delete', 'settings', 'signature');
+        return ['signature' => Signature::from($this->app)->get()];
     }
 
     public function paymentsReport(Request $req): array

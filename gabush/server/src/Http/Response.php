@@ -23,6 +23,24 @@ final class Response
         return new self(200, $h, '', $path);
     }
 
+    /**
+     * Spreadsheet download that Excel (es-CO) opens directly: UTF-8 with BOM, ";" separator.
+     * @param list<string> $head
+     * @param iterable<list<string|int|float|null>> $rows
+     */
+    public static function csv(string $downloadName, array $head, iterable $rows): self
+    {
+        $cell = static function ($v): string {
+            $s = (string) ($v ?? '');
+            // a cell that starts like a formula is neutralized (CSV injection)
+            if ($s !== '' && in_array($s[0], ['=', '+', '-', '@'], true) && !is_numeric($s)) $s = "'" . $s;
+            return '"' . str_replace('"', '""', $s) . '"';
+        };
+        $out = "\xEF\xBB\xBF" . implode(';', array_map($cell, $head)) . "\r\n";
+        foreach ($rows as $r) $out .= implode(';', array_map($cell, $r)) . "\r\n";
+        return new self(200, ['Content-Type' => 'text/csv; charset=utf-8', 'Content-Disposition' => 'attachment; filename="' . addcslashes($downloadName, '"\\') . '"', 'Cache-Control' => 'no-store'], $out);
+    }
+
     public static function redirect(string $url): self
     {
         return new self(302, ['Location' => $url], '');

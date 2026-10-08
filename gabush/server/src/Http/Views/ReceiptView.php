@@ -6,8 +6,11 @@ namespace Gabush\Http\Views;
 /** Printable payment receipt ("comprobante de pago"), same layout the school already used. */
 final class ReceiptView
 {
-    /** @param array<string,mixed> $r BillingService::receipt() */
-    public static function render(array $r): string
+    /**
+     * @param array<string,mixed> $r BillingService::receipt()
+     * @param array{image:?string,name:string,title:string}|null $signature printed only on approved payments
+     */
+    public static function render(array $r, ?array $signature = null): string
     {
         $e = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
         $money = static fn(int $v) => '$ ' . number_format($v, 0, ',', '.');
@@ -20,6 +23,9 @@ final class ReceiptView
         $method = ['efectivo' => 'Efectivo', 'colegio' => 'Colegio', 'nequi' => 'Nequi', 'bancolombia' => 'Bancolombia', 'wompi' => 'Wompi (en línea)', 'mercadopago' => 'Mercado Pago (en línea)', 'transferencia' => 'Transferencia'][$r['method']] ?? ucfirst((string) $r['method']);
         $void = $r['status'] === 'anulado' ? '<div class="void">ANULADO</div>' : '';
         $printed = date('d/m/Y h:i:s a');
+        $signed = $r['status'] === 'aprobado' && !empty($signature['image']);
+        $sign = ($signed ? '<img class="sig" src="' . $e($signature['image']) . '" alt="Firma">' : '<div class="sig-blank"></div>')
+            . '<hr>' . ($signed && $signature['name'] ? '<div class="who">' . $e($signature['name']) . '</div>' : '') . 'Firma autorizada de recibido';
         return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<title>Comprobante ' . $e($r['receipt']) . ' · ' . $e($school) . '</title><style>'
             . '*{box-sizing:border-box}body{margin:0;background:#eef1f6;font-family:Arial,Helvetica,sans-serif;color:#111}'
@@ -33,6 +39,7 @@ final class ReceiptView
             . 'th{background:#999;color:#000;text-align:left;padding:3px 6px;border:1px solid #333}td{padding:3px 6px;border:1px solid #333}.num{text-align:right;white-space:nowrap}'
             . '.foot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px;font-size:10px;font-style:italic}'
             . '.sign{text-align:center;font-style:normal;font-size:13px;font-weight:bold}.sign hr{width:230px;border:0;border-top:1px solid #333;margin:0 auto 4px}'
+            . '.sig{display:block;max-height:70px;max-width:220px;margin:0 auto -6px}.sig-blank{height:40px}.who{font-size:11px;font-weight:normal;margin-bottom:2px}'
             . '.total{text-align:right;font-style:normal}.total small{font-size:12px}.total b{display:block;font-size:24px}'
             . '.void{position:absolute;inset:0;display:grid;place-items:center;font-size:90px;font-weight:bold;color:rgba(217,45,32,.18);transform:rotate(-18deg);pointer-events:none}'
             . '@media (max-width:640px){.cols{grid-template-columns:1fr}.head h1{font-size:20px}.head h2{font-size:16px}.sheet{padding:16px}}'
@@ -40,7 +47,7 @@ final class ReceiptView
             . '</style></head><body>'
             . '<div class="bar"><button onclick="window.print()">Imprimir / Guardar PDF</button></div>'
             . '<div class="sheet">' . $void
-            . '<div class="head"><img src="/images/opt/logo-480.png" alt=""><div><h1>' . $e(mb_strtoupper($school)) . '</h1><h2>COMPROBANTE DE PAGO</h2></div></div>'
+            . '<div class="head"><img src="/images/opt/escudo-400.webp" alt=""><div><h1>' . $e(mb_strtoupper($school)) . '</h1><h2>COMPROBANTE DE PAGO</h2></div></div>'
             . '<div class="cols"><div class="kv">'
             . '<span>Estudiante:</span><b>' . $e($r['student']) . '</b>'
             . '<span>Código:</span><b>' . $e($r['code']) . '</b>'
@@ -51,7 +58,7 @@ final class ReceiptView
             . '<span>Observaciones:</span><span>' . $e($r['notes'] ?? '') . '</span>'
             . '</div><div class="items"><h3>CARGOS AFECTADOS</h3><table><thead><tr><th>Referencia</th><th class="num">Valor</th></tr></thead><tbody>' . $rows . '</tbody></table></div></div>'
             . '<div class="foot"><div>(Comprobante ' . $e($r['receipt']) . ')<br>(Fecha y hora de impresión: ' . $e($printed) . ')</div>'
-            . '<div class="sign"><hr>Firma autorizada de recibido</div>'
+            . '<div class="sign">' . $sign . '</div>'
             . '<div class="total"><small>Total pagado:</small><b>' . $money($r['amount']) . '</b></div></div>'
             . '</div></body></html>';
     }

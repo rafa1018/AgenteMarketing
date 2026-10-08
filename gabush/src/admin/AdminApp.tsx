@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { BarChart3, Bell, BellRing, BookOpenCheck, CalendarDays, CreditCard, FileCheck2, Globe, GraduationCap, Images, KeyRound, LayoutGrid, Mail, MessagesSquare, PiggyBank, School, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
+import { BarChart3, Bell, FileSpreadsheet, BellRing, BookOpenCheck, CalendarDays, CreditCard, FileCheck2, Globe, GraduationCap, Images, KeyRound, LayoutGrid, Mail, MessagesSquare, PiggyBank, School, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
 import { useCallback, useEffect, useState, type ComponentType } from 'react'
 import { checkAdmin, loadEvents, logout, reloadEvents, useCalendar, type Perm } from '@/lib/calendar'
 import { cn } from '@/lib/utils'
@@ -15,6 +15,7 @@ import { StudentsPage } from './features/students/StudentsPage'
 import { StudentFile } from './features/students/StudentFile'
 import { AttendancePage } from './features/attendance/AttendancePage'
 import { BillingPage } from './features/billing/BillingPage'
+import { ReportsPage } from './features/reports/ReportsPage'
 import { EnrollmentsPage } from './features/enrollments/EnrollmentsPage'
 import { AcademicPage } from './features/academics/AcademicPage'
 import { GradesPage } from './features/grades/GradesPage'
@@ -58,6 +59,7 @@ const ALL_PAGES: Page[] = [
   { id: 'academico', label: 'Gestión académica', icon: School, view: AcademicPage, perm: 'academico', group: 'academico' },
   { id: 'cartera', label: 'Cartera', icon: Wallet, view: BillingPage, perm: 'pagos', group: 'dinero' },
   { id: 'caja', label: 'Caja', icon: PiggyBank, view: CashPage, perm: 'caja', group: 'dinero' },
+  { id: 'reportes', label: 'Reportes', icon: FileSpreadsheet, view: ReportsPage, perms: ['estudiantes', 'matriculas', 'pagos', 'calificaciones', 'academico', 'asistencia', 'caja'], group: 'dinero' },
   { id: 'portal', label: 'Portal de familias', icon: KeyRound, view: PortalAccountsPage, perms: ['estudiantes', 'matriculas'], group: 'cuenta' },
   { id: 'correo', label: 'Correo', icon: Mail, view: EmailSettingsPage, perm: 'ajustes', group: 'cuenta' },
   { id: 'pagos-en-linea', label: 'Pagos en línea', icon: CreditCard, view: PaymentGatewayPage, perm: 'ajustes', group: 'cuenta' },

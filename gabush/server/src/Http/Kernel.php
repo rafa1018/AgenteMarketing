@@ -27,6 +27,7 @@ final class Kernel
         Controllers\PaymentGatewayController::class,
         Controllers\PortalController::class,
         Controllers\WebhookController::class,
+        Controllers\ReportsController::class,
     ];
 
     public function __construct(private readonly App $app)

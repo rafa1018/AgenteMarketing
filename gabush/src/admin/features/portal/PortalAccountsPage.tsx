@@ -17,36 +17,50 @@ export function PortalAccountsPage() {
   const { data, error, loading, reload } = useQuery(year ? `portal:${year}` : null, () => api2.get<{ accounts: Account[] }>('/portal-accounts' + qs({ year })))
   const [q, setQ] = useState('')
   const [creds, setCreds] = useState<Cred[]>([])
+  const [useDocument, setUseDocument] = useState(true)
   const m = useMutation()
   const rows = useMemo(() => (data?.accounts ?? []).filter((a) => !q || `${a.firstName} ${a.lastName} ${a.code} ${a.course}`.toLowerCase().includes(q.toLowerCase())), [data, q])
   const stats = useMemo(() => {
     const a = data?.accounts ?? []
     return { total: a.length, with: a.filter((x) => x.active).length, entered: a.filter((x) => x.lastLogin).length, devices: a.filter((x) => x.devices > 0).length }
   }, [data])
-  const issueAll = async (sendEmail: boolean) => {
-    const r = await m.run(() => api2.post<{ credentials: Cred[] }>('/portal-accounts/issue', { all: true, onlyMissing: true, sendEmail }))
+  const issueAll = async (sendEmail: boolean, onlyMissing = true) => {
+    if (!onlyMissing && !window.confirm('Esto reinicia la contraseña de TODAS las familias activas (también las que ya la cambiaron). ¿Continuar?')) return
+    const r = await m.run(() => api2.post<{ credentials: Cred[] }>('/portal-accounts/issue', { all: true, onlyMissing, sendEmail, useDocument }))
     if (r) {
       setCreds(r.credentials)
-      toast(`Se crearon ${r.credentials.length} accesos`)
+      toast(`${onlyMissing ? 'Se crearon' : 'Se reiniciaron'} ${r.credentials.length} accesos`)
       reload()
     }
   }
   return (
     <div className="space-y-5">
-      <PageHead title="Portal de familias" sub="Cada estudiante activo tiene su usuario (el código GAB) para que la familia vea notas, asistencia, mensajes y pague en línea." actions={<YearPicker />} />
+      <PageHead title="Portal de familias" sub="Cada estudiante activo tiene su acceso para que la familia vea notas, asistencia, mensajes y pague en línea. Pueden entrar con el documento del estudiante o con su código GAB." actions={<YearPicker />} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Estudiantes" value={stats.total} />
         <Stat label="Con acceso" value={stats.with} tone="blue" icon={<KeyRound size={18} />} />
         <Stat label="Ya entraron" value={stats.entered} tone="green" icon={<UserCheck size={18} />} />
         <Stat label="Con notificaciones" value={stats.devices} tone="pink" icon={<Smartphone size={18} />} />
       </div>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={m.busy} onClick={() => issueAll(false)} className="btn btn-primary !text-sm">
-          <KeyRound size={17} /> Crear accesos que faltan
-        </button>
-        <button type="button" disabled={m.busy} onClick={() => issueAll(true)} className="btn btn-ghost !text-sm">
-          Crear y enviar por correo
-        </button>
+      <div className="card space-y-3 p-4">
+        <label className="flex items-start gap-2.5 text-[15px] text-ink">
+          <input type="checkbox" checked={useDocument} onChange={(e) => setUseDocument(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-[#3a36a8]" />
+          <span>
+            <b>Usuario y contraseña = documento del estudiante</b>
+            <span className="block text-[13px] text-muted">Fácil de recordar para las familias. Al entrar la primera vez el portal les pide crear su propia contraseña. Si un estudiante no tiene documento registrado, se le da una contraseña temporal.</span>
+          </span>
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={m.busy} onClick={() => issueAll(false)} className="btn btn-primary !text-sm">
+            <KeyRound size={17} /> Crear accesos que faltan
+          </button>
+          <button type="button" disabled={m.busy} onClick={() => issueAll(true)} className="btn btn-ghost !text-sm">
+            Crear y enviar por correo
+          </button>
+          <button type="button" disabled={m.busy} onClick={() => issueAll(false, false)} className="btn btn-ghost !text-sm text-berry">
+            Reiniciar todos los accesos
+          </button>
+        </div>
       </div>
       {m.message && <ErrorBox message={m.message} />}
       {creds.length > 0 && (

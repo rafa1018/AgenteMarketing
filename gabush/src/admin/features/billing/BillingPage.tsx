@@ -8,6 +8,7 @@ import { api2, qs, useSetup } from '../../v2/api'
 import { Badge, Empty, ErrorBox, Field, SearchBox, Spinner, Stat, StatusBadge, Tabs, YearPicker, inputCls, useTab } from '../../v2/kit'
 import { openStudent } from '../students/openStudent'
 import { PlansPanel } from './PlansPanel'
+import { SignatureCard } from './SignatureCard'
 import { METHODS, methodLabel } from './types'
 
 type Tab = 'resumen' | 'deudores' | 'pagos' | 'planes' | 'config'
@@ -22,7 +23,12 @@ export function BillingPage() {
       {tab === 'planes' && <PlansPanel />}
       {tab === 'deudores' && <Debtors />}
       {tab === 'pagos' && <PaymentsReport />}
-      {tab === 'config' && <BillingConfig />}
+      {tab === 'config' && (
+        <div className="space-y-5">
+          <BillingConfig />
+          <SignatureCard />
+        </div>
+      )}
     </div>
   )
 }

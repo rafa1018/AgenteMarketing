@@ -341,13 +341,14 @@ final class PortalController extends Controller
         $v = Validate::of($req);
         $ids = $v->ids('studentIds');
         $send = $v->bool('sendEmail');
+        $byDocument = $v->bool('useDocument', true); // user and first password = the student's document number
         if ($v->bool('all')) {
             $sql = "SELECT e.student_id FROM enrollments e WHERE e.year_id = ? AND e.status = 'activo'" . ($v->bool('onlyMissing', true) ? ' AND NOT EXISTS (SELECT 1 FROM portal_accounts pa WHERE pa.student_id = e.student_id)' : '');
             $ids = array_map('intval', array_column($this->db()->all($sql, [$this->settings()->activeYear()]), 'student_id'));
         }
         if (!$ids) throw new DomainError('empty', 'No hay estudiantes para crear acceso.');
         $out = [];
-        foreach ($ids as $id) $out[] = $this->accountsSvc()->issue($id, $send);
+        foreach ($ids as $id) $out[] = $this->accountsSvc()->issue($id, $send, $byDocument);
         $this->audit()->log($actor, 'portal.issue', 'portal_accounts', null, ['count' => count($out)]);
         return ['credentials' => $out];
     }
