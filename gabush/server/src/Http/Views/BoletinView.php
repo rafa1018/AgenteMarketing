@@ -85,7 +85,8 @@ final class BoletinView
         $html = '<section class="page">'
             . '<div class="stripe"><i style="background:#e5197e"></i><i style="background:#f8c21c"></i><i style="background:#23206b"></i><i style="background:#1fa3dd"></i><i style="background:#5cb531"></i><i style="background:#f26b1d"></i></div>'
             . '<header class="head keep"><img class="shield" src="/images/opt/escudo-400.webp" alt="">'
-            . '<div class="brand"><div class="blocks">' . $blocks . '</div>' . $kids . '<p class="tag">Jardín Infantil · Creciendo con las artes</p></div>'
+            . '<div class="brand"><div class="blocks">' . $blocks . '</div>' . $kids . '<p class="tag">Jardín Infantil · Creciendo con las artes</p>'
+            . (!empty($school['resolution']) ? '<p class="res">' . $e($school['resolution']) . '</p>' : '') . '</div>'
             . '<div class="doc"><span class="doc-kind">Boletín de desempeño</span><span class="doc-period">' . $e($o['periodName']) . '</span><span class="doc-year">Año ' . $e($o['year']) . '</span></div></header>'
             . '<div class="student keep">' . $photo . '<div class="who"><h1>' . $e($s['name']) . '</h1>'
             . '<div class="facts"><span><small>Código</small>' . $e($s['code']) . '</span>'
@@ -120,17 +121,25 @@ final class BoletinView
                 } else {
                     $pp = $sub['periods'][$period] ?? null;
                     if (!$pp) continue; // subject without grades in this period
-                    $cells .= '<td class="on">' . self::chip($pp['level'] ?? null) . '</td><td class="score">' . ($pp['score'] !== null ? $num($pp['score']) : '—') . '</td>';
+                    // the school grades 0–100: the score reads as a percentage
+                    $score = $pp['score'] !== null ? $num($pp['score']) . ($o['percent'] ? '%' : '') : '—';
+                    $cells .= '<td class="on">' . self::chip($pp['level'] ?? null) . '</td><td class="score">' . $score . '</td>';
                 }
                 $detail = '';
                 if ($period !== 'final' && ($pp = $sub['periods'][$period] ?? null)) {
                     $ach = '';
-                    foreach ($pp['achievements'] as $x) $ach .= '<li><span class="dot" style="background:' . (self::LEVEL_STYLE[$x['level'] ?? '']['2'] ?? '#c9cbe0') . '"></span><span>' . $e($x['description']) . '</span>' . self::chip($x['level'] ?? null, ' xs') . '</li>';
+                    foreach ($pp['achievements'] as $x) {
+                        // the level closes the sentence, in its colour (easy to read, nothing piled up on the side)
+                        $lvl = $x['level'] ?? null;
+                        $color = self::LEVEL_STYLE[$lvl ?? '']['1'] ?? '#615f86';
+                        $ach .= '<li><span class="dot" style="background:' . (self::LEVEL_STYLE[$lvl ?? '']['2'] ?? '#c9cbe0') . '"></span>'
+                            . '<span>' . $e(rtrim(trim($x['description']), ' .')) . '.' . ($lvl ? ' <b class="lvl" style="color:' . $color . '">' . $e($lvl) . '</b>' : '') . '</span></li>';
+                    }
                     if ($ach) $detail .= '<ul class="ach">' . $ach . '</ul>';
                     if (!empty($pp['comments'])) $detail .= '<p class="comment">' . $e($pp['comments']) . '</p>';
                     if (!empty($pp['absences'])) $detail .= '<p class="abs">Fallas en el periodo: <b>' . (int) $pp['absences'] . '</b></p>';
                 }
-                $rows .= '<tbody class="subject"><tr><td class="subj">' . $e($sub['name']) . '</td>' . $cells . '</tr>'
+                $rows .= '<tbody class="subject"><tr><td class="subj">' . $e($sub['name']) . (!empty($sub['teacher']) ? '<small class="prof">Prof. ' . $e($sub['teacher']) . '</small>' : '') . '</td>' . $cells . '</tr>'
                     . ($detail ? '<tr class="detail"><td colspan="' . $cols . '">' . $detail . '</td></tr>' : '') . '</tbody>';
             }
             if ($rows === '') continue;
@@ -143,6 +152,8 @@ final class BoletinView
             $scale .= '<span>' . self::chip($l['name'], ' xs') . ' ' . $e(rtrim(rtrim(number_format((float) $l['min'], 1, ',', ''), '0'), ',')) . '–' . $e(rtrim(rtrim(number_format((float) $l['max'], 1, ',', ''), '0'), ',')) . '</span>';
         }
         $html .= '<div class="scale keep"><b>Escala de valoración</b>' . $scale . '</div>';
+        // space for handwritten notes, like the school's previous report
+        $html .= '<div class="obs keep"><b>Observaciones</b><i></i><i></i></div>';
         return $html . self::footer($o, $s, $e) . '</section>';
     }
 
@@ -206,9 +217,14 @@ td.score{font:700 15px Fredoka,sans-serif;color:#23206b}
 .area:not(.period) table{table-layout:fixed}.area:not(.period) th.subj,.area:not(.period) td.subj{width:34%}
 .bar button,.bar .wa{white-space:nowrap}
 tr.detail td{text-align:left;padding:2px 14px 9px;border-top:0;background:#fffdf6}
-.ach{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:3px}
-.ach li{display:grid;grid-template-columns:8px 1fr auto;gap:8px;align-items:start;font-size:11.5px;line-height:1.35}
-.ach .dot{width:7px;height:7px;border-radius:50%;margin-top:5px}
+.ach{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:6px}
+.ach li{display:grid;grid-template-columns:9px 1fr;gap:9px;align-items:start;font-size:12.5px;line-height:1.5;color:#2a2850}
+.ach .dot{width:8px;height:8px;border-radius:50%;margin-top:6px}
+.ach .lvl{font-weight:800;font-size:11px;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap}
+td.subj .prof{display:block;font-weight:600;font-size:10.5px;color:#8a88a8;margin-top:1px}
+.obs{margin-top:12px;padding:8px 14px 10px;border:2px solid #e3e5f3;border-radius:14px}
+.obs b{display:block;font:600 12.5px Fredoka,sans-serif;color:#23206b;margin-bottom:2px}.obs i{display:block;height:22px;border-bottom:1px dashed #c9cbe0}
+.res{margin:2px 0 0;font-size:10.5px;color:#8a88a8;font-style:italic}
 .comment{margin:6px 0 0;padding:6px 10px;border-radius:10px;background:#eef7ff;color:#185a8a;font-style:italic;font-size:11.5px}
 .abs{margin:4px 0 0;font-size:11px;color:#615f86}
 .scale{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-top:12px;padding:8px 12px;border-radius:12px;background:#f6f7fd;font-size:11px}

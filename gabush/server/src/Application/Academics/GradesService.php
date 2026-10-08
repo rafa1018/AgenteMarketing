@@ -129,6 +129,9 @@ final class GradesService
         $rules = $this->reportCardRules();
         $enr = $this->db->one('SELECT e.id, e.course_id, c.name AS course, c.grade_level_id FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id WHERE e.student_id = ? AND e.year_id = ?', [$studentId, $year]);
         if (!$enr) return ['year' => $year, 'course' => null, 'periods' => [], 'areas' => []];
+        // teacher of each subject in the student's course (for the printed report card)
+        $teacherOf = [];
+        foreach ($this->db->all('SELECT cs.subject_id, st.full_name FROM course_subjects cs JOIN staff st ON st.id = cs.teacher_staff_id WHERE cs.course_id = ?', [(int) $enr['course_id']]) as $t) $teacherOf[(int) $t['subject_id']] = $t['full_name'];
         // a period is published for the whole school (rectora) or for the student's course (its teacher)
         $periods = $this->db->all(
             'SELECT p.id, p.number, p.name, p.weight, (p.published OR cpp.course_id IS NOT NULL) AS published
@@ -154,7 +157,7 @@ final class GradesService
         foreach ($entries as $e) {
             $aKey = (string) ($e['area_id'] ?? 0);
             $areas[$aKey] ??= ['name' => $e['area'] ?? 'Otras', 'position' => (int) ($e['report_position'] ?? 99), 'subjects' => []];
-            $areas[$aKey]['subjects'][$e['subject_id']] ??= ['name' => $e['subject'], 'periods' => []];
+            $areas[$aKey]['subjects'][$e['subject_id']] ??= ['name' => $e['subject'], 'teacher' => $teacherOf[(int) $e['subject_id']] ?? null, 'periods' => []];
             $areas[$aKey]['subjects'][$e['subject_id']]['periods'][(int) $e['period_id']] = [
                 'level' => $rules->name($e['levelId'] !== null ? (int) $e['levelId'] : null), 'levelId' => $e['levelId'] !== null ? (int) $e['levelId'] : null,
                 'score' => $e['score'] !== null ? (float) $e['score'] : null, 'absences' => $e['absences'] !== null ? (int) $e['absences'] : null,

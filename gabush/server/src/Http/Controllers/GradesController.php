@@ -130,6 +130,7 @@ final class GradesController extends Controller
             'period' => $period, 'periodName' => $name, 'year' => $year,
             'school' => $this->settings()->get('school', ['name' => 'Jardín Infantil Gabush']),
             'levels' => $this->db()->all('SELECT name, min_score AS min, max_score AS max FROM performance_levels WHERE max_score > 0 ORDER BY min_score'),
+            'percent' => (float) $this->db()->value('SELECT MAX(max_score) FROM performance_levels') > 10, // 0–100 scale → "90%"
             'signature' => \Gabush\Application\Billing\Signature::from($this->app)->get(),
             'issuedOn' => (int) date('j') . ' de ' . $months[(int) date('n')] . ' de ' . date('Y'),
             'fileName' => 'boletin-' . $fileName . '-' . ($period === 'final' ? 'final' : $name) . '-' . $year,
