@@ -8,6 +8,7 @@ import { toast } from '../../store'
 import { PageHead } from '../../ui'
 import { api2, qs, useSetup } from '../../v2/api'
 import { CourseSelect, Empty, ErrorBox, Spinner, StudentAvatar, Tabs, YearPicker, useTab } from '../../v2/kit'
+import { StudentFinder } from './StudentFinder'
 
 type Sheet = {
   course: { id: number; name: string; gradeLevelId: number }
@@ -26,6 +27,14 @@ const toRow = (e: Entry | null): RowState => ({
   absences: e?.absences?.toString() ?? '',
   comments: e?.comments ?? '',
 })
+
+/** Colours of the selected level button (same family as the report-card chips). */
+const LEVEL_ON: Record<string, string> = {
+  Excelente: 'bg-[#e9f4ee] text-leaf ring-leaf',
+  Bueno: 'bg-[#eaf3fa] text-[#185a8a] ring-[#2f7fc1]',
+  Aceptable: 'bg-butter text-[#8a5716] ring-[#e2a33b]',
+  Insuficiente: 'bg-[#fdf0ef] text-berry ring-berry',
+}
 
 /**
  * Subject level when the teacher leaves it on "Automático" (same rules as the server): the score 0–10 when
@@ -60,7 +69,7 @@ export function GradesPage() {
 }
 
 function SheetEditor() {
-  const { setup } = useSetup()
+  const { setup, year } = useSetup()
   const [course, setCourse] = useState<number | null>(null)
   const [subject, setSubject] = useState<number | ''>('')
   const [period, setPeriod] = useState<number | ''>('')
@@ -72,6 +81,14 @@ function SheetEditor() {
   const { data, error, loading, reload } = useQuery(ready ? `sheet:${course}:${subject}:${period}` : null, () => api2.get<Sheet>('/grades/sheet' + qs({ course, subject, period })))
   const [rows, setRows] = useState<Record<number, RowState>>({})
   const [open, setOpen] = useState<number | null>(null)
+  // a child picked in the search box: their row opens (and scrolls into view) once their course sheet loads
+  const [pending, setPending] = useState<number | null>(null)
+  useEffect(() => {
+    if (!pending || !data?.students.some((s) => s.enrollmentId === pending)) return
+    setOpen(pending)
+    setPending(null)
+    requestAnimationFrame(() => document.getElementById(`alumno-${pending}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }, [data, pending])
   const m = useMutation()
   useEffect(() => {
     setRows(Object.fromEntries((data?.students ?? []).map((s) => [s.enrollmentId, toRow(s.entry)])))
@@ -112,6 +129,14 @@ function SheetEditor() {
   const sel = 'block min-h-[46px] w-full rounded-lg border border-[#d6d8ec] bg-white px-3'
   return (
     <div className="space-y-4">
+      <StudentFinder
+        year={year}
+        onPick={(s) => {
+          setCourse(s.courseId)
+          setPending(s.enrollmentId)
+          if (!subject) toast('Elige la materia para ver su planilla')
+        }}
+      />
       <div className="grid gap-2 sm:grid-cols-3">
         <CourseSelect value={course} onChange={setCourse} allowAll={false} />
         <select value={subject} onChange={(e) => setSubject(e.target.value ? Number(e.target.value) : '')} className={sel} aria-label="Materia">
@@ -181,7 +206,7 @@ function SheetEditor() {
               const auto = autoLevel(r, data.achievements, gradeLevels)
               const shown = r.level ?? auto
               return (
-                <li key={s.enrollmentId} className="card overflow-hidden p-0">
+                <li key={s.enrollmentId} id={`alumno-${s.enrollmentId}`} className={cn('card scroll-mt-24 overflow-hidden p-0', isOpen && 'ring-2 ring-royal/40')}>
                   <button type="button" onClick={() => setOpen(isOpen ? null : s.enrollmentId)} className="flex w-full items-center gap-3 p-3 text-left">
                     <StudentAvatar s={{ id: s.id, firstName: s.name.split(', ')[1] ?? s.name, lastName: s.name, hasPhoto: s.hasPhoto }} name={s.name} size={40} />
                     <span className="min-w-0 flex-1 truncate font-semibold text-ink">{s.name}</span>
@@ -223,23 +248,50 @@ function SheetEditor() {
                           )
                         })}
                       </ul>
-                      <label className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-3 py-2 text-[14px]">
-                        <span className="font-semibold text-ink">Desempeño en la materia este periodo:</span>
-                        <select value={r.level ?? ''} onChange={(e) => set({ level: e.target.value ? Number(e.target.value) : null })} className="rounded-lg border border-line bg-white px-2 py-1.5 font-semibold">
-                          <option value="">Automático{auto !== null ? ` (${levelName(auto)})` : ''}</option>
-                          {gradeLevels.map((l) => (
-                            <option key={l.id} value={l.id}>
-                              {l.name}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="text-[12px] text-muted">Automático = según la nota o los logros marcados.</span>
-                      </label>
-                      <div className="grid gap-2 sm:grid-cols-[120px_120px_1fr]">
-                        <input value={r.score} onChange={(e) => setRows({ ...rows, [s.enrollmentId]: { ...r, score: e.target.value } })} inputMode="decimal" placeholder="Nota 0–10 (opcional)" title="Nota de 0 a 10. Si la escribes, define el desempeño de la materia; si no, sale de los logros marcados." className={`rounded-lg border px-3 py-2 ${Number(r.score.replace(',', '.')) > 10 ? 'border-berry' : 'border-line'}`} aria-label="Nota de 0 a 10" />
-                        <input value={r.absences} onChange={(e) => setRows({ ...rows, [s.enrollmentId]: { ...r, absences: e.target.value } })} inputMode="numeric" placeholder="Fallas" className="rounded-lg border border-line px-3 py-2" aria-label="Fallas" />
-                        <input value={r.comments} onChange={(e) => setRows({ ...rows, [s.enrollmentId]: { ...r, comments: e.target.value } })} placeholder="Comentario para la familia (opcional)" className="rounded-lg border border-line px-3 py-2" aria-label="Comentario" />
-                      </div>
+                      <section className="space-y-4 rounded-2xl bg-white p-4 ring-1 ring-line">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <h4 className="font-serif text-[1.05rem] font-semibold text-ink">Calificación del periodo</h4>
+                          <span className="text-[12px] text-muted">Lo que elijas aquí es lo que ve la familia en el boletín.</span>
+                        </div>
+                        <div>
+                          <p className="mb-2 text-[13px] font-bold tracking-wide text-muted uppercase">Desempeño en la materia</p>
+                          <div role="radiogroup" aria-label="Desempeño en la materia" className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              role="radio"
+                              aria-checked={r.level === null}
+                              onClick={() => set({ level: null })}
+                              className={cn('rounded-full px-3.5 py-2 text-[14px] font-semibold transition-colors', r.level === null ? 'bg-ink text-white' : 'bg-paper text-muted hover:text-ink')}
+                            >
+                              Automático{auto !== null ? ` · ${levelName(auto)}` : ''}
+                            </button>
+                            {gradeLevels.map((l) => {
+                              const on = r.level === l.id
+                              return (
+                                <button key={l.id} type="button" role="radio" aria-checked={on} onClick={() => set({ level: l.id })} className={cn('rounded-full px-3.5 py-2 text-[14px] font-semibold ring-2 transition-colors', on ? LEVEL_ON[l.name] ?? 'bg-royal text-white ring-royal' : 'bg-white text-text ring-line hover:ring-ink/30')}>
+                                  {l.name}
+                                </button>
+                              )
+                            })}
+                          </div>
+                          <p className="mt-1.5 text-[12px] text-muted">Automático: sale de la nota o, si no hay nota, del nivel que más se repite en los logros marcados.</p>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-[140px_120px_1fr]">
+                          <label className="block">
+                            <span className="mb-1 block text-[13px] font-semibold text-ink">Nota (0 a 10)</span>
+                            <input value={r.score} onChange={(e) => set({ score: e.target.value })} inputMode="decimal" placeholder="Opcional" className={cn('w-full rounded-lg border px-3 py-2.5', Number(r.score.replace(',', '.')) > 10 ? 'border-berry' : 'border-line')} />
+                            {Number(r.score.replace(',', '.')) > 10 && <span className="mt-1 block text-[12px] text-berry">Debe ser de 0 a 10</span>}
+                          </label>
+                          <label className="block">
+                            <span className="mb-1 block text-[13px] font-semibold text-ink">Fallas</span>
+                            <input value={r.absences} onChange={(e) => set({ absences: e.target.value })} inputMode="numeric" placeholder="0" className="w-full rounded-lg border border-line px-3 py-2.5" />
+                          </label>
+                          <label className="block">
+                            <span className="mb-1 block text-[13px] font-semibold text-ink">Comentario para la familia</span>
+                            <textarea value={r.comments} onChange={(e) => set({ comments: e.target.value })} rows={2} placeholder="Opcional: un mensaje sobre cómo le fue este periodo" className="w-full resize-y rounded-lg border border-line px-3 py-2.5" />
+                          </label>
+                        </div>
+                      </section>
                     </div>
                   )}
                 </li>
