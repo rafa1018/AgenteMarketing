@@ -19,6 +19,7 @@ final class StudentController extends Controller
     {
         $c = new self($app);
         $r->add('GET', '/students', [$c, 'index']);
+        $r->add('GET', '/students/lookup', [$c, 'lookup']);
         $r->add('GET', '/students/{id}', [$c, 'show']);
         $r->add('POST', '/students', [$c, 'create']);
         $r->add('PUT', '/students/{id}', [$c, 'update']);
@@ -35,6 +36,42 @@ final class StudentController extends Controller
     private function files(): PrivateFiles
     {
         return $this->app->service(PrivateFiles::class, static fn(App $a) => new PrivateFiles($a->dataDir()));
+    }
+
+    /**
+     * ?q= (name, code, document or a guardian) → students of ANY year, with their last year in the school and
+     * whether they already have an enrollment in ?year= — to re-enroll someone instead of typing them again.
+     * ?doc= exact document number → the same, to warn before creating a duplicate.
+     */
+    public function lookup(Request $req): array
+    {
+        $this->staff($req, 'estudiantes', 'matriculas');
+        $year = $this->year($req);
+        $q = trim((string) $req->query('q', ''));
+        $doc = preg_replace('/[^0-9A-Za-z]/', '', (string) $req->query('doc', ''));
+        if (mb_strlen($q) < 2 && strlen($doc) < 5) return ['students' => []];
+        [$where, $params] = strlen($doc) >= 5
+            ? ["REGEXP_REPLACE(COALESCE(s.doc_number, ''), '[^0-9A-Za-z]', '') = ?", [$doc]]
+            : ["(CONCAT_WS(' ', s.first_name, s.middle_name, s.last_name, s.second_last_name) LIKE ? OR s.code LIKE ? OR s.doc_number LIKE ?
+                 OR EXISTS (SELECT 1 FROM guardians g2 WHERE g2.family_id = s.family_id AND g2.full_name LIKE ?))", ["%$q%", "%$q%", "%$q%", "%$q%"]];
+        $rows = $this->db()->all(
+            "SELECT s.id, s.code, s.first_name AS firstName, s.middle_name AS middleName, s.last_name AS lastName, s.second_last_name AS secondLastName,
+                    s.birth_date AS birthDate, s.doc_number AS docNumber, s.photo_path IS NOT NULL AS hasPhoto,
+                    le.year_id AS lastYear, lc.name AS lastCourse, le.status AS lastStatus,
+                    (SELECT COUNT(*) FROM enrollments x WHERE x.student_id = s.id) AS years,
+                    (SELECT x.status FROM enrollments x WHERE x.student_id = s.id AND x.year_id = ?) AS statusThisYear,
+                    (SELECT g.full_name FROM guardians g WHERE g.family_id = s.family_id ORDER BY g.is_primary DESC, g.id LIMIT 1) AS guardian
+             FROM students s
+             LEFT JOIN enrollments le ON le.id = (SELECT x.id FROM enrollments x WHERE x.student_id = s.id ORDER BY x.year_id DESC LIMIT 1)
+             LEFT JOIN courses lc ON lc.id = le.course_id
+             WHERE $where ORDER BY le.year_id DESC, s.last_name LIMIT 12",
+            [$year, ...$params],
+        );
+        foreach ($rows as &$r) {
+            $r['suggestedCourse'] = $r['statusThisYear'] === null ? (EnrollmentController::suggestCourse($this->db(), (int) $r['id'], $year)['name'] ?? null) : null;
+        }
+        unset($r);
+        return ['year' => $year, 'students' => self::intsAll($rows, 'id', 'hasPhoto', 'lastYear', 'years')];
     }
 
     /** List for a year: every student with an enrollment that year (or ?all=1 for everyone ever). */

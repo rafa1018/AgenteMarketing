@@ -1,5 +1,5 @@
 import { Loader2, Search, UserPlus } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { useMutation } from '@/shared/useQuery'
 import { toast } from '../../store'
@@ -7,6 +7,7 @@ import { api2, qs, useSetup } from '../../v2/api'
 import { CourseSelect, ErrorBox, Field, inputCls } from '../../v2/kit'
 import { GuardianForm, emptyGuardian, type GuardianFormValue } from './GuardianForm'
 import { openStudent, studentsChanged } from './openStudent'
+import { ReturningStudent, lookupStudents, type FoundStudent } from './ReturningStudent'
 import { StudentForm, emptyStudent } from './StudentForm'
 import type { StudentDetail } from './types'
 
@@ -24,6 +25,14 @@ export function NewStudentModal({ open, onClose }: { open: boolean; onClose: () 
   const [course, setCourse] = useState<number | null>(null)
   const [status, setStatus] = useState<'prematricula' | 'activo'>('prematricula')
   const m = useMutation()
+  // the document typed already belongs to someone → warn before creating a duplicate
+  const [duplicate, setDuplicate] = useState<FoundStudent | null>(null)
+  useEffect(() => {
+    const doc = student.docNumber.replace(/[^0-9A-Za-z]/g, '')
+    if (doc.length < 5) return setDuplicate(null)
+    const t = window.setTimeout(() => lookupStudents({ doc, year }).then((r) => setDuplicate(r[0] ?? null)).catch(() => setDuplicate(null)), 400)
+    return () => window.clearTimeout(t)
+  }, [student.docNumber, year])
 
   const reset = () => {
     setStudent(emptyStudent())
@@ -65,9 +74,24 @@ export function NewStudentModal({ open, onClose }: { open: boolean; onClose: () 
         <h2 className="flex items-center gap-2 text-[1.6rem]">
           <UserPlus className="text-pink" /> Nuevo estudiante
         </h2>
+        <ReturningStudent year={year} onDone={() => { reset(); onClose() }} />
+        <p className="flex items-center gap-3 text-[13px] font-bold tracking-wide text-muted uppercase">
+          <span className="h-px flex-1 bg-line" /> o registra un estudiante nuevo <span className="h-px flex-1 bg-line" />
+        </p>
         <section>
           <h3 className="mb-3 text-lg">Datos del niño o la niña</h3>
           <StudentForm value={student} onChange={setStudent} errors={m.fields} />
+          {duplicate && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-butter px-4 py-3 text-[14px] text-[#8a5716]">
+              <span className="min-w-0 flex-1">
+                Ya existe un estudiante con ese documento: <b>{duplicate.firstName} {duplicate.lastName}</b> ({duplicate.code}
+                {duplicate.lastYear ? `, último año ${duplicate.lastYear}` : ''}). No lo registres de nuevo.
+              </span>
+              <button type="button" onClick={() => { reset(); onClose(); openStudent(duplicate.id, 'matricula') }} className="btn btn-ghost !min-h-10 !text-sm">
+                Abrir su ficha
+              </button>
+            </div>
+          )}
         </section>
 
         <section className="rounded-2xl bg-paper p-4">

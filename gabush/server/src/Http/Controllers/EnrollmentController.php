@@ -70,7 +70,32 @@ final class EnrollmentController extends Controller
         );
     }
 
-    /** Enroll an existing student in a year (prematrícula by default). */
+    /**
+     * Course a returning student would go to in $toYear: the next grade after their last course (same letter
+     * when there is one: Jardín A → Transición A); the same grade if they were withdrawn; null if they
+     * finished Transición or the year has no such course.
+     * @return array{id:int,name:string}|null
+     */
+    public static function suggestCourse(\Gabush\Infrastructure\Database\Database $db, int $studentId, int $toYear): ?array
+    {
+        $last = $db->one(
+            'SELECT e.status, c.name, c.grade_level_id FROM enrollments e JOIN courses c ON c.id = e.course_id
+             WHERE e.student_id = ? AND e.year_id < ? ORDER BY e.year_id DESC LIMIT 1',
+            [$studentId, $toYear],
+        );
+        if (!$last) return null;
+        $levels = array_map('intval', array_column($db->all('SELECT id FROM grade_levels WHERE active = 1 ORDER BY sort'), 'id'));
+        $pos = array_search((int) $last['grade_level_id'], $levels, true);
+        if ($pos === false) return null;
+        $grade = $last['status'] === 'retirado' ? $levels[$pos] : ($levels[$pos + 1] ?? null);
+        if (!$grade) return null;
+        $courses = $db->all('SELECT id, name FROM courses WHERE year_id = ? AND grade_level_id = ? AND active = 1 ORDER BY name', [$toYear, $grade]);
+        $letter = preg_match('/\s([A-Z])$/u', (string) $last['name'], $m) ? $m[1] : null;
+        foreach ($courses as $c) if ($letter && str_ends_with($c['name'], " $letter")) return ['id' => (int) $c['id'], 'name' => $c['name']];
+        return $courses ? ['id' => (int) $courses[0]['id'], 'name' => $courses[0]['name']] : null;
+    }
+
+    /** Enroll an existing student in a year (prematrícula by default; course suggested when not given). */
     public function enroll(Request $req): array
     {
         $actor = $this->staffWrite($req, 'matriculas');
@@ -80,9 +105,13 @@ final class EnrollmentController extends Controller
         $courseId = $v->int('courseId', 1);
         $status = $v->oneOf('status', ['prematricula', 'activo'], 'prematricula');
         $v->check();
+        if (!$this->db()->value('SELECT 1 FROM academic_years WHERE id = ?', [$year])) {
+            throw HttpError::conflict('no_year', "El año $year todavía no existe: créalo en Matrículas (paso 1) o en Gestión académica, con sus cursos.");
+        }
         if ($this->db()->value('SELECT 1 FROM enrollments WHERE student_id = ? AND year_id = ?', [$studentId, $year])) {
             throw HttpError::conflict('exists', "El estudiante ya tiene matrícula en $year.");
         }
+        $courseId ??= self::suggestCourse($this->db(), $studentId, $year)['id'] ?? null;
         if ($courseId) $this->checkCapacity($courseId);
         $isNew = !$this->db()->value('SELECT 1 FROM enrollments WHERE student_id = ?', [$studentId]);
         $id = $this->db()->insert('enrollments', ['student_id' => $studentId, 'year_id' => $year, 'course_id' => $courseId, 'status' => $status, 'is_new' => $isNew, 'enrolled_on' => date('Y-m-d')]);
