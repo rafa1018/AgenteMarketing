@@ -1,4 +1,4 @@
-import { Printer } from 'lucide-react'
+import { FileDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@/shared/useQuery'
 import { ReportCard, type ReportCardData } from '@/shared/ReportCard'
@@ -26,9 +26,10 @@ export function ReportCardView({ studentId, years }: { studentId: number; years:
           ))}
         </select>
         {data?.reportCard.course && <span className="text-sm text-muted">{data.reportCard.course}</span>}
-        <button type="button" onClick={() => window.print()} className="btn btn-ghost ml-auto !min-h-10 !text-sm">
-          <Printer size={16} /> Imprimir
-        </button>
+        {/* the designed report card: download PDF, print, share or send by WhatsApp to the guardian */}
+        <a href={`/api/v2/students/${studentId}/boletin?year=${year}&period=${period}`} target="_blank" rel="noopener" className="btn btn-primary ml-auto !min-h-10 !text-sm">
+          <FileDown size={16} /> Boletín PDF
+        </a>
       </div>
       {error ? <ErrorBox message={error.message} onRetry={reload} /> : loading && !data ? <Spinner /> : data && <ReportCard data={data.reportCard} period={period} onPeriod={setPeriod} />}
     </div>

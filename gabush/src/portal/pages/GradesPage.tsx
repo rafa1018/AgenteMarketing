@@ -1,4 +1,4 @@
-import { Printer } from 'lucide-react'
+import { FileDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { ReportCard, type ReportCardData } from '@/shared/ReportCard'
 import { useQuery } from '@/shared/useQuery'
@@ -20,15 +20,18 @@ export function GradesPage() {
     <>
       <div className="flex items-start justify-between gap-3">
         <Title sub={rc?.course ? `${rc.course} · ${year}` : 'Boletín de calificaciones'}>Notas</Title>
-        <div className="flex items-center gap-2">
-          {me && <YearSelect years={me.years.length ? me.years : [me.year]} value={year} onChange={setYear} />}
-          {rc && rc.areas.length > 0 && (
-            <button type="button" onClick={() => print()} aria-label="Imprimir boletín" className="grid size-10 place-items-center rounded-lg border border-line bg-white text-muted print:hidden">
-              <Printer size={18} />
-            </button>
-          )}
-        </div>
+        {me && <YearSelect years={me.years.length ? me.years : [me.year]} value={year} onChange={setYear} />}
       </div>
+      {me && rc && rc.areas.length > 0 && (
+        // the designed report card (PDF): to see it whole, download, print or share it from the phone
+        <a href={`/api/v2/students/${me.student.id}/boletin?year=${year}&period=${period}`} target="_blank" rel="noopener" className="card mb-4 flex items-center gap-3 border-l-4 border-l-[#e5197e] p-4">
+          <FileDown className="shrink-0 text-pink" />
+          <span className="flex-1">
+            <span className="block font-semibold text-ink">Ver y descargar el boletín</span>
+            <span className="block text-sm text-muted">{period === 'final' ? 'Informe final del año' : (rc.periods.find((p) => p.id === period)?.name ?? '')} en PDF, listo para guardar, imprimir o compartir.</span>
+          </span>
+        </a>
+      )}
       {q.loading && <Loading />}
       {q.error && <Problem message={q.error.message} onRetry={q.reload} />}
       {rc && !q.loading && <ReportCard data={rc} period={period} onPeriod={setPeriod} />}

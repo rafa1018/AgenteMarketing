@@ -1,4 +1,4 @@
-import { ChevronDown, Lock, Save, Send } from 'lucide-react'
+import { ChevronDown, FileDown, Lock, Save, Send } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { can } from '@/lib/calendar'
 import { cn } from '@/lib/utils'
@@ -198,6 +198,9 @@ function SheetEditor() {
                 {data.period.published ? 'Ocultar a las familias' : 'Publicar a las familias'}
               </button>
             )}
+            <a href={`/api/v2/courses/${data.course.id}/boletines?period=${data.period.id}`} target="_blank" rel="noopener" className="btn btn-ghost !min-h-10 !text-sm" title="Un boletín por estudiante, listo para descargar en PDF o imprimir">
+              <FileDown size={16} /> Boletines del curso (PDF)
+            </a>
           </div>
           {!data.achievements.length ? (
             <Empty title="No hay logros para este grado, materia y periodo">Agrégalos en Gestión académica → Banco de logros.</Empty>
@@ -224,13 +227,18 @@ function SheetEditor() {
               const shown = r.level ?? auto
               return (
                 <li key={s.enrollmentId} id={`alumno-${s.enrollmentId}`} className={cn('card scroll-mt-24 overflow-hidden p-0', isOpen && 'ring-2 ring-royal/40')}>
-                  <button type="button" onClick={() => setOpen(isOpen ? null : s.enrollmentId)} className="flex w-full items-center gap-3 p-3 text-left">
+                  <div className="flex items-center gap-2 pr-3">
+                  <button type="button" onClick={() => setOpen(isOpen ? null : s.enrollmentId)} className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left">
                     <StudentAvatar s={{ id: s.id, firstName: s.name.split(', ')[1] ?? s.name, lastName: s.name, hasPhoto: s.hasPhoto }} name={s.name} size={40} />
                     <span className="min-w-0 flex-1 truncate font-semibold text-ink">{s.name}</span>
                     {shown !== null && <LevelChip level={levelName(shown)} />}
                     <span className={cn('rounded-full px-2.5 py-0.5 text-[12px] font-bold', r.achievements.length ? 'bg-[#e9f4ee] text-leaf' : 'bg-paper text-muted')}>{r.achievements.length} logros</span>
                     <ChevronDown size={18} className={cn('text-muted transition-transform', isOpen && 'rotate-180')} />
                   </button>
+                  <a href={`/api/v2/students/${s.id}/boletin?year=${year}&period=${data.period.id}`} target="_blank" rel="noopener" title={`Boletín de ${s.name} (PDF)`} className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#fde7f1] px-3 py-1.5 text-[12px] font-bold text-pink hover:bg-pink hover:text-white">
+                    <FileDown size={14} /> <span className="hidden sm:inline">Boletín</span>
+                  </a>
+                  </div>
                   {isOpen && (
                     <div className="space-y-3 border-t border-line bg-paper/50 p-3">
                       <ul className="space-y-1.5">

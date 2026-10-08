@@ -1,4 +1,4 @@
-import { Loader2, Search } from 'lucide-react'
+import { FileDown, Loader2, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api2, qs } from '../../v2/api'
 import { StudentAvatar, inputCls } from '../../v2/kit'
@@ -29,7 +29,7 @@ export function StudentFinder({ year, onPick }: { year: number | null; onPick: (
         <ul className="absolute inset-x-0 top-full z-30 mt-1 max-h-80 overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-lg">
           {!found.length && <li className="px-3 py-2 text-sm text-muted">No hay estudiantes de {year} con «{q}».</li>}
           {found.map((s) => (
-            <li key={s.id}>
+            <li key={s.id} className="flex items-center gap-1 pr-1.5">
               <button
                 type="button"
                 onClick={() => {
@@ -37,16 +37,19 @@ export function StudentFinder({ year, onPick }: { year: number | null; onPick: (
                   setQ('')
                   setFound(null)
                 }}
-                className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-paper"
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-paper"
               >
                 <StudentAvatar s={s} size={34} zoom={false} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-semibold text-ink">
                     {s.lastName} {s.secondLastName ?? ''}, {s.firstName}
                   </span>
-                  <span className="block text-[12px] text-muted">{s.course}</span>
+                  <span className="block text-[12px] text-muted">{s.course} · ver planilla</span>
                 </span>
               </button>
+              <a href={`/api/v2/students/${s.id}/boletin?year=${year ?? ''}`} target="_blank" rel="noopener" title="Boletín en PDF" className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#fde7f1] px-3 py-1.5 text-[12px] font-bold text-pink hover:bg-pink hover:text-white">
+                <FileDown size={14} /> Boletín
+              </a>
             </li>
           ))}
         </ul>
