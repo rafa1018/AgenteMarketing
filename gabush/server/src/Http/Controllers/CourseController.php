@@ -25,8 +25,6 @@ final class CourseController extends Controller
         $r->add('POST', '/courses', [$c, 'saveCourse']);
         $r->add('PUT', '/courses/{id}', [$c, 'saveCourse']);
         $r->add('DELETE', '/courses/{id}', [$c, 'deleteCourse']);
-        $r->add('POST', '/staff', [$c, 'saveStaff']);
-        $r->add('PUT', '/staff/{id}', [$c, 'saveStaff']);
     }
 
     public function saveGrade(Request $req): array
@@ -159,16 +157,5 @@ final class CourseController extends Controller
         $this->db()->run('DELETE FROM courses WHERE id = ?', [$id]);
         $this->audit()->log($actor, 'course.delete', 'course', $id);
         return [];
-    }
-
-    public function saveStaff(Request $req): array
-    {
-        $actor = $this->staffWrite($req, 'academico', 'usuarios');
-        $v = Validate::of($req);
-        $row = ['full_name' => $v->str('name', 120, true, 'El nombre'), 'phone' => $v->str('phone', 40), 'email' => $v->email('email'), 'position' => $v->str('position', 60), 'user_id' => $v->str('userId', 64), 'active' => $v->bool('active', true)];
-        $v->check();
-        $id = $this->persist('staff', $row, self::optionalId($req));
-        $this->audit()->log($actor, 'staff.save', 'staff', $id, $row);
-        return ['id' => $id];
     }
 }

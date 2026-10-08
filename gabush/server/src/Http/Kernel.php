@@ -29,6 +29,7 @@ final class Kernel
         Controllers\WebhookController::class,
         Controllers\ReportsController::class,
         Controllers\BackupController::class,
+        Controllers\StaffController::class,
     ];
 
     public function __construct(private readonly App $app)

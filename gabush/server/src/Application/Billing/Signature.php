@@ -48,17 +48,7 @@ final class Signature
     {
         $s = (array) $this->settings->get(self::KEY, []);
         if ($upload) {
-            if (($upload['error'] ?? 1) !== UPLOAD_ERR_OK || !is_uploaded_file((string) $upload['tmp_name'])) throw new DomainError('upload', 'No se pudo subir la imagen. Intenta de nuevo.');
-            if (($upload['size'] ?? 0) > 3_000_000) throw new DomainError('too_big', 'La imagen es muy pesada (máximo 3 MB).');
-            $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($upload['tmp_name']) ?: '';
-            if (!in_array($mime, ['image/png', 'image/jpeg', 'image/webp'], true)) throw new DomainError('type', 'Sube la firma como imagen PNG o JPG.');
-            if (!function_exists('imagecreatefromstring')) throw new DomainError('gd', 'El servidor no puede procesar imágenes.');
-            $img = @imagecreatefromstring((string) file_get_contents($upload['tmp_name'])) ?: throw new DomainError('image', 'No se pudo leer la imagen.');
-            $img = self::prepare($img, $cleanBackground);
-            $dir = $this->files->path('signature');
-            if (!is_dir($dir)) mkdir($dir, 0750, true);
-            $path = 'signature/firma-' . bin2hex(random_bytes(4)) . '.png';
-            imagepng($img, $this->files->path($path), 6);
+            $path = self::storeImage($this->files, $upload, $cleanBackground, 'signature/firma');
             if (!empty($s['path']) && $s['path'] !== $path) $this->files->delete($s['path']);
             $s['path'] = $path;
         }
@@ -68,6 +58,32 @@ final class Signature
         $s['updatedAt'] = date('Y-m-d H:i:s');
         $this->settings->set(self::KEY, $s);
         return $this->get();
+    }
+
+    /**
+     * Validates an uploaded signature image, cleans it (transparent paper, cropped) and stores it as a private
+     * PNG under "$prefix-<random>.png". Also used for the teachers' signatures. @return string relative path
+     */
+    public static function storeImage(PrivateFiles $files, array $upload, bool $cleanBackground, string $prefix): string
+    {
+        if (($upload['error'] ?? 1) !== UPLOAD_ERR_OK || !is_uploaded_file((string) $upload['tmp_name'])) throw new DomainError('upload', 'No se pudo subir la imagen. Intenta de nuevo.');
+        if (($upload['size'] ?? 0) > 3_000_000) throw new DomainError('too_big', 'La imagen es muy pesada (máximo 3 MB).');
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($upload['tmp_name']) ?: '';
+        if (!in_array($mime, ['image/png', 'image/jpeg', 'image/webp'], true)) throw new DomainError('type', 'Sube la firma como imagen PNG o JPG.');
+        if (!function_exists('imagecreatefromstring')) throw new DomainError('gd', 'El servidor no puede procesar imágenes.');
+        $img = @imagecreatefromstring((string) file_get_contents($upload['tmp_name'])) ?: throw new DomainError('image', 'No se pudo leer la imagen.');
+        $img = self::prepare($img, $cleanBackground);
+        $dir = $files->path(dirname($prefix));
+        if (!is_dir($dir)) mkdir($dir, 0750, true);
+        $path = $prefix . '-' . bin2hex(random_bytes(4)) . '.png';
+        imagepng($img, $files->path($path), 6);
+        return $path;
+    }
+
+    /** A stored PNG as a data: URI (null when missing). */
+    public static function dataUri(PrivateFiles $files, ?string $path): ?string
+    {
+        return $path && $files->exists($path) ? 'data:image/png;base64,' . base64_encode((string) file_get_contents($files->path($path))) : null;
     }
 
     public function remove(): void

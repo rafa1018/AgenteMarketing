@@ -153,7 +153,8 @@ final class BoletinView
         $school = (array) $o['school'];
         $rect = !empty($sig['image']) ? '<img src="' . $e($sig['image']) . '" alt="Firma">' : '<span class="blank"></span>';
         return '<div class="signs keep">'
-            . '<div><span class="blank"></span><hr><b>' . $e($s['director'] ?: 'Director(a) de grupo') . '</b><small>Director(a) de grupo</small></div>'
+            . '<div>' . (!empty($s['directorSignature']) ? '<img src="' . $e($s['directorSignature']) . '" alt="Firma">' : '<span class="blank"></span>')
+            . '<hr><b>' . $e($s['director'] ?: 'Director(a) de grupo') . '</b><small>Director(a) de grupo</small></div>'
             . '<div>' . $rect . '<hr><b>' . $e(($sig['name'] ?? '') ?: 'Rectoría') . '</b><small>Rectora</small></div></div>'
             . '<footer class="keep"><img src="/images/opt/leon-asomado-160.webp" alt=""><span>' . $e($school['name'] ?? 'Jardín Infantil Gabush')
             . ($school['phone'] ?? '' ? ' · ' . $e($school['phone']) : '') . ' · gabushkids.com</span><span class="date">Emitido el ' . $e($o['issuedOn']) . '</span></footer>';

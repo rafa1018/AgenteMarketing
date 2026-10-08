@@ -74,7 +74,7 @@ final class GradesController extends Controller
     private function card(int $studentId, int $year, bool $onlyPublished): array
     {
         $s = $this->db()->one(
-            'SELECT s.*, c.name AS course, st.full_name AS director FROM students s
+            'SELECT s.*, c.name AS course, st.full_name AS director, st.signature_path AS director_signature FROM students s
              LEFT JOIN enrollments e ON e.student_id = s.id AND e.year_id = ? LEFT JOIN courses c ON c.id = e.course_id LEFT JOIN staff st ON st.id = c.director_staff_id
              WHERE s.id = ?',
             [$year, $studentId],
@@ -84,6 +84,7 @@ final class GradesController extends Controller
         return [
             'student' => [
                 'id' => (int) $s['id'], 'code' => $s['code'], 'course' => $s['course'], 'director' => $s['director'], 'photo' => $photo,
+                'directorSignature' => \Gabush\Application\Billing\Signature::dataUri($files, $s['director_signature']),
                 'name' => trim(implode(' ', array_filter([$s['first_name'], $s['middle_name'], $s['last_name'], $s['second_last_name']]))),
                 'initials' => mb_strtoupper(mb_substr((string) $s['first_name'], 0, 1) . mb_substr((string) $s['last_name'], 0, 1)),
                 'doc' => trim(($s['doc_type'] ? $s['doc_type'] . ' ' : '') . ($s['doc_number'] ?? '')) ?: null,

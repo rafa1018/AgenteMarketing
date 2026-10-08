@@ -5,9 +5,10 @@ import { useMutation, useQuery } from '@/shared/useQuery'
 import { date } from '@/shared/format'
 import { toast } from '../../store'
 import { PageHead } from '../../ui'
-import { api2, useSetup, type Classroom, type CourseInfo, type StaffInfo } from '../../v2/api'
+import { api2, useSetup, type Classroom, type CourseInfo } from '../../v2/api'
 import { Badge, Empty, ErrorBox, Field, Spinner, Tabs, YearPicker, inputCls, useTab } from '../../v2/kit'
 import { AchievementsBank } from './AchievementsBank'
+import { StaffTab } from './StaffTab'
 
 type Tab = 'anios' | 'cursos' | 'materias' | 'logros' | 'personal'
 
@@ -243,7 +244,7 @@ function CourseForm({ course, onDone }: { course: Partial<CourseInfo>; onDone: (
         <Field label="Capacidad (cupos)" error={m.fields.capacity}>
           <input type="number" min={1} max={99} value={v.capacity} onChange={(e) => setV({ ...v, capacity: Number(e.target.value) })} className={inputCls(m.fields.capacity)} />
         </Field>
-        <Field label="Directora de grupo">
+        <Field label="Director(a) de grupo" hint="Solo personal activo. Se gestiona en la pestaña Personal.">
           <select value={v.directorId} onChange={(e) => setV({ ...v, directorId: e.target.value ? Number(e.target.value) : '' })} className={inputCls()}>
             <option value="">—</option>
             {staff.map((s) => (
@@ -404,70 +405,6 @@ function SubjectsTab() {
             </button>
           </div>
         )}
-      </Modal>
-    </div>
-  )
-}
-
-/* ───────── staff ───────── */
-function StaffTab() {
-  const { setup, reload } = useSetup()
-  const [editing, setEditing] = useState<Partial<StaffInfo> | null>(null)
-  const [v, setV] = useState({ name: '', position: 'Docente', phone: '', email: '', active: true })
-  const m = useMutation()
-  if (!setup) return <Spinner />
-  const open = (s: Partial<StaffInfo>) => {
-    setEditing(s)
-    setV({ name: s.name ?? '', position: s.position ?? 'Docente', phone: s.phone ?? '', email: s.email ?? '', active: s.active !== 0 })
-  }
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[15px] text-muted">Docentes y personal del jardín (para asignar cursos y materias). Su acceso al panel se crea en Usuarios.</p>
-        <button type="button" onClick={() => open({})} className="btn btn-primary !text-sm">
-          <Plus size={17} /> Agregar
-        </button>
-      </div>
-      <ul className="grid gap-2 sm:grid-cols-2">
-        {setup.staff.map((s) => (
-          <li key={s.id}>
-            <button type="button" onClick={() => open(s)} className="card flex w-full items-center gap-3 p-3.5 text-left">
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold text-ink">{s.name}</span>
-                <span className="block text-[13px] text-muted">
-                  {s.position ?? 'Docente'} {s.phone && `· ${s.phone}`}
-                </span>
-              </span>
-              {!s.active && <Badge>Inactiva</Badge>}
-            </button>
-          </li>
-        ))}
-      </ul>
-      <Modal open={Boolean(editing)} onClose={() => setEditing(null)} label="Personal" closeLabel="Cerrar" className="sm:!max-w-md">
-        <div className="space-y-4 p-6">
-          <h2 className="text-[1.4rem]">{editing?.id ? 'Editar' : 'Agregar persona'}</h2>
-          <Field label="Nombre completo" error={m.fields.name}>
-            <input value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} className={inputCls(m.fields.name)} />
-          </Field>
-          <Field label="Cargo">
-            <input value={v.position} onChange={(e) => setV({ ...v, position: e.target.value })} className={inputCls()} />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Teléfono">
-              <input value={v.phone} onChange={(e) => setV({ ...v, phone: e.target.value })} className={inputCls()} />
-            </Field>
-            <Field label="Correo" error={m.fields.email}>
-              <input value={v.email} onChange={(e) => setV({ ...v, email: e.target.value })} className={inputCls(m.fields.email)} />
-            </Field>
-          </div>
-          <label className="flex items-center gap-2 font-semibold text-ink">
-            <input type="checkbox" checked={v.active} onChange={(e) => setV({ ...v, active: e.target.checked })} className="size-5 accent-[#3a36a8]" /> Activa
-          </label>
-          {m.message && <ErrorBox message={m.message} />}
-          <button type="button" disabled={m.busy} onClick={async () => { if (await m.run(() => (editing?.id ? api2.put(`/staff/${editing.id}`, v) : api2.post('/staff', v)))) { toast('Guardado'); setEditing(null); reload() } }} className="btn btn-primary w-full">
-            Guardar
-          </button>
-        </div>
       </Modal>
     </div>
   )
