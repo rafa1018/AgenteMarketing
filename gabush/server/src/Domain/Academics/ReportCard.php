@@ -38,8 +38,14 @@ final class ReportCard
     public function levelOfScore(?float $score): ?int
     {
         if ($score === null) return null;
-        foreach ($this->levels as $l) if ($score >= $l['min'] && $score <= $l['max']) return $l['id'];
-        return null;
+        // the level whose minimum the score reaches (so 59.5 is still Insuficiente, not "no level")
+        $levels = $this->levels;
+        usort($levels, static fn($a, $b) => $a['min'] <=> $b['min']);
+        $top = max(array_column($levels, 'max') ?: [0]);
+        if ($score < 0 || $score > $top) return null;
+        $found = null;
+        foreach ($levels as $l) if ($score >= $l['min']) $found = $l['id'];
+        return $found;
     }
 
     /**

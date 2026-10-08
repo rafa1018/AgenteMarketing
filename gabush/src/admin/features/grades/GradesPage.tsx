@@ -32,12 +32,14 @@ const toRow = (e: Entry | null): RowState => ({
  * Score that matches a level chosen by hand: the current one when it already falls in the level's range,
  * otherwise the middle of the range rounded to one decimal (Aceptable 6.0–7.9 → 7.0, Bueno → 8.5, Excelente → 9.5).
  */
-function scoreIn(current: string, level: { min: string; max: string }): string {
+function scoreIn(current: string, level: { min: string; max: string }, top: number): string {
   const min = Number(level.min)
   const max = Number(level.max)
   const now = Number(current.replace(',', '.'))
   if (current !== '' && !Number.isNaN(now) && now >= min && now <= max) return current
-  return (Math.round(((min + max) / 2) * 10) / 10).toFixed(1)
+  const mid = (min + max) / 2
+  // 0–100: whole numbers (Aceptable 60–79 → 70) · 0–10: one decimal
+  return top > 10 ? String(Math.round(mid)) : (Math.round(mid * 10) / 10).toFixed(1)
 }
 
 /** Colours of the selected level button (same family as the report-card chips). */
@@ -54,8 +56,10 @@ const LEVEL_ON: Record<string, string> = {
  */
 function autoLevel(r: RowState, bank: Sheet['achievements'], levels: { id: number; min: string; max: string }[]): number | null {
   const score = Number(r.score.replace(',', '.'))
-  if (r.score !== '' && !Number.isNaN(score)) {
-    const byScore = levels.find((l) => score >= Number(l.min) && score <= Number(l.max))
+  const top = Math.max(0, ...levels.map((l) => Number(l.max)))
+  if (r.score !== '' && !Number.isNaN(score) && score >= 0 && score <= top) {
+    // the level whose minimum the score reaches (same rule as the server)
+    const byScore = [...levels].sort((a, b) => Number(a.min) - Number(b.min)).filter((l) => score >= Number(l.min)).pop()
     if (byScore) return byScore.id
   }
   const count = new Map<number, number>()
@@ -108,6 +112,7 @@ function SheetEditor() {
   const levelName = (id: number | null) => setup?.levels.find((l) => l.id === id)?.name ?? null
   // levels a teacher can give (lowest first), without "No clasificado"
   const gradeLevels = (setup?.levels ?? []).filter((l) => Number(l.max) > 0).sort((a, b) => Number(a.min) - Number(b.min))
+  const top = Math.max(10, ...gradeLevels.map((l) => Number(l.max))) // the school's scale: 0–100
   const dirty = useMemo(() => JSON.stringify(rows) !== JSON.stringify(Object.fromEntries((data?.students ?? []).map((s) => [s.enrollmentId, toRow(s.entry)]))), [rows, data])
   const save = async () => {
     const payload = Object.entries(rows).map(([eid, r]) => ({
@@ -280,7 +285,7 @@ function SheetEditor() {
                             {gradeLevels.map((l) => {
                               const on = r.level === l.id
                               return (
-                                <button key={l.id} type="button" role="radio" aria-checked={on} onClick={() => set({ level: l.id, score: scoreIn(r.score, l) })} className={cn('rounded-full px-3.5 py-2 text-[14px] font-semibold ring-2 transition-colors', on ? LEVEL_ON[l.name] ?? 'bg-royal text-white ring-royal' : 'bg-white text-text ring-line hover:ring-ink/30')}>
+                                <button key={l.id} type="button" role="radio" aria-checked={on} onClick={() => set({ level: l.id, score: scoreIn(r.score, l, top) })} className={cn('rounded-full px-3.5 py-2 text-[14px] font-semibold ring-2 transition-colors', on ? LEVEL_ON[l.name] ?? 'bg-royal text-white ring-royal' : 'bg-white text-text ring-line hover:ring-ink/30')}>
                                   {l.name}
                                 </button>
                               )
@@ -290,9 +295,9 @@ function SheetEditor() {
                         </div>
                         <div className="grid gap-3 sm:grid-cols-[140px_120px_1fr]">
                           <label className="block">
-                            <span className="mb-1 block text-[13px] font-semibold text-ink">Nota (0 a 10)</span>
-                            <input value={r.score} onChange={(e) => set({ score: e.target.value, level: null })} inputMode="decimal" placeholder="Opcional" className={cn('w-full rounded-lg border px-3 py-2.5', Number(r.score.replace(',', '.')) > 10 ? 'border-berry' : 'border-line')} />
-                            {Number(r.score.replace(',', '.')) > 10 && <span className="mt-1 block text-[12px] text-berry">Debe ser de 0 a 10</span>}
+                            <span className="mb-1 block text-[13px] font-semibold text-ink">Nota (0 a {top})</span>
+                            <input value={r.score} onChange={(e) => set({ score: e.target.value, level: null })} inputMode="decimal" placeholder="Opcional" className={cn('w-full rounded-lg border px-3 py-2.5', Number(r.score.replace(',', '.')) > top ? 'border-berry' : 'border-line')} />
+                            {Number(r.score.replace(',', '.')) > top && <span className="mt-1 block text-[12px] text-berry">Debe ser de 0 a {top}</span>}
                           </label>
                           <label className="block">
                             <span className="mb-1 block text-[13px] font-semibold text-ink">Fallas</span>

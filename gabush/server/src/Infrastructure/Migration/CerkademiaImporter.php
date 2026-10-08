@@ -183,6 +183,8 @@ final class CerkademiaImporter
         $sort = 0;
         foreach ($latest['levels'] ?? [] as $l) {
             [$min, $max] = array_map('floatval', array_map('trim', explode('-', $l['Rango'] ?? '0 - 0') + [1 => '0']));
+            // Cerkademia used 0–10; the school grades 0–100
+            if ($max <= 10) { $min *= 10; $max *= 10; }
             $this->db->run('INSERT INTO performance_levels (name, min_score, max_score, sort) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE min_score = VALUES(min_score), max_score = VALUES(max_score), sort = VALUES(sort)', [$l['Nivel'], $min, $max, ++$sort]);
             $this->count('niveles de desempeño');
         }
