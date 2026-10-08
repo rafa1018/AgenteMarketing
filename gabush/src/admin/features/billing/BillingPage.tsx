@@ -232,7 +232,7 @@ function PaymentsReport() {
   )
 }
 
-type LateFee = { enabled: boolean; amountPerDay: number; dueDay: number; graceDays: number; maxAmount: number | null; appliesFrom: string | null }
+type LateFee = { enabled: boolean; amountPerDay: number; dueDay: number; graceDays: number; maxAmount: number | null; appliesFrom: string | null; mode: 'dia' | 'mes' }
 
 function BillingConfig() {
   const { setup, year } = useSetup()
@@ -313,8 +313,21 @@ function BillingConfig() {
         <label className="flex items-center gap-2 text-[15px] font-semibold text-ink">
           <input type="checkbox" checked={lf.enabled} onChange={(e) => setLf({ ...lf, enabled: e.target.checked })} className="size-5 accent-[#3a36a8]" /> Cobrar mora (según el contrato de matrícula)
         </label>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(
+            [
+              ['mes', 'Por mes de atraso', 'Un valor fijo cuando pasan los días de gracia, y otra vez cada mes que siga sin pagar.'],
+              ['dia', 'Por día de retraso', 'El valor se suma por cada día después del vencimiento (y de los días de gracia).'],
+            ] as const
+          ).map(([id, title, detail]) => (
+            <button key={id} type="button" onClick={() => setLf({ ...lf, mode: id })} className={`rounded-2xl border-2 p-3.5 text-left ${(lf.mode ?? 'dia') === id ? 'border-royal bg-[#eeedfb]' : 'border-line bg-white'}`}>
+              <span className="block font-semibold text-ink">{title}</span>
+              <span className="block text-[13px] text-muted">{detail}</span>
+            </button>
+          ))}
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Valor por día de retraso">
+          <Field label={lf.mode === 'mes' ? 'Valor por cada mes de atraso' : 'Valor por día de retraso'}>
             <input value={lf.amountPerDay.toLocaleString('es-CO')} onChange={(e) => setLf({ ...lf, amountPerDay: parseMoney(e.target.value) })} inputMode="numeric" className={inputCls()} />
           </Field>
           <Field label="La pensión vence el día">
@@ -331,7 +344,15 @@ function BillingConfig() {
           </Field>
         </div>
         <p className="rounded-xl bg-butter px-4 py-3 text-[14px] text-[#8a5716]">
-          Ejemplo: una pensión que vence el {lf.dueDay} y se paga 3 días después{lf.graceDays ? ` (más ${lf.graceDays} de gracia)` : ''} suma <b>{money(3 * lf.amountPerDay)}</b> de mora. La mora se puede perdonar cobro por cobro.
+          {lf.mode === 'mes' ? (
+            <>
+              Ejemplo: la pensión de octubre vence el {lf.dueDay} de octubre. Si el {lf.dueDay + Math.max(1, lf.graceDays)} de octubre no la han pagado suma <b>{money(lf.amountPerDay)}</b>; si el {lf.dueDay + Math.max(1, lf.graceDays)} de noviembre sigue sin pagar suma otros {money(lf.amountPerDay)} (<b>{money(2 * lf.amountPerDay)}</b> en total). La de noviembre lleva su propia cuenta. La mora se puede perdonar cobro por cobro.
+            </>
+          ) : (
+            <>
+              Ejemplo: una pensión que vence el {lf.dueDay} y se paga 3 días después{lf.graceDays ? ` (más ${lf.graceDays} de gracia)` : ''} suma <b>{money(3 * lf.amountPerDay)}</b> de mora. La mora se puede perdonar cobro por cobro.
+            </>
+          )}
         </p>
         <div>
           <p className="mb-1.5 text-[14px] font-semibold text-ink">Meses en que se cobra pensión</p>

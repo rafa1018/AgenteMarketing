@@ -21,7 +21,18 @@ $cap = new LateFeePolicy(true, 10000, 5, 0, 50000);
 same(50000, $cap->feeFor($d('2026-10-05'), $d('2026-11-05'))['amount'], 'tope de mora');
 $off = new LateFeePolicy(false);
 same(0, $off->feeFor($d('2026-10-05'), $d('2026-11-05'))['amount'], 'mora desactivada');
-same(['enabled' => true, 'amountPerDay' => 10000, 'dueDay' => 28, 'graceDays' => 0, 'maxAmount' => null, 'appliesFrom' => null], LateFeePolicy::fromSettings(['dueDay' => 31])->toArray(), 'el día de vencimiento se limita a 28');
+same(['enabled' => true, 'amountPerDay' => 10000, 'dueDay' => 28, 'graceDays' => 0, 'maxAmount' => null, 'appliesFrom' => null, 'mode' => 'dia'], LateFeePolicy::fromSettings(['dueDay' => 31])->toArray(), 'el día de vencimiento se limita a 28');
+
+// ── mora por mes (Gabush): $10.000 cuando pasan 5 días del vencimiento, y otros $10.000 cada mes después ──
+$mes = LateFeePolicy::fromSettings(['mode' => 'mes', 'amountPerDay' => 10000, 'graceDays' => 5]);
+same(0, $mes->feeFor($d('2026-10-05'), $d('2026-10-09'))['amount'], 'mes: 4 días de atraso todavía no');
+same(10000, $mes->feeFor($d('2026-10-05'), $d('2026-10-10'))['amount'], 'mes: a los 5 días = 10.000');
+same(10000, $mes->feeFor($d('2026-10-05'), $d('2026-11-09'))['amount'], 'mes: sigue en 10.000 hasta el 9 de noviembre');
+same(20000, $mes->feeFor($d('2026-10-05'), $d('2026-11-10'))['amount'], 'mes: el 10 de noviembre = 20.000');
+same(30000, $mes->feeFor($d('2026-10-05'), $d('2026-12-10'))['amount'], 'mes: el 10 de diciembre = 30.000');
+same('Mora: 2 meses de atraso (36 días)', $mes->describe($d('2026-10-05'), $d('2026-11-10')), 'mes: texto de la mora');
+same(10000, LateFeePolicy::fromSettings(['mode' => 'mes'])->feeFor($d('2026-10-05'), $d('2026-10-06'))['amount'], 'mes sin gracia: desde el día siguiente');
+same(0, LateFeePolicy::fromSettings(['mode' => 'mes'])->feeFor($d('2026-10-05'), $d('2026-10-05'))['amount'], 'mes sin gracia: el día del vencimiento no');
 $from = LateFeePolicy::fromSettings(['appliesFrom' => '2026-11-01']);
 same(0, $from->feeFor($d('2026-10-05'), $d('2026-11-20'))['amount'], 'cobros que vencieron antes de activar la mora no la generan');
 same(30000, $from->feeFor($d('2026-11-05'), $d('2026-11-08'))['amount'], 'cobros que vencen después sí');

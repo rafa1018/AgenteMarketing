@@ -326,15 +326,21 @@ final class BillingService
             [$this->today->format('Y-m-d')],
         );
         foreach ($rows as $c) {
-            $fee = $policy->feeFor(new DateTimeImmutable($c['due_on']), $this->today);
+            $due = new DateTimeImmutable($c['due_on']);
+            $fee = $policy->feeFor($due, $this->today);
             $mora = $this->db->one("SELECT id, amount, waived FROM charge_adjustments WHERE charge_id = ? AND kind = 'mora' AND legacy_ref IS NULL ORDER BY id LIMIT 1", [$c['id']]);
             if ($mora && $mora['waived']) continue;
-            if ($fee['amount'] <= 0) continue;
+            if ($fee['amount'] <= 0) {
+                // the rule changed (more grace days, mora turned off…): an open charge drops its fee
+                if ($mora) { $this->db->run('DELETE FROM charge_adjustments WHERE id = ?', [$mora['id']]); $updated++; }
+                continue;
+            }
+            $reason = $policy->describe($due, $this->today);
             if ($mora) {
                 if ((int) $mora['amount'] === $fee['amount']) continue;
-                $this->db->update('charge_adjustments', ['amount' => $fee['amount'], 'days_late' => $fee['days'], 'reason' => "Mora: {$fee['days']} días de retraso"], ['id' => $mora['id']]);
+                $this->db->update('charge_adjustments', ['amount' => $fee['amount'], 'days_late' => $fee['days'], 'reason' => $reason], ['id' => $mora['id']]);
             } else {
-                $this->db->insert('charge_adjustments', ['charge_id' => $c['id'], 'kind' => 'mora', 'amount' => $fee['amount'], 'days_late' => $fee['days'], 'reason' => "Mora: {$fee['days']} días de retraso", 'created_by' => $actor->label()]);
+                $this->db->insert('charge_adjustments', ['charge_id' => $c['id'], 'kind' => 'mora', 'amount' => $fee['amount'], 'days_late' => $fee['days'], 'reason' => $reason, 'created_by' => $actor->label()]);
             }
             $updated++;
         }

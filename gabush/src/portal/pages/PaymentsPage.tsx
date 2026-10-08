@@ -16,7 +16,7 @@ interface Account {
   payments: Payment[]
   onlinePayments: boolean
   provider: string | null
-  lateFee: { enabled: boolean; amountPerDay: number; dueDay: number; graceDays: number; maxAmount: number | null }
+  lateFee: { enabled: boolean; amountPerDay: number; dueDay: number; graceDays: number; maxAmount: number | null; mode?: 'dia' | 'mes' }
 }
 interface CheckoutState { reference: string; provider: string; amount: number; status: 'creado' | 'pendiente' | 'aprobado' | 'rechazado' | 'expirado' | 'error'; paymentId: number | null }
 
@@ -178,7 +178,9 @@ export function PaymentsPage() {
               ))}
             {a.lateFee.enabled && (
               <p className="mt-3 text-[13px] text-muted">
-                Recuerda: la pensión vence el día {a.lateFee.dueDay} de cada mes{a.lateFee.graceDays ? ` (con ${a.lateFee.graceDays} días de gracia)` : ''}. Cada día de retraso suma {money(a.lateFee.amountPerDay)}, según el contrato de matrícula.
+                {a.lateFee.mode === 'mes'
+                  ? `Recuerda: la pensión vence el día ${a.lateFee.dueDay} de cada mes. Si pasan ${Math.max(1, a.lateFee.graceDays)} días sin pagarla se suman ${money(a.lateFee.amountPerDay)} de mora, y otros ${money(a.lateFee.amountPerDay)} por cada mes más de atraso, según el contrato de matrícula.`
+                  : `Recuerda: la pensión vence el día ${a.lateFee.dueDay} de cada mes${a.lateFee.graceDays ? ` (con ${a.lateFee.graceDays} días de gracia)` : ''}. Cada día de retraso suma ${money(a.lateFee.amountPerDay)}, según el contrato de matrícula.`}
               </p>
             )}
           </section>
