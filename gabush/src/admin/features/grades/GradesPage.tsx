@@ -139,7 +139,7 @@ function SheetEditor() {
               return (
                 <li key={s.enrollmentId} className="card overflow-hidden p-0">
                   <button type="button" onClick={() => setOpen(isOpen ? null : s.enrollmentId)} className="flex w-full items-center gap-3 p-3 text-left">
-                    <StudentAvatar s={{ id: s.id, firstName: s.name.split(', ')[1] ?? s.name, lastName: s.name, hasPhoto: s.hasPhoto }} size={40} />
+                    <StudentAvatar s={{ id: s.id, firstName: s.name.split(', ')[1] ?? s.name, lastName: s.name, hasPhoto: s.hasPhoto }} name={s.name} size={40} />
                     <span className="min-w-0 flex-1 truncate font-semibold text-ink">{s.name}</span>
                     <span className={cn('rounded-full px-2.5 py-0.5 text-[12px] font-bold', r.achievements.length ? 'bg-[#e9f4ee] text-leaf' : 'bg-paper text-muted')}>{r.achievements.length} logros</span>
                     <ChevronDown size={18} className={cn('text-muted transition-transform', isOpen && 'rotate-180')} />

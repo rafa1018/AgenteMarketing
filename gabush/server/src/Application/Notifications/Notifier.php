@@ -90,8 +90,20 @@ final class Notifier
             'detalle_html' => $rows ? '<table style="border-collapse:collapse;width:100%;background:#f7f8fc;border-radius:8px">' . $rows . '</table>' : '',
             'enlace' => $this->portal('#/pagos/' . $paymentId), 'boton_texto' => 'Ver comprobante',
         ]);
-        if ($p['source'] === 'en_linea' && function_exists('push_notify')) {
-            @\push_notify('pagos', ['title' => 'Pago en línea recibido', 'body' => $c['student'] . ' · ' . self::money((int) $p['amount']), 'url' => '/admin/#/cartera', 'tag' => 'pago-en-linea']);
+        if ($p['source'] === 'en_linea') {
+            // the school hears about it too: push to the panel's devices + an e-mail to the school's own account
+            if (function_exists('push_notify')) {
+                @\push_notify('pagos', ['title' => 'Pago en línea recibido', 'body' => $c['student'] . ' · ' . self::money((int) $p['amount']), 'url' => '/admin/#/cartera', 'tag' => 'pago-en-linea']);
+            }
+            $smtp = $this->email->account(); // the school's own mailbox (e.g. its Gmail) receives the notice
+            $method = (string) $this->db->value('SELECT method FROM payments WHERE id = ?', [$paymentId]);
+            $this->email->queue('staff_online_payment', ($smtp['fromEmail'] ?? '') ?: null, $smtp['fromName'] ?? null, [
+                'estudiante' => $c['student'], 'codigo' => $c['code'], 'valor' => self::money((int) $p['amount']),
+                'fecha' => date('d/m/Y', strtotime($p['paid_on'])), 'comprobante' => (string) $p['receipt_number'],
+                'pasarela' => $method === 'mercadopago' ? 'Mercado Pago' : 'Wompi',
+                'detalle_html' => $rows ? '<table style="border-collapse:collapse;width:100%;background:#f7f8fc;border-radius:8px">' . $rows . '</table>' : '',
+                'enlace' => $this->baseUrl . '/admin/#/cartera', 'boton_texto' => 'Ver en la cartera',
+            ]);
         }
     }
 

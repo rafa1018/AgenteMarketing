@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import { Modal } from '@/components/ui/Modal'
 import { cn } from '@/lib/utils'
 import { initials } from '@/shared/format'
 
@@ -7,7 +8,24 @@ import { initials } from '@/shared/format'
 
 export function StudentPhoto({ student, size = 44 }: { student: { id: number; firstName: string; lastName: string; hasPhoto: number }; size?: number }) {
   const [broken, setBroken] = useState(false)
-  if (student.hasPhoto && !broken) return <img src={`/api/v2/students/${student.id}/photo`} alt="" onError={() => setBroken(true)} className="shrink-0 rounded-full object-cover ring-2 ring-white" style={{ width: size, height: size }} />
+  const [big, setBig] = useState(false)
+  if (student.hasPhoto && !broken) {
+    const src = `/api/v2/students/${student.id}/photo`
+    const name = `${student.firstName} ${student.lastName}`
+    return (
+      <>
+        <button type="button" onClick={() => setBig(true)} aria-label={`Ver foto de ${name}`} className="shrink-0 cursor-zoom-in rounded-full">
+          <img src={src} alt="" onError={() => setBroken(true)} className="rounded-full object-cover ring-2 ring-white" style={{ width: size, height: size }} />
+        </button>
+        <Modal open={big} onClose={() => setBig(false)} label={name} closeLabel="Cerrar" variant="bare" className="w-full max-w-md">
+          <figure className="text-center">
+            <img src={src} alt={name} className="mx-auto aspect-square w-full max-w-md rounded-3xl object-cover shadow-2xl" />
+            <figcaption className="mt-3 font-serif text-xl font-semibold text-white">{name}</figcaption>
+          </figure>
+        </Modal>
+      </>
+    )
+  }
   return (
     <span className="grid shrink-0 place-items-center rounded-full bg-[#eeedfb] font-semibold text-royal" style={{ width: size, height: size, fontSize: size * 0.38 }}>
       {initials(student)}

@@ -16,7 +16,7 @@ const PRESETS: { label: string; host: string; port: number; security: Account['s
   { label: 'Hostinger', host: 'smtp.hostinger.com', port: 465, security: 'ssl', hint: 'Crea el buzón en hPanel → Correos (ej. notificaciones@gabushkids.com) y usa su contraseña.' },
   { label: 'Outlook / Hotmail', host: 'smtp-mail.outlook.com', port: 587, security: 'tls', hint: 'Usa el correo y la contraseña (o contraseña de aplicación si tienes verificación en 2 pasos).' },
 ]
-const VARS = ['{{acudiente}}', '{{estudiante}}', '{{codigo}}', '{{valor}}', '{{concepto}}', '{{fecha}}', '{{saldo}}', '{{comprobante}}', '{{detalle}}', '{{boton}}', '{{jardin}}', '{{usuario}}', '{{clave}}', '{{asunto}}', '{{mensaje}}']
+const VARS = ['{{acudiente}}', '{{estudiante}}', '{{codigo}}', '{{valor}}', '{{concepto}}', '{{fecha}}', '{{saldo}}', '{{comprobante}}', '{{detalle}}', '{{boton}}', '{{jardin}}', '{{usuario}}', '{{clave}}', '{{asunto}}', '{{mensaje}}', '{{pasarela}}']
 
 /** E-mail account used to notify families + editable templates. */
 export function EmailSettingsPage() {

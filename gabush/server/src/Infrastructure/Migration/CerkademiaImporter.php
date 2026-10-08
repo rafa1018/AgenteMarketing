@@ -595,7 +595,7 @@ final class CerkademiaImporter
         foreach ($moves as $id => $m) if ($kindOf($m) === 'pago') $payments[$id] = ['move' => $m, 'code' => $m['_code']];
         foreach ($report as $id => $r) if (!isset($payments[$id]) && !empty($r['code']) && isset($this->studentIds[$r['code']])) $payments[$id] = ['move' => null, 'code' => $r['code']];
         $insAlloc = $this->db->pdo()->prepare('INSERT INTO payment_allocations (payment_id, charge_id, amount) VALUES (?, ?, ?)');
-        $matched = ['movimiento' => 0, 'cobro' => 0, 'descripción' => 0, 'a favor' => 0];
+        $matched = ['movimiento' => 0, 'cobro' => 0, 'descripción' => 0, 'a favor' => 0, 'anulado (solo en el informe)' => 0];
         foreach ($payments as $id => $pp) {
             $id = (string) $id;
             $m = $pp['move'];
@@ -635,6 +635,12 @@ final class CerkademiaImporter
                 $how = 'descripción';
             }
             if (!$alloc) $how = 'a favor';
+            // only in the payments report, not in the student's cartera, and no charge to apply it to: Cerkademia
+            // does not count it in the balance (voided, or its charge was deleted) → kept visible but voided
+            if (!$alloc && !$m) {
+                $this->db->update('payments', ['status' => 'anulado', 'notes' => 'Aparece en el informe de pagos de Cerkademia pero no en la cartera del estudiante: Cerkademia no lo cuenta en el saldo.'], ['id' => $pid]);
+                $how = 'anulado (solo en el informe)';
+            }
             foreach ($alloc as [$cid, $value]) if ($value > 0) $insAlloc->execute([$pid, $cid, $value]);
             $matched[$how]++;
             $this->count('pagos');
@@ -664,7 +670,31 @@ final class CerkademiaImporter
             }
         }
 
-        // 4) status of every imported charge from its balance
+        // 5) each debit must end with the same "VALOR NETO A PAGAR" as in Cerkademia. Some discounts / surcharges
+        //    are only listed inside the debit, in rows the export cannot split (e.g. a reason that is just ","):
+        //    the difference is recorded as one adjustment so the account matches.
+        $adjOf = [];
+        // (Cerkademia's net is value − discounts + surcharges; transfers of balance are listed apart from it)
+        foreach ($this->db->all("SELECT charge_id, SUM(CASE WHEN kind = 'descuento' THEN -amount WHEN kind IN ('recargo','mora') THEN amount ELSE 0 END) AS adj FROM charge_adjustments GROUP BY charge_id") as $a) $adjOf[(int) $a['charge_id']] = (int) $a['adj'];
+        foreach ($moves as $id => $m) {
+            if (!isset($chargeIds[$id], $m['kv']['VALOR NETO A PAGAR'])) continue;
+            $cid = $chargeIds[$id];
+            $theirs = (int) Parse::money($m['kv']['VALOR NETO A PAGAR']);
+            $ours = abs((int) Parse::money($m['kv']['VALOR'] ?? '0')) + ($adjOf[$cid] ?? 0);
+            if ($ours === $theirs) continue;
+            $this->upsert('charge_adjustments', [
+                'legacy_ref' => "adj:net:$id",
+                'charge_id' => $cid,
+                'kind' => $ours > $theirs ? 'descuento' : 'recargo',
+                'amount' => abs($ours - $theirs),
+                'reason' => ($ours > $theirs ? 'Descuento' : 'Recargo') . ' registrado en Cerkademia',
+                'created_by' => 'Cerkademia',
+                'created_at' => Parse::datetime($m['date']) ?? date('Y-m-d H:i:s'),
+            ], 'legacy_ref');
+            $this->count('ajustes para cuadrar el valor neto');
+        }
+
+        // 6) status of every imported charge from its balance
         $this->db->run(
             "UPDATE charges c
              LEFT JOIN (SELECT charge_id,

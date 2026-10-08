@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ChevronLeft, Loader2, Search, X } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { Modal } from '@/components/ui/Modal'
 import { cn } from '@/lib/utils'
 import { initials } from '@/shared/format'
 import { field, labelCls } from '../ui'
@@ -180,11 +181,48 @@ export function CourseSelect({ value, onChange, allowAll = true, className }: { 
 }
 
 /** Student photo (v2) or initials. */
-export function StudentAvatar({ s, size = 44, className }: { s: { id: Id; firstName: string; lastName: string; hasPhoto?: number | boolean; photoVersion?: string }; size?: number; className?: string }) {
+/** Student photo (tap it to see it big) or initials on a coloured circle. */
+export function StudentAvatar({ s, size = 44, className, zoom = true, name: fullLabel }: { s: { id: Id; firstName: string; lastName: string; hasPhoto?: number | boolean; photoVersion?: string }; size?: number; className?: string; zoom?: boolean; name?: string }) {
   const [broken, setBroken] = useState(false)
+  const [big, setBig] = useState(false)
   const hue = s.id % 4
   if (s.hasPhoto && !broken) {
-    return <img src={studentPhoto(s.id, s.photoVersion)} alt="" loading="lazy" onError={() => setBroken(true)} className={cn('shrink-0 rounded-full object-cover', className)} style={{ width: size, height: size }} />
+    const src = studentPhoto(s.id, s.photoVersion)
+    const name = fullLabel ?? `${s.firstName} ${s.lastName}`.trim()
+    return (
+      <>
+        <img
+          src={src}
+          alt={zoom ? `Ver foto de ${name}` : ''}
+          title={zoom ? 'Ver foto' : undefined}
+          loading="lazy"
+          onError={() => setBroken(true)}
+          onClick={
+            zoom
+              ? (e) => {
+                  // only the photo opens: never also the row / card it sits on
+                  e.stopPropagation()
+                  e.preventDefault()
+                  setBig(true)
+                }
+              : undefined
+          }
+          className={cn('shrink-0 rounded-full object-cover', zoom && 'cursor-zoom-in transition-transform hover:scale-105', className)}
+          style={{ width: size, height: size }}
+        />
+        {zoom && (
+          // React events bubble through portals: keep clicks inside the lightbox away from the row behind it
+          <span className="contents" onClick={(e) => e.stopPropagation()}>
+            <Modal open={big} onClose={() => setBig(false)} label={name} closeLabel="Cerrar" variant="bare" className="w-full max-w-md">
+              <figure className="text-center">
+                <img src={src} alt={name} className="mx-auto aspect-square w-full max-w-md rounded-3xl object-cover shadow-2xl" />
+                <figcaption className="mt-3 font-serif text-xl font-semibold text-white">{name}</figcaption>
+              </figure>
+            </Modal>
+          </span>
+        )}
+      </>
+    )
   }
   return (
     <span aria-hidden className={cn('grid shrink-0 place-items-center rounded-full font-semibold', ['bg-[#eeedfb] text-royal', 'bg-[#f8f1e4] text-[#8a5716]', 'bg-[#eaf3fa] text-[#185a8a]', 'bg-[#e9f4ee] text-leaf'][hue], className)} style={{ width: size, height: size, fontSize: size * 0.36 }}>

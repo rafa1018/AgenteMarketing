@@ -91,11 +91,16 @@ function PhotoButton({ detail, onChange }: { detail: StudentDetail; onChange: (d
     }
   }
   return (
-    <button type="button" onClick={() => input.current?.click()} className="group relative shrink-0" title="Cambiar foto" disabled={!can('estudiantes') && !can('matriculas')}>
+    // tap the photo → see it big; the camera button → change it
+    <div className="relative shrink-0">
       <StudentAvatar s={{ ...detail.student, hasPhoto: detail.student.hasPhoto }} size={76} />
-      <span className="absolute -right-1 -bottom-1 grid size-8 place-items-center rounded-full border-2 border-white bg-ink text-white">{busy ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}</span>
+      {(can('estudiantes') || can('matriculas')) && (
+        <button type="button" onClick={() => input.current?.click()} title="Cambiar foto" aria-label="Cambiar foto" className="absolute -right-1 -bottom-1 grid size-8 place-items-center rounded-full border-2 border-white bg-ink text-white hover:bg-royal">
+          {busy ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
+        </button>
+      )}
       <input ref={input} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
-    </button>
+    </div>
   )
 }
 
