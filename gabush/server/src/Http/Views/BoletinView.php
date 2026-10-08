@@ -97,20 +97,31 @@ final class BoletinView
         if (!$rc['areas']) {
             return $html . '<p class="empty">Aún no hay calificaciones registradas para ' . $e($o['periodName']) . '.</p>' . self::footer($o, $s, $e) . '</section>';
         }
-        // areas
+        // areas: a period's report shows only that period (level + score); the final report shows the whole year
+        $final = $period === 'final';
+        $num = static fn($v) => rtrim(rtrim(number_format((float) $v, 1, ',', ''), '0'), ',');
         $head = '<tr><th class="subj">Materia</th>';
-        foreach ($periods as $p) $head .= '<th class="' . ($period === $p['id'] ? 'on' : '') . '">P' . (int) $p['number'] . '</th>';
-        $head .= '<th class="' . ($period === 'final' ? 'on' : '') . '">Final</th></tr>';
+        if ($final) {
+            foreach ($periods as $p) $head .= '<th>P' . (int) $p['number'] . '</th>';
+            $head .= '<th class="on">Final</th></tr>';
+            $cols = count($periods) + 2;
+        } else {
+            $head .= '<th class="on">Desempeño</th><th>Nota</th></tr>';
+            $cols = 3;
+        }
         foreach (array_values($rc['areas']) as $i => $a) {
             [$bg, $fg] = self::AREA_COLORS[$i % count(self::AREA_COLORS)];
             $rows = '';
             foreach ($a['subjects'] as $sub) {
                 $cells = '';
-                foreach ($periods as $p) {
-                    $pp = $sub['periods'][$p['id']] ?? null;
-                    $cells .= '<td class="' . ($period === $p['id'] ? 'on' : '') . '">' . self::chip($pp['level'] ?? null, ' sm') . ($pp && $pp['score'] !== null ? '<em>' . rtrim(rtrim(number_format((float) $pp['score'], 1, ',', ''), '0'), ',') . '</em>' : '') . '</td>';
+                if ($final) {
+                    foreach ($periods as $p) $cells .= '<td>' . self::chip($sub['periods'][$p['id']]['level'] ?? null, ' sm') . '</td>';
+                    $cells .= '<td class="on">' . self::chip($sub['final'] ?? null, ' sm') . '</td>';
+                } else {
+                    $pp = $sub['periods'][$period] ?? null;
+                    if (!$pp) continue; // subject without grades in this period
+                    $cells .= '<td class="on">' . self::chip($pp['level'] ?? null) . '</td><td class="score">' . ($pp['score'] !== null ? $num($pp['score']) : '—') . '</td>';
                 }
-                $cells .= '<td class="' . ($period === 'final' ? 'on' : '') . '">' . self::chip($sub['final'] ?? null, ' sm') . '</td>';
                 $detail = '';
                 if ($period !== 'final' && ($pp = $sub['periods'][$period] ?? null)) {
                     $ach = '';
@@ -120,9 +131,10 @@ final class BoletinView
                     if (!empty($pp['absences'])) $detail .= '<p class="abs">Fallas en el periodo: <b>' . (int) $pp['absences'] . '</b></p>';
                 }
                 $rows .= '<tbody class="subject"><tr><td class="subj">' . $e($sub['name']) . '</td>' . $cells . '</tr>'
-                    . ($detail ? '<tr class="detail"><td colspan="' . (count($periods) + 2) . '">' . $detail . '</td></tr>' : '') . '</tbody>';
+                    . ($detail ? '<tr class="detail"><td colspan="' . $cols . '">' . $detail . '</td></tr>' : '') . '</tbody>';
             }
-            $html .= '<div class="area"><h2 style="background:' . $bg . ';color:' . $fg . '">' . $e($a['name']) . '</h2>'
+            if ($rows === '') continue;
+            $html .= '<div class="area' . ($final ? '' : ' period') . '"><h2 style="background:' . $bg . ';color:' . $fg . '">' . $e($a['name']) . '</h2>'
                 . '<table><thead>' . $head . '</thead>' . $rows . '</table></div>';
         }
         // scale
@@ -188,6 +200,10 @@ th.subj,td.subj{text-align:left;padding-left:14px}th.on,td.on{background:#fff7e0
 td{padding:6px 4px;text-align:center;border-top:1px solid #eef0f8;vertical-align:middle}
 td.subj{font-weight:800;color:#23206b;font-size:12.5px}
 td em{display:block;font-style:normal;font-size:10px;color:#8a88a8;margin-top:1px}
+.period table th:nth-child(2),.period table td:nth-child(2){width:130px}.period table th:nth-child(3),.period table td:nth-child(3){width:70px}
+td.score{font:700 15px Fredoka,sans-serif;color:#23206b}
+.area:not(.period) table{table-layout:fixed}.area:not(.period) th.subj,.area:not(.period) td.subj{width:34%}
+.bar button,.bar .wa{white-space:nowrap}
 tr.detail td{text-align:left;padding:2px 14px 9px;border-top:0;background:#fffdf6}
 .ach{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:3px}
 .ach li{display:grid;grid-template-columns:8px 1fr auto;gap:8px;align-items:start;font-size:11.5px;line-height:1.35}
