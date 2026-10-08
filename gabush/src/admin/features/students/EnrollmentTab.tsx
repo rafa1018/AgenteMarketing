@@ -2,7 +2,8 @@ import { CheckCircle2, Copy, Download, FileUp, KeyRound, Loader2, LogOut, Rotate
 import { useRef, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { useMutation, useQuery } from '@/shared/useQuery'
-import { date, dateTime } from '@/shared/format'
+import { can } from '@/lib/calendar'
+import { date, dateTime, money, parseMoney } from '@/shared/format'
 import { toast } from '../../store'
 import { api2, useSetup } from '../../v2/api'
 import { Badge, CourseSelect, ErrorBox, Field, Spinner, StatusBadge, inputCls } from '../../v2/kit'
@@ -65,6 +66,7 @@ export function EnrollmentTab({ detail, onChanged }: { detail: StudentDetail; on
                 </button>
               </Field>
             </div>
+            {can('pagos') && <PlanFields key={e.id} enrollment={e} onSave={(body, ok) => update(body, ok)} />}
             <div className="flex flex-wrap gap-2">
               {e.status === 'prematricula' && (
                 <button type="button" onClick={() => status('activo', {}, '¡Matriculado! Se generó el cobro de matrícula.')} disabled={m.busy} className="btn btn-primary !text-sm">
@@ -112,6 +114,48 @@ export function EnrollmentTab({ detail, onChanged }: { detail: StudentDetail; on
       </section>
 
       <WithdrawModal open={withdraw} onClose={() => setWithdraw(false)} onConfirm={(reason, d) => status('retirado', { reason, date: d }, 'Estudiante retirado')} />
+    </div>
+  )
+}
+
+export type Plan = { id: number; name: string; type: 'mensual' | 'dia'; shift: 'manana' | 'tarde' | 'completa' | null; price: number; active: number; sort: number; students: number }
+
+/** What the student pays: the plan (monthly pension or per attended day) and a standing monthly discount. */
+function PlanFields({ enrollment: e, onSave }: { enrollment: Enrollment; onSave: (body: Record<string, unknown>, ok: string) => Promise<void> }) {
+  const plans = useQuery('plans', () => api2.get<{ plans: Plan[] }>('/billing/plans'))
+  const [discount, setDiscount] = useState(e.monthlyDiscount ? String(e.monthlyDiscount) : '')
+  const [reason, setReason] = useState(e.monthlyDiscountReason ?? '')
+  const plan = plans.data?.plans.find((p) => p.id === e.planId)
+  const dirty = (parseMoney(discount) || null) !== (e.monthlyDiscount || null) || reason.trim() !== (e.monthlyDiscountReason ?? '')
+  const net = plan && plan.type === 'mensual' ? plan.price - (parseMoney(discount) || 0) : null
+  return (
+    <div className="space-y-3 rounded-xl bg-paper p-3.5">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="Plan" hint={plan ? (plan.type === 'dia' ? `${money(plan.price)} por día asistido` : `Pensión de ${money(plan.price)}`) : 'Sin plan: pensión según la lista de precios del grado.'}>
+          <select value={e.planId ?? ''} onChange={(ev) => onSave({ planId: ev.target.value ? Number(ev.target.value) : null }, 'Plan actualizado')} className={inputCls()}>
+            <option value="">Según el grado</option>
+            {plans.data?.plans
+              .filter((p) => p.active || p.id === e.planId)
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {money(p.price)}
+                  {p.type === 'dia' ? ' / día' : ' / mes'}
+                </option>
+              ))}
+          </select>
+        </Field>
+        <Field label="Descuento mensual" hint={net !== null && parseMoney(discount) ? `Pagará ${money(net)} al mes` : 'Se resta de cada pensión.'}>
+          <input value={discount} onChange={(ev) => setDiscount(ev.target.value)} inputMode="numeric" placeholder="$ 0" className={inputCls()} />
+        </Field>
+        <Field label="Motivo del descuento">
+          <input value={reason} onChange={(ev) => setReason(ev.target.value)} placeholder="Hermanos, convenio, acuerdo con la rectora…" className={inputCls()} />
+        </Field>
+      </div>
+      {dirty && (
+        <button type="button" onClick={() => onSave({ monthlyDiscount: parseMoney(discount) || null, monthlyDiscountReason: reason.trim() || null }, parseMoney(discount) ? 'Descuento guardado: se aplicará desde la próxima pensión' : 'Descuento quitado')} className="btn btn-primary !min-h-10 !text-sm">
+          Guardar descuento
+        </button>
+      )}
     </div>
   )
 }

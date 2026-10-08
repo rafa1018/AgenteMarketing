@@ -34,6 +34,7 @@ final class Scheduler
         $state = (array) $settings->get('scheduler', []);
 
         $done['pensions'] = $billing->generateMonthlyCharges($now, $system);
+        $done['days'] = $billing->generateDayCharges($now->modify('first day of last month'), $system); // per-day plans: last month
 
         if (($state['lateFeesDay'] ?? '') !== $now->format('Y-m-d')) {
             $done['lateFees'] = $billing->applyLateFees($system);

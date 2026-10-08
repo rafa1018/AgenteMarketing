@@ -7,17 +7,19 @@ import { PageHead } from '../../ui'
 import { api2, qs, useSetup } from '../../v2/api'
 import { Badge, Empty, ErrorBox, Field, SearchBox, Spinner, Stat, StatusBadge, Tabs, YearPicker, inputCls, useTab } from '../../v2/kit'
 import { openStudent } from '../students/openStudent'
+import { PlansPanel } from './PlansPanel'
 import { METHODS, methodLabel } from './types'
 
-type Tab = 'resumen' | 'deudores' | 'pagos' | 'config'
+type Tab = 'resumen' | 'deudores' | 'pagos' | 'planes' | 'config'
 
 export function BillingPage() {
   const [tab, setTab] = useTab<Tab>('resumen')
   return (
     <div className="space-y-5">
       <PageHead title="Cartera" sub="Pensiones, cobros, pagos y deudores. Los pagos en línea entran solos." actions={<YearPicker />} />
-      <Tabs tabs={[{ id: 'resumen', label: 'Resumen' }, { id: 'deudores', label: 'Deudores' }, { id: 'pagos', label: 'Pagos recibidos' }, { id: 'config', label: 'Precios y mora' }]} value={tab} onChange={setTab} />
+      <Tabs tabs={[{ id: 'resumen', label: 'Resumen' }, { id: 'deudores', label: 'Deudores' }, { id: 'pagos', label: 'Pagos recibidos' }, { id: 'planes', label: 'Planes' }, { id: 'config', label: 'Precios y mora' }]} value={tab} onChange={setTab} />
       {tab === 'resumen' && <Overview />}
+      {tab === 'planes' && <PlansPanel />}
       {tab === 'deudores' && <Debtors />}
       {tab === 'pagos' && <PaymentsReport />}
       {tab === 'config' && <BillingConfig />}

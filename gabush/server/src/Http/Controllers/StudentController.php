@@ -91,10 +91,13 @@ final class StudentController extends Controller
         ) : [];
         $enrollments = $db->all(
             'SELECT e.id, e.year_id AS year, e.status, e.order_number AS orderNumber, e.contract_signed AS contractSigned, e.enrolled_on AS enrolledOn,
-                    e.withdrawn_on AS withdrawnOn, e.withdraw_reason AS withdrawReason, e.is_new AS isNew, c.id AS courseId, c.name AS course
-             FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id WHERE e.student_id = ? ORDER BY e.year_id DESC',
+                    e.withdrawn_on AS withdrawnOn, e.withdraw_reason AS withdrawReason, e.is_new AS isNew, c.id AS courseId, c.name AS course,
+                    e.plan_id AS planId, pl.name AS plan, e.monthly_discount AS monthlyDiscount, e.monthly_discount_reason AS monthlyDiscountReason
+             FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id LEFT JOIN plans pl ON pl.id = e.plan_id WHERE e.student_id = ? ORDER BY e.year_id DESC',
             [$id],
         );
+        foreach ($enrollments as &$en) foreach (['planId', 'monthlyDiscount'] as $k) $en[$k] = $en[$k] !== null ? (int) $en[$k] : null;
+        unset($en);
         $portal = $db->one('SELECT username, active, must_change_password AS mustChange, last_login_at AS lastLogin FROM portal_accounts WHERE student_id = ?', [$id]);
         return [
             'student' => [

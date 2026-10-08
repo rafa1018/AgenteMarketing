@@ -103,7 +103,14 @@ final class EnrollmentController extends Controller
         if ($v->has('courseId')) $row['course_id'] = $v->int('courseId', 1);
         if ($v->has('orderNumber')) $row['order_number'] = $v->int('orderNumber', 1, 9999);
         if ($v->has('contractSigned')) $row['contract_signed'] = $v->bool('contractSigned');
+        // plan (price) and the standing monthly discount: money matters, so only for who handles payments
+        $money = $v->has('planId') || $v->has('monthlyDiscount') || $v->has('monthlyDiscountReason');
+        if ($money && !$actor->can('pagos')) throw HttpError::forbidden();
+        if ($v->has('planId')) $row['plan_id'] = $v->int('planId', 1);
+        if ($v->has('monthlyDiscount')) $row['monthly_discount'] = $v->int('monthlyDiscount', 0, 100_000_000) ?: null;
+        if ($v->has('monthlyDiscountReason')) $row['monthly_discount_reason'] = $v->str('monthlyDiscountReason', 200);
         $v->check();
+        if (!empty($row['plan_id']) && !$this->db()->value('SELECT 1 FROM plans WHERE id = ?', [$row['plan_id']])) throw HttpError::validation(['planId' => 'Ese plan no existe.']);
         if (!empty($row['course_id']) && (int) $row['course_id'] !== (int) $e['course_id'] && $e['status'] !== 'retirado') $this->checkCapacity((int) $row['course_id'], $id);
         if ($row) $this->db()->update('enrollments', $row, ['id' => $id]);
         $this->audit()->log($actor, 'enrollment.update', 'enrollment', $id, $row);

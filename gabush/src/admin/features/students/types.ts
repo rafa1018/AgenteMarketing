@@ -75,6 +75,10 @@ export interface Enrollment {
   isNew: number
   courseId: Id | null
   course: string | null
+  planId: number | null
+  plan: string | null
+  monthlyDiscount: number | null
+  monthlyDiscountReason: string | null
 }
 
 export interface StudentDetail {

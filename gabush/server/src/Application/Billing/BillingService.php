@@ -132,21 +132,34 @@ final class BillingService
     }
 
     // ───────────────────────── automatic charges ─────────────────────────
-    /** Price of a concept for an enrollment: student's special price, else the year/grade price, else the year default. */
+    /**
+     * Price of a concept for an enrollment: student's special price, else (pension) the price of the student's
+     * monthly plan, else the year/grade price, else the year default.
+     */
     public function priceFor(int $enrollmentId, string $conceptCode): ?int
     {
         $row = $this->db->one(
             "SELECT e.year_id, c.grade_level_id, bc.id AS concept_id,
                     (SELECT sp.amount FROM student_prices sp WHERE sp.enrollment_id = e.id AND sp.concept_id = bc.id) AS special,
+                    IF(bc.code = 'PENSION' AND pl.type = 'mensual', pl.price, NULL) AS by_plan,
                     (SELECT p.amount FROM prices p WHERE p.year_id = e.year_id AND p.concept_id = bc.id AND p.grade_level_id = c.grade_level_id) AS by_grade,
                     (SELECT p.amount FROM prices p WHERE p.year_id = e.year_id AND p.concept_id = bc.id AND p.grade_level_id IS NULL) AS by_year
-             FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id JOIN billing_concepts bc ON bc.code = ?
+             FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id LEFT JOIN plans pl ON pl.id = e.plan_id JOIN billing_concepts bc ON bc.code = ?
              WHERE e.id = ?",
             [$conceptCode, $enrollmentId],
         );
         if (!$row) return null;
-        foreach (['special', 'by_grade', 'by_year'] as $k) if ($row[$k] !== null) return (int) $row[$k];
+        foreach (['special', 'by_plan', 'by_grade', 'by_year'] as $k) if ($row[$k] !== null) return (int) $row[$k];
         return null;
+    }
+
+    /** The enrollment's standing monthly discount, applied to a pension that was just created. */
+    private function applyMonthlyDiscount(int $chargeId, int $enrollmentId, Actor $actor): void
+    {
+        $e = $this->db->one('SELECT monthly_discount, monthly_discount_reason FROM enrollments WHERE id = ?', [$enrollmentId]);
+        $amount = (int) ($e['monthly_discount'] ?? 0);
+        if ($amount <= 0) return;
+        $this->db->insert('charge_adjustments', ['charge_id' => $chargeId, 'kind' => 'descuento', 'amount' => $amount, 'reason' => $e['monthly_discount_reason'] ?: 'Descuento mensual', 'created_by' => $actor->label()]);
     }
 
     /**
@@ -162,10 +175,11 @@ final class BillingService
         $concept = $this->db->one("SELECT id FROM billing_concepts WHERE code = 'PENSION' AND active = 1");
         if (!$concept) return ['created' => 0, 'skipped' => 0];
         $due = $this->lateFeePolicy()->dueDateFor($first)->format('Y-m-d');
+        // students on a per-day plan pay the days they attended instead (generateDayCharges)
         $rows = $this->db->all(
             "SELECT e.id, e.student_id, g.name AS grade, e.enrolled_on FROM enrollments e
-             LEFT JOIN courses c ON c.id = e.course_id LEFT JOIN grade_levels g ON g.id = c.grade_level_id
-             WHERE e.year_id = ? AND e.status = 'activo'",
+             LEFT JOIN courses c ON c.id = e.course_id LEFT JOIN grade_levels g ON g.id = c.grade_level_id LEFT JOIN plans pl ON pl.id = e.plan_id
+             WHERE e.year_id = ? AND e.status = 'activo' AND (pl.type IS NULL OR pl.type <> 'dia')",
             [$year],
         );
         $created = $skipped = 0;
@@ -178,9 +192,57 @@ final class BillingService
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'automatico', ?)",
                 [$e['student_id'], $e['id'], $year, $concept['id'], $desc, $first->format('Y-m-d'), $amount, $due, $actor->label()],
             );
-            if ($st->rowCount() > 0) $created++; else $skipped++;
+            if ($st->rowCount() > 0) {
+                $this->applyMonthlyDiscount((int) $this->db->pdo()->lastInsertId(), (int) $e['id'], $actor);
+                $created++;
+            } else {
+                $skipped++;
+            }
         }
         if ($created) $this->audit->log($actor, 'charges.monthly', 'charges', $first->format('Y-m'), ['created' => $created]);
+        return ['created' => $created, 'skipped' => $skipped];
+    }
+
+    /**
+     * Per-day plans: one charge per student for the days attended in $month (present or late), at the plan's
+     * daily price. Only for months that already ended; idempotent (one per student and month).
+     * @return array{created:int,skipped:int}
+     */
+    public function generateDayCharges(DateTimeImmutable $month, Actor $actor): array
+    {
+        $first = $month->modify('first day of this month')->setTime(0, 0);
+        $next = $first->modify('first day of next month');
+        if ($next > $this->today) return ['created' => 0, 'skipped' => 0]; // the month is not over yet
+        $concept = $this->db->value("SELECT id FROM billing_concepts WHERE code = 'DIAS' AND active = 1");
+        if (!$concept) return ['created' => 0, 'skipped' => 0];
+        $rows = $this->db->all(
+            "SELECT e.id, e.student_id, e.year_id, pl.price, pl.name AS plan,
+                    (SELECT COUNT(*) FROM attendance a WHERE a.student_id = e.student_id AND a.day >= ? AND a.day < ? AND a.status IN ('presente','tarde')) AS days
+             FROM enrollments e JOIN plans pl ON pl.id = e.plan_id AND pl.type = 'dia'
+             WHERE e.status = 'activo' AND e.year_id = ?",
+            [$first->format('Y-m-d'), $next->format('Y-m-d'), (int) $first->format('Y')],
+        );
+        $due = $this->lateFeePolicy()->dueDateFor($next)->format('Y-m-d');
+        $created = $skipped = 0;
+        foreach ($rows as $e) {
+            $days = (int) $e['days'];
+            if ($days <= 0 || (int) $e['price'] <= 0) { $skipped++; continue; }
+            $desc = sprintf('Días asistidos %s/%s: %d %s × %s', self::MONTHS[(int) $first->format('n')], $first->format('Y'), $days, $days === 1 ? 'día' : 'días', '$ ' . number_format((int) $e['price'], 0, ',', '.'));
+            $st = $this->db->run(
+                "INSERT IGNORE INTO charges (student_id, enrollment_id, year_id, concept_id, description, period_month, amount, due_on, source, created_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'automatico', ?)",
+                [$e['student_id'], $e['id'], $e['year_id'], $concept, $desc, $first->format('Y-m-d'), $days * (int) $e['price'], $due, $actor->label()],
+            );
+            if ($st->rowCount() > 0) {
+                $id = (int) $this->db->pdo()->lastInsertId();
+                $this->applyMonthlyDiscount($id, (int) $e['id'], $actor);
+                $this->notifier->chargeCreated($id);
+                $created++;
+            } else {
+                $skipped++;
+            }
+        }
+        if ($created) $this->audit->log($actor, 'charges.days', 'charges', $first->format('Y-m'), ['created' => $created]);
         return ['created' => $created, 'skipped' => $skipped];
     }
 

@@ -7,6 +7,7 @@ use DateTimeImmutable;
 use Gabush\App;
 use Gabush\Application\Billing\BillingService;
 use Gabush\Domain\Billing\LateFeePolicy;
+use Gabush\Domain\Shared\DomainError;
 use Gabush\Http\Auth\FamilyAuth;
 use Gabush\Http\HttpError;
 use Gabush\Http\Request;
@@ -44,6 +45,10 @@ final class BillingController extends Controller
         $r->add('PUT', '/billing/prices', [$c, 'savePrices']);
         $r->add('PUT', '/billing/student-prices', [$c, 'saveStudentPrice']);
         $r->add('POST', '/billing/concepts', [$c, 'saveConcept']);
+        $r->add('GET', '/billing/plans', [$c, 'plans']);
+        $r->add('POST', '/billing/plans', [$c, 'savePlan']);
+        $r->add('PUT', '/billing/plans/{id}', [$c, 'savePlan']);
+        $r->add('POST', '/billing/days', [$c, 'chargeDays']);
         $r->add('PUT', '/billing/concepts/{id}', [$c, 'saveConcept']);
     }
 
@@ -334,5 +339,49 @@ final class BillingController extends Controller
         $id = $this->persist('billing_concepts', $row, self::optionalId($req));
         $this->audit()->log($actor, 'concept.save', 'billing_concept', $id, $row);
         return ['id' => $id];
+    }
+
+    // ───────────────────────── plans ─────────────────────────
+    /** Plans (mensual / por día) with how many active students use each one this year. */
+    public function plans(Request $req): array
+    {
+        $this->staff($req, 'pagos', 'ajustes', 'matriculas', 'estudiantes');
+        $rows = $this->db()->all(
+            "SELECT p.id, p.name, p.type, p.shift, p.price, p.active, p.sort,
+                    (SELECT COUNT(*) FROM enrollments e WHERE e.plan_id = p.id AND e.year_id = ? AND e.status IN ('activo','prematricula')) AS students
+             FROM plans p ORDER BY p.active DESC, p.sort, p.name",
+            [$this->settings()->activeYear()],
+        );
+        return ['plans' => self::intsAll($rows, 'id', 'price', 'active', 'sort', 'students')];
+    }
+
+    public function savePlan(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'ajustes', 'pagos');
+        $v = Validate::of($req);
+        $row = [
+            'name' => $v->str('name', 60, true, 'El nombre'),
+            'type' => $v->oneOf('type', ['mensual', 'dia'], 'mensual'),
+            'shift' => $v->oneOf('shift', ['manana', 'tarde', 'completa'], null),
+            'price' => $v->int('price', 0, 100_000_000, true),
+            'active' => $v->bool('active', true),
+            'sort' => $v->int('sort', 0, 99) ?? 0,
+        ];
+        $v->check();
+        $id = $this->persist('plans', $row, self::optionalId($req));
+        $this->audit()->log($actor, 'plan.save', 'plan', $id, $row);
+        return ['id' => $id];
+    }
+
+    /** {month: AAAA-MM} — charges the attended days of per-day plans for a month that already ended. */
+    public function chargeDays(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'pagos');
+        $v = Validate::of($req);
+        $month = $v->str('month', 7) ?? date('Y-m', strtotime('first day of last month'));
+        if (!preg_match('/^\d{4}-\d{2}$/', $month)) $v->fail('month', 'Mes inválido (AAAA-MM).');
+        $v->check();
+        if ("$month-01" >= date('Y-m-01')) throw new DomainError('month', 'Los días se cobran cuando el mes termina.');
+        return $this->billing()->generateDayCharges(new DateTimeImmutable("$month-01"), $actor);
     }
 }
