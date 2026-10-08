@@ -152,8 +152,10 @@ final class BoletinView
             $scale .= '<span>' . self::chip($l['name'], ' xs') . ' ' . $e(rtrim(rtrim(number_format((float) $l['min'], 1, ',', ''), '0'), ',')) . '–' . $e(rtrim(rtrim(number_format((float) $l['max'], 1, ',', ''), '0'), ',')) . '</span>';
         }
         $html .= '<div class="scale keep"><b>Escala de valoración</b>' . $scale . '</div>';
-        // space for handwritten notes, like the school's previous report
-        $html .= '<div class="obs keep"><b>Observaciones</b><i></i><i></i></div>';
+        // the teacher's general observation (Calificaciones → buscar al niño); without one, lines to write by hand
+        $html .= !empty($c['note'])
+            ? '<div class="obs keep"><b>Observaciones</b><p>' . nl2br($e($c['note'])) . '</p></div>'
+            : '<div class="obs keep"><b>Observaciones</b><i></i><i></i></div>';
         return $html . self::footer($o, $s, $e) . '</section>';
     }
 
@@ -224,6 +226,7 @@ tr.detail td{text-align:left;padding:2px 14px 9px;border-top:0;background:#fffdf
 td.subj .prof{display:block;font-weight:600;font-size:10.5px;color:#8a88a8;margin-top:1px}
 .obs{margin-top:12px;padding:8px 14px 10px;border:2px solid #e3e5f3;border-radius:14px}
 .obs b{display:block;font:600 12.5px Fredoka,sans-serif;color:#23206b;margin-bottom:2px}.obs i{display:block;height:22px;border-bottom:1px dashed #c9cbe0}
+.obs p{margin:4px 0 0;font-size:12.5px;line-height:1.55;color:#2a2850}
 .res{margin:2px 0 0;font-size:10.5px;color:#8a88a8;font-style:italic}
 .comment{margin:6px 0 0;padding:6px 10px;border-radius:10px;background:#eef7ff;color:#185a8a;font-style:italic;font-size:11.5px}
 .abs{margin:4px 0 0;font-size:11px;color:#615f86}

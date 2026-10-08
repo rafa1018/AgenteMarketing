@@ -29,6 +29,64 @@ final class GradesController extends Controller
         $r->add('POST', '/grades/publish', [$c, 'publishCourse']);
         $r->add('GET', '/students/{id}/boletin', [$c, 'boletin']);
         $r->add('GET', '/courses/{id}/boletines', [$c, 'courseBoletines']);
+        $r->add('GET', '/grades/notes', [$c, 'notes']);
+        $r->add('PUT', '/grades/notes', [$c, 'saveNote']);
+    }
+
+    // ───────────────────────── general observations of the report card ─────────────────────────
+    /** ?student=&year= → the child's enrollment and their general observation per period ('final' = informe final). */
+    public function notes(Request $req): array
+    {
+        $this->staff($req, 'calificaciones', 'academico');
+        $year = $this->year($req);
+        $e = $this->db()->one('SELECT e.id, e.course_id, c.name AS course FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id WHERE e.student_id = ? AND e.year_id = ?', [(int) $req->query('student'), $year]) ?? throw HttpError::notFound();
+        $notes = [];
+        foreach ($this->db()->all('SELECT period_id, body FROM report_card_notes WHERE enrollment_id = ?', [$e['id']]) as $n) {
+            $notes[(int) $n['period_id'] === 0 ? 'final' : (string) $n['period_id']] = $n['body'];
+        }
+        return ['enrollmentId' => (int) $e['id'], 'courseId' => $e['course_id'] !== null ? (int) $e['course_id'] : null, 'course' => $e['course'], 'notes' => (object) $notes];
+    }
+
+    /** {enrollmentId, periodId (id or 'final'), body}: empty body removes it. */
+    public function saveNote(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'calificaciones', 'academico');
+        $v = Validate::of($req);
+        $enrollment = $v->int('enrollmentId', 1, null, true);
+        $body = trim((string) $v->str('body', 2000));
+        $v->check();
+        $raw = (string) ($req->input('periodId') ?? '');
+        $year = (int) ($this->db()->value('SELECT year_id FROM enrollments WHERE id = ?', [$enrollment]) ?? throw HttpError::notFound());
+        if ($raw === 'final') {
+            $period = 0;
+        } else {
+            $p = $this->db()->one('SELECT id, grading_open FROM periods WHERE id = ? AND year_id = ?', [(int) $raw, $year]) ?? throw HttpError::validation(['periodId' => 'Elige el periodo.']);
+            if (!$p['grading_open'] && !$actor->can('academico')) throw new DomainError('closed', 'Este periodo está cerrado. Pídele a la rectora que lo abra.');
+            $period = (int) $p['id'];
+        }
+        if ($body === '') {
+            $this->db()->run('DELETE FROM report_card_notes WHERE enrollment_id = ? AND period_id = ?', [$enrollment, $period]);
+        } else {
+            $this->db()->run(
+                'INSERT INTO report_card_notes (enrollment_id, period_id, body, updated_by) VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE body = VALUES(body), updated_by = VALUES(updated_by)',
+                [$enrollment, $period, $body, $actor->label()],
+            );
+        }
+        $this->audit()->log($actor, 'grades.note', 'enrollment', $enrollment, ['period' => $raw]);
+        return ['saved' => true];
+    }
+
+    /** General observation of each student for the report card being printed. @return array<int,string> student id → text */
+    private function notesFor(array $studentIds, int $year, int|string $period): array
+    {
+        if (!$studentIds) return [];
+        $in = implode(',', array_fill(0, count($studentIds), '?'));
+        $rows = $this->db()->all(
+            "SELECT e.student_id, n.body FROM report_card_notes n JOIN enrollments e ON e.id = n.enrollment_id WHERE e.year_id = ? AND n.period_id = ? AND e.student_id IN ($in)",
+            [$year, $period === 'final' ? 0 : $period, ...$studentIds],
+        );
+        return array_column($rows, 'body', 'student_id');
     }
 
     // ───────────────────────── printable report cards ─────────────────────────
@@ -53,7 +111,8 @@ final class GradesController extends Controller
                 $o['whatsapp'] = 'https://wa.me/57' . $phone . '?text=' . rawurlencode($text);
             }
         }
-        return Response::html(BoletinView::render([$card + ['general' => $this->general($card['reportCard'], $period)]], $o));
+        $note = $this->notesFor([$id], $year, $period)[$id] ?? null;
+        return Response::html(BoletinView::render([$card + ['general' => $this->general($card['reportCard'], $period), 'note' => $note]], $o));
     }
 
     /** Every active student of a course, one page each. ?period=<id>|final */
@@ -65,7 +124,11 @@ final class GradesController extends Controller
         $ids = array_column($this->db()->all("SELECT e.student_id FROM enrollments e JOIN students s ON s.id = e.student_id WHERE e.course_id = ? AND e.status = 'activo' ORDER BY s.last_name, s.first_name", [$course['id']]), 'student_id');
         $cards = array_map(fn($sid) => $this->card((int) $sid, $year, false), $ids);
         $period = $this->pickPeriod($req, $cards[0]['reportCard'] ?? ['periods' => []]);
-        foreach ($cards as &$c) $c['general'] = $this->general($c['reportCard'], $period);
+        $notes = $this->notesFor(array_map('intval', $ids), $year, $period);
+        foreach ($cards as &$c) {
+            $c['general'] = $this->general($c['reportCard'], $period);
+            $c['note'] = $notes[$c['student']['id']] ?? null;
+        }
         unset($c);
         return Response::html(BoletinView::render($cards, $this->boletinOptions($year, $period, $cards[0]['reportCard'] ?? ['periods' => []], 'curso-' . $course['name'])));
     }

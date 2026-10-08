@@ -8,7 +8,8 @@ import { toast } from '../../store'
 import { PageHead } from '../../ui'
 import { api2, qs, useSetup } from '../../v2/api'
 import { CourseSelect, Empty, ErrorBox, Spinner, StudentAvatar, Tabs, YearPicker, useTab } from '../../v2/kit'
-import { StudentFinder } from './StudentFinder'
+import { StudentFinder, type FoundRow } from './StudentFinder'
+import { StudentNotes } from './StudentNotes'
 
 type Sheet = {
   course: { id: number; name: string; gradeLevelId: number }
@@ -99,6 +100,7 @@ function SheetEditor() {
   const [open, setOpen] = useState<number | null>(null)
   // a child picked in the search box: their row opens (and scrolls into view) once their course sheet loads
   const [pending, setPending] = useState<number | null>(null)
+  const [picked, setPicked] = useState<FoundRow | null>(null)
   useEffect(() => {
     if (!pending || !data?.students.some((s) => s.enrollmentId === pending)) return
     setOpen(pending)
@@ -151,9 +153,10 @@ function SheetEditor() {
         onPick={(s) => {
           setCourse(s.courseId)
           setPending(s.enrollmentId)
-          if (!subject) toast('Elige la materia para ver su planilla')
+          setPicked(s)
         }}
       />
+      {picked && <StudentNotes key={picked.id} student={picked} year={year} periods={setup.periods} period={period} onPeriod={setPeriod} onClose={() => setPicked(null)} />}
       <div className="grid gap-2 sm:grid-cols-3">
         <CourseSelect value={course} onChange={setCourse} allowAll={false} />
         <select value={subject} onChange={(e) => setSubject(e.target.value ? Number(e.target.value) : '')} className={sel} aria-label="Materia">
@@ -172,7 +175,13 @@ function SheetEditor() {
         </select>
       </div>
       {!ready ? (
-        <Empty title="Elige curso, materia y periodo" />
+        <Empty title={course && period ? 'Elige la materia para calificar' : 'Elige curso, materia y periodo'}>
+          {course && period ? (
+            <a href={`/api/v2/courses/${course}/boletines?period=${period}`} target="_blank" rel="noopener" className="btn btn-ghost mt-3 !min-h-10 !text-sm">
+              <FileDown size={16} /> Boletines del curso (PDF)
+            </a>
+          ) : null}
+        </Empty>
       ) : error ? (
         <ErrorBox message={error.message} onRetry={reload} />
       ) : loading && !data ? (
@@ -312,8 +321,8 @@ function SheetEditor() {
                             <input value={r.absences} onChange={(e) => set({ absences: e.target.value })} inputMode="numeric" placeholder="0" className="w-full rounded-lg border border-line px-3 py-2.5" />
                           </label>
                           <label className="block">
-                            <span className="mb-1 block text-[13px] font-semibold text-ink">Comentario para la familia</span>
-                            <textarea value={r.comments} onChange={(e) => set({ comments: e.target.value })} rows={2} placeholder="Opcional: un mensaje sobre cómo le fue este periodo" className="w-full resize-y rounded-lg border border-line px-3 py-2.5" />
+                            <span className="mb-1 block text-[13px] font-semibold text-ink">Comentario de esta materia</span>
+                            <textarea value={r.comments} onChange={(e) => set({ comments: e.target.value })} rows={2} placeholder="Opcional: sale debajo de la materia en el boletín" className="w-full resize-y rounded-lg border border-line px-3 py-2.5" />
                           </label>
                         </div>
                       </section>
