@@ -13,9 +13,40 @@ type Sheet = {
   course: { id: number; name: string; gradeLevelId: number }
   period: { id: number; number: number; name: string; gradingOpen: boolean; published: boolean; publishedForAll: boolean }
   achievements: { id: number; levelId: number | null; period: number | null; description: string }[]
-  students: { enrollmentId: number; id: number; code: string; name: string; hasPhoto: boolean; entry: { score: number | null; levelId: number | null; absences: number | null; comments: string | null; achievements: number[] } | null }[]
+  students: { enrollmentId: number; id: number; code: string; name: string; hasPhoto: boolean; entry: Entry | null }[]
 }
-type RowState = { achievements: number[]; score: string; absences: string; comments: string }
+type Entry = { score: number | null; levelId: number | null; levelManual?: boolean; absences: number | null; comments: string | null; achievements: number[]; achievementLevels?: Record<string, number | null> }
+/** achLevels: the level this child got in each marked achievement · level: subject level set by hand (null = automatic) */
+type RowState = { achievements: number[]; achLevels: Record<string, number | null>; level: number | null; score: string; absences: string; comments: string }
+const toRow = (e: Entry | null): RowState => ({
+  achievements: e?.achievements ?? [],
+  achLevels: e?.achievementLevels ?? {},
+  level: e?.levelManual ? e.levelId : null,
+  score: e?.score?.toString() ?? '',
+  absences: e?.absences?.toString() ?? '',
+  comments: e?.comments ?? '',
+})
+
+/**
+ * Subject level when the teacher leaves it on "Automático" (same rules as the server): the score 0–10 when
+ * typed, else the level repeated most among the marked achievements (ties → the higher one).
+ */
+function autoLevel(r: RowState, bank: Sheet['achievements'], levels: { id: number; min: string; max: string }[]): number | null {
+  const score = Number(r.score.replace(',', '.'))
+  if (r.score !== '' && !Number.isNaN(score)) {
+    const byScore = levels.find((l) => score >= Number(l.min) && score <= Number(l.max))
+    if (byScore) return byScore.id
+  }
+  const count = new Map<number, number>()
+  for (const a of r.achievements) {
+    const l = r.achLevels[a] ?? bank.find((x) => x.id === a)?.levelId ?? null
+    if (l !== null) count.set(l, (count.get(l) ?? 0) + 1)
+  }
+  const rank = (id: number) => levels.findIndex((l) => l.id === id)
+  let best: number | null = null
+  for (const [id, n] of count) if (best === null || n > count.get(best)! || (n === count.get(best) && rank(id) > rank(best))) best = id
+  return best
+}
 
 export function GradesPage() {
   const [tab, setTab] = useTab<'planilla' | 'avance'>('planilla')
@@ -43,12 +74,22 @@ function SheetEditor() {
   const [open, setOpen] = useState<number | null>(null)
   const m = useMutation()
   useEffect(() => {
-    setRows(Object.fromEntries((data?.students ?? []).map((s) => [s.enrollmentId, { achievements: s.entry?.achievements ?? [], score: s.entry?.score?.toString() ?? '', absences: s.entry?.absences?.toString() ?? '', comments: s.entry?.comments ?? '' }])))
+    setRows(Object.fromEntries((data?.students ?? []).map((s) => [s.enrollmentId, toRow(s.entry)])))
   }, [data])
   const levelName = (id: number | null) => setup?.levels.find((l) => l.id === id)?.name ?? null
-  const dirty = useMemo(() => JSON.stringify(rows) !== JSON.stringify(Object.fromEntries((data?.students ?? []).map((s) => [s.enrollmentId, { achievements: s.entry?.achievements ?? [], score: s.entry?.score?.toString() ?? '', absences: s.entry?.absences?.toString() ?? '', comments: s.entry?.comments ?? '' }]))), [rows, data])
+  // levels a teacher can give (lowest first), without "No clasificado"
+  const gradeLevels = (setup?.levels ?? []).filter((l) => Number(l.max) > 0).sort((a, b) => Number(a.min) - Number(b.min))
+  const dirty = useMemo(() => JSON.stringify(rows) !== JSON.stringify(Object.fromEntries((data?.students ?? []).map((s) => [s.enrollmentId, toRow(s.entry)]))), [rows, data])
   const save = async () => {
-    const payload = Object.entries(rows).map(([eid, r]) => ({ enrollmentId: Number(eid), achievements: r.achievements, score: r.score || null, absences: r.absences || null, comments: r.comments || null }))
+    const payload = Object.entries(rows).map(([eid, r]) => ({
+      enrollmentId: Number(eid),
+      achievements: r.achievements,
+      achievementLevels: Object.fromEntries(r.achievements.map((a) => [a, r.achLevels[a] ?? null])),
+      levelId: r.level,
+      score: r.score || null,
+      absences: r.absences || null,
+      comments: r.comments || null,
+    }))
     const r = await m.run(() => api2.put<{ saved: number }>('/grades/sheet', { subjectId: subject, periodId: period, rows: payload }))
     if (r) {
       toast('Calificaciones guardadas')
@@ -134,13 +175,17 @@ function SheetEditor() {
           )}
           <ul className="space-y-2">
             {data.students.map((s) => {
-              const r = rows[s.enrollmentId] ?? { achievements: [], score: '', absences: '', comments: '' }
+              const r = rows[s.enrollmentId] ?? toRow(null)
               const isOpen = open === s.enrollmentId
+              const set = (patch: Partial<RowState>) => setRows({ ...rows, [s.enrollmentId]: { ...r, ...patch } })
+              const auto = autoLevel(r, data.achievements, gradeLevels)
+              const shown = r.level ?? auto
               return (
                 <li key={s.enrollmentId} className="card overflow-hidden p-0">
                   <button type="button" onClick={() => setOpen(isOpen ? null : s.enrollmentId)} className="flex w-full items-center gap-3 p-3 text-left">
                     <StudentAvatar s={{ id: s.id, firstName: s.name.split(', ')[1] ?? s.name, lastName: s.name, hasPhoto: s.hasPhoto }} name={s.name} size={40} />
                     <span className="min-w-0 flex-1 truncate font-semibold text-ink">{s.name}</span>
+                    {shown !== null && <LevelChip level={levelName(shown)} />}
                     <span className={cn('rounded-full px-2.5 py-0.5 text-[12px] font-bold', r.achievements.length ? 'bg-[#e9f4ee] text-leaf' : 'bg-paper text-muted')}>{r.achievements.length} logros</span>
                     <ChevronDown size={18} className={cn('text-muted transition-transform', isOpen && 'rotate-180')} />
                   </button>
@@ -150,16 +195,46 @@ function SheetEditor() {
                         {data.achievements.map((a) => {
                           const on = r.achievements.includes(a.id)
                           return (
-                            <li key={a.id}>
-                              <label className={cn('flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2 text-[14px]', on ? 'bg-white ring-2 ring-leaf' : 'bg-white')}>
-                                <input type="checkbox" checked={on} onChange={() => setRows({ ...rows, [s.enrollmentId]: { ...r, achievements: on ? r.achievements.filter((x) => x !== a.id) : [...r.achievements, a.id] } })} className="mt-0.5 size-5 shrink-0 accent-[#3f9a1f]" />
+                            <li key={a.id} className={cn('flex flex-wrap items-start gap-3 rounded-lg px-3 py-2 text-[14px]', on ? 'bg-white ring-2 ring-leaf' : 'bg-white')}>
+                              <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+                                <input type="checkbox" checked={on} onChange={() => set({ achievements: on ? r.achievements.filter((x) => x !== a.id) : [...r.achievements, a.id] })} className="mt-0.5 size-5 shrink-0 accent-[#3f9a1f]" />
                                 <span className="flex-1">{a.description}</span>
-                                <LevelChip level={levelName(a.levelId)} />
                               </label>
+                              {on ? (
+                                // the teacher grades how the child did in this achievement (the bank level is only the suggestion)
+                                <select
+                                  value={r.achLevels[a.id] ?? a.levelId ?? ''}
+                                  onChange={(e) => set({ achLevels: { ...r.achLevels, [a.id]: e.target.value ? Number(e.target.value) : null } })}
+                                  aria-label="Desempeño del niño en este logro"
+                                  className="rounded-lg border border-line bg-white px-2 py-1 text-[13px] font-semibold"
+                                >
+                                  {gradeLevels.map((l) => (
+                                    <option key={l.id} value={l.id}>
+                                      {l.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="opacity-60" title="Nivel sugerido del banco de logros">
+                                  <LevelChip level={levelName(a.levelId)} />
+                                </span>
+                              )}
                             </li>
                           )
                         })}
                       </ul>
+                      <label className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-3 py-2 text-[14px]">
+                        <span className="font-semibold text-ink">Desempeño en la materia este periodo:</span>
+                        <select value={r.level ?? ''} onChange={(e) => set({ level: e.target.value ? Number(e.target.value) : null })} className="rounded-lg border border-line bg-white px-2 py-1.5 font-semibold">
+                          <option value="">Automático{auto !== null ? ` (${levelName(auto)})` : ''}</option>
+                          {gradeLevels.map((l) => (
+                            <option key={l.id} value={l.id}>
+                              {l.name}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-[12px] text-muted">Automático = según la nota o los logros marcados.</span>
+                      </label>
                       <div className="grid gap-2 sm:grid-cols-[120px_120px_1fr]">
                         <input value={r.score} onChange={(e) => setRows({ ...rows, [s.enrollmentId]: { ...r, score: e.target.value } })} inputMode="decimal" placeholder="Nota 0–10 (opcional)" title="Nota de 0 a 10. Si la escribes, define el desempeño de la materia; si no, sale de los logros marcados." className={`rounded-lg border px-3 py-2 ${Number(r.score.replace(',', '.')) > 10 ? 'border-berry' : 'border-line'}`} aria-label="Nota de 0 a 10" />
                         <input value={r.absences} onChange={(e) => setRows({ ...rows, [s.enrollmentId]: { ...r, absences: e.target.value } })} inputMode="numeric" placeholder="Fallas" className="rounded-lg border border-line px-3 py-2" aria-label="Fallas" />

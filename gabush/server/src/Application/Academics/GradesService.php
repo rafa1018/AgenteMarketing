@@ -47,12 +47,22 @@ final class GradesService
         );
         $entries = [];
         foreach ($this->db->all(
-            'SELECT ge.id, ge.enrollment_id, ge.score, ge.performance_level_id AS levelId, ge.absences, ge.comments,
-                    (SELECT GROUP_CONCAT(achievement_id) FROM grade_entry_achievements WHERE grade_entry_id = ge.id) AS marked
-             FROM grade_entries ge JOIN enrollments e ON e.id = ge.enrollment_id WHERE e.course_id = ? AND ge.subject_id = ? AND ge.period_id = ?',
+            "SELECT ge.id, ge.enrollment_id, ge.score, ge.performance_level_id AS levelId, ge.level_manual AS levelManual, ge.absences, ge.comments,
+                    (SELECT GROUP_CONCAT(CONCAT(achievement_id, ':', COALESCE(performance_level_id, ''))) FROM grade_entry_achievements WHERE grade_entry_id = ge.id) AS marked
+             FROM grade_entries ge JOIN enrollments e ON e.id = ge.enrollment_id WHERE e.course_id = ? AND ge.subject_id = ? AND ge.period_id = ?",
             [$courseId, $subjectId, $periodId],
         ) as $g) {
-            $entries[(int) $g['enrollment_id']] = ['score' => $g['score'] !== null ? (float) $g['score'] : null, 'levelId' => $g['levelId'] !== null ? (int) $g['levelId'] : null, 'absences' => $g['absences'] !== null ? (int) $g['absences'] : null, 'comments' => $g['comments'], 'achievements' => $g['marked'] ? array_map('intval', explode(',', $g['marked'])) : []];
+            // achievementLevels: the level the teacher gave this child in each marked achievement
+            $levels = [];
+            foreach ($g['marked'] ? explode(',', $g['marked']) : [] as $pair) {
+                [$aid, $lid] = array_pad(explode(':', $pair), 2, '');
+                $levels[(int) $aid] = $lid !== '' ? (int) $lid : null;
+            }
+            $entries[(int) $g['enrollment_id']] = [
+                'score' => $g['score'] !== null ? (float) $g['score'] : null, 'levelId' => $g['levelId'] !== null ? (int) $g['levelId'] : null, 'levelManual' => (bool) $g['levelManual'],
+                'absences' => $g['absences'] !== null ? (int) $g['absences'] : null, 'comments' => $g['comments'],
+                'achievements' => array_keys($levels), 'achievementLevels' => $levels ?: new \stdClass(),
+            ];
         }
         return [
             'course' => ['id' => (int) $course['id'], 'name' => $course['name'], 'gradeLevelId' => (int) $course['grade_level_id']],
@@ -68,31 +78,41 @@ final class GradesService
     }
 
     /**
-     * Saves the sheet: per enrollment, the marked achievements (their level comes from the bank), score,
-     * absences and comments. The entry level is derived (ReportCard rules) unless a score is given.
-     * @param list<array{enrollmentId:int,achievements:list<int>,score:?float,absences:?int,comments:?string}> $rows
+     * Saves the sheet. Per enrollment:
+     *  - achievements: marked ids, and achievementLevels {id: levelId} = the level the teacher gave this child in
+     *    each one (default: the level the achievement has in the bank);
+     *  - levelId: the subject level set by hand (null = automatic: from the score 0–10, else from the levels
+     *    of the marked achievements);
+     *  - score, absences, comments.
+     * @param list<array<string,mixed>> $rows
      */
     public function saveSheet(int $subjectId, int $periodId, array $rows, string $by): int
     {
         $rules = $this->reportCardRules();
-        $levelOf = [];
-        foreach ($this->db->all('SELECT id, performance_level_id FROM achievements WHERE subject_id = ?', [$subjectId]) as $a) $levelOf[(int) $a['id']] = $a['performance_level_id'] !== null ? (int) $a['performance_level_id'] : null;
+        $validLevels = array_map('intval', array_column($this->db->all('SELECT id FROM performance_levels'), 'id'));
+        $bankLevel = [];
+        foreach ($this->db->all('SELECT id, performance_level_id FROM achievements WHERE subject_id = ?', [$subjectId]) as $a) $bankLevel[(int) $a['id']] = $a['performance_level_id'] !== null ? (int) $a['performance_level_id'] : null;
+        $valid = static fn($l) => $l !== null && $l !== '' && in_array((int) $l, $validLevels, true) ? (int) $l : null;
         $saved = 0;
-        $this->db->transaction(function () use ($rows, $subjectId, $periodId, $by, $rules, $levelOf, &$saved): void {
+        $this->db->transaction(function () use ($rows, $subjectId, $periodId, $by, $rules, $bankLevel, $valid, &$saved): void {
             foreach ($rows as $r) {
-                $ach = array_values(array_filter(array_map('intval', (array) ($r['achievements'] ?? [])), static fn($id) => array_key_exists($id, $levelOf)));
+                $ach = array_values(array_filter(array_map('intval', (array) ($r['achievements'] ?? [])), static fn($id) => array_key_exists($id, $bankLevel)));
+                $given = (array) ($r['achievementLevels'] ?? []);
+                $linkLevel = [];
+                foreach ($ach as $a) $linkLevel[$a] = $valid($given[$a] ?? $given[(string) $a] ?? null) ?? $bankLevel[$a];
                 $score = isset($r['score']) && $r['score'] !== '' && $r['score'] !== null ? round((float) str_replace(',', '.', (string) $r['score']), 1) : null;
-                $level = $rules->levelOfScore($score) ?? $rules->levelOfAchievements(array_map(static fn($id) => $levelOf[$id], $ach));
+                $manual = $valid($r['levelId'] ?? null);
+                $level = $manual ?? $rules->levelOfScore($score) ?? $rules->levelOfAchievements(array_values($linkLevel));
                 $this->db->run(
-                    'INSERT INTO grade_entries (enrollment_id, subject_id, period_id, score, performance_level_id, absences, comments, updated_by)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                     ON DUPLICATE KEY UPDATE score = VALUES(score), performance_level_id = VALUES(performance_level_id), absences = VALUES(absences),
-                                             comments = VALUES(comments), updated_by = VALUES(updated_by), id = LAST_INSERT_ID(id)',
-                    [(int) $r['enrollmentId'], $subjectId, $periodId, $score, $level, isset($r['absences']) && $r['absences'] !== '' ? (int) $r['absences'] : null, $r['comments'] ?? null, $by],
+                    'INSERT INTO grade_entries (enrollment_id, subject_id, period_id, score, performance_level_id, level_manual, absences, comments, updated_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE score = VALUES(score), performance_level_id = VALUES(performance_level_id), level_manual = VALUES(level_manual),
+                                             absences = VALUES(absences), comments = VALUES(comments), updated_by = VALUES(updated_by), id = LAST_INSERT_ID(id)',
+                    [(int) $r['enrollmentId'], $subjectId, $periodId, $score, $level, $manual !== null ? 1 : 0, isset($r['absences']) && $r['absences'] !== '' ? (int) $r['absences'] : null, $r['comments'] ?? null, $by],
                 );
                 $entry = (int) $this->db->pdo()->lastInsertId();
                 $this->db->run('DELETE FROM grade_entry_achievements WHERE grade_entry_id = ?', [$entry]);
-                foreach ($ach as $a) $this->db->run('INSERT INTO grade_entry_achievements (grade_entry_id, achievement_id, performance_level_id) VALUES (?, ?, ?)', [$entry, $a, $levelOf[$a]]);
+                foreach ($linkLevel as $a => $l) $this->db->run('INSERT INTO grade_entry_achievements (grade_entry_id, achievement_id, performance_level_id) VALUES (?, ?, ?)', [$entry, $a, $l]);
                 $saved++;
             }
         });
