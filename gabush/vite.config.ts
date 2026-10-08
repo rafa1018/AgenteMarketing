@@ -26,11 +26,12 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    // two pages: the public site and the private admin panel (/admin/)
+    // three apps: the public site, the private admin panel (/admin/) and the family portal (/familia/)
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         admin: fileURLToPath(new URL('./admin/index.html', import.meta.url)),
+        familia: fileURLToPath(new URL('./familia/index.html', import.meta.url)),
       },
     },
     assetsInlineLimit: 2048,

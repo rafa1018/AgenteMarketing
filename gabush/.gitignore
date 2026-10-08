@@ -21,3 +21,6 @@ gabush-data/
 
 # Cerkademia export (personal data of students and families: never commit / never deploy)
 .migration/
+
+# local development database (MariaDB data dir)
+.devdb/

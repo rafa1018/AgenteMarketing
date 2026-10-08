@@ -10,6 +10,12 @@ export const PERMS: { id: Perm; label: string; detail: string }[] = [
   { id: 'feed', label: 'Contenido de la página', detail: 'Momentos (feed), Galería y Niveles y programas: fotos, textos e imágenes.' },
   { id: 'ajustes', label: 'Ajustes', detail: 'Planes y precios, horario, recordatorios, notificaciones y copias de seguridad.' },
   { id: 'usuarios', label: 'Usuarios y permisos', detail: 'Crear usuarios y decidir qué puede hacer cada uno.' },
+  { id: 'matriculas', label: 'Matrículas', detail: 'Prematricular, matricular y retirar estudiantes; revisar sus documentos.' },
+  { id: 'academico', label: 'Gestión académica', detail: 'Años y periodos, cursos y salones, materias y banco de logros.' },
+  { id: 'calificaciones', label: 'Calificaciones', detail: 'Registrar logros y notas de sus cursos.' },
+  { id: 'observador', label: 'Observador', detail: 'Escribir anotaciones del estudiante (salud, convivencia, avances).' },
+  { id: 'caja', label: 'Caja', detail: 'Registrar ingresos y egresos del jardín y ver los saldos.' },
+  { id: 'mensajes', label: 'Mensajes a familias', detail: 'Enviar mensajes, actividades y circulares a la bandeja de las familias.' },
 ]
 
 export type Role = 'rectora' | 'docente' | 'auxiliar' | 'personalizado'
@@ -17,7 +23,7 @@ export type Role = 'rectora' | 'docente' | 'auxiliar' | 'personalizado'
 /** Roles are starting points: choosing one ticks its permissions, which can then be adjusted one by one. */
 export const ROLES: { id: Role; label: string; detail: string; perms: Perm[]; color: string }[] = [
   { id: 'rectora', label: 'Rectora', detail: 'Ve y administra todo.', perms: PERMS.map((p) => p.id), color: '#e5197e' },
-  { id: 'docente', label: 'Docente', detail: 'Solo toma asistencia.', perms: ['asistencia'], color: '#1fa3dd' },
+  { id: 'docente', label: 'Docente', detail: 'Asistencia, calificaciones, observador y mensajes de sus cursos.', perms: ['asistencia', 'calificaciones', 'observador', 'mensajes'], color: '#1fa3dd' },
   { id: 'auxiliar', label: 'Auxiliar', detail: 'Registra y actualiza estudiantes y maneja eventos.', perms: ['estudiantes', 'calendario'], color: '#5cb531' },
   { id: 'personalizado', label: 'Personalizado', detail: 'Tú eliges cada permiso.', perms: [], color: '#f26b1d' },
 ]

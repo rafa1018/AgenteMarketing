@@ -11,4 +11,16 @@ require __DIR__ . '/_push.php';
 require __DIR__ . '/_reports.php';
 rp_daily_backup();
 push_maybe_reminders();
+
+// Fase 2 (MySQL): pensiones del mes, mora, recordatorios a familias y cola de correos
+if (!empty($CONFIG['db'])) {
+    try {
+        require dirname(__DIR__, 2) . '/server/bootstrap.php';
+        $done = (new Gabush\Application\Scheduler(Gabush\App::boot()))->run();
+        echo date('c') . ' v2 ' . json_encode($done) . "\n";
+    } catch (Throwable $e) {
+        error_log('[gabush cron v2] ' . $e->getMessage());
+        echo date('c') . ' v2 ERROR ' . $e->getMessage() . "\n";
+    }
+}
 echo date('c') . " ok\n";

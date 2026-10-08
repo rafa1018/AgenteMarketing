@@ -156,7 +156,21 @@ export function checkAdmin(force = false): Promise<void> {
 }
 
 /* ── permissions ── */
-export type Perm = 'asistencia' | 'estudiantes' | 'pagos' | 'inscripciones' | 'calendario' | 'feed' | 'ajustes' | 'usuarios'
+export type Perm =
+  | 'asistencia'
+  | 'estudiantes'
+  | 'pagos'
+  | 'inscripciones'
+  | 'calendario'
+  | 'feed'
+  | 'ajustes'
+  | 'usuarios'
+  | 'matriculas'
+  | 'academico'
+  | 'calificaciones'
+  | 'observador'
+  | 'caja'
+  | 'mensajes'
 /** What the logged-in person may do (the server checks it again on every request). */
 export const can = (p: Perm) => state.perms.includes(p)
 export const useCan = (p: Perm) => useCalendar((s) => s.perms.includes(p))

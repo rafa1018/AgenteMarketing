@@ -1,0 +1,22 @@
+# Local development database for Gabush (production uses the MySQL database of Hostinger).
+#   docker compose up -d        → MySQL 8 on 127.0.0.1:3307 (user gabush / gabush, database gabush)
+# The data lives in the named volume "gabush_mysql"; nothing here is deployed.
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: gabush-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: gabush
+      MYSQL_USER: gabush
+      MYSQL_PASSWORD: gabush
+      MYSQL_ROOT_PASSWORD: gabush-root
+      TZ: America/Bogota
+    command: ['--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci', '--default-time-zone=-05:00']
+    ports:
+      - '127.0.0.1:3307:3306'
+    volumes:
+      - gabush_mysql:/var/lib/mysql
+
+volumes:
+  gabush_mysql:

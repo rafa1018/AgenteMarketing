@@ -24,4 +24,7 @@ return [
     'admin_name'          => 'Nombre visible del administrador',
     'admin_user'          => '',
     'admin_password_hash' => '',
+
+    // Fase 2 — MySQL / MariaDB (local: 127.0.0.1:3307 gabush/gabush; production: the Hostinger database)
+    'db' => ['host' => '127.0.0.1', 'port' => 3306, 'name' => 'gabush', 'user' => 'gabush', 'password' => ''],
 ];

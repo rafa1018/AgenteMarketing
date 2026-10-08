@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { BarChart3, Bell, BellRing, CalendarDays, Globe, GraduationCap, Images, LayoutGrid, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
+import { BarChart3, Bell, BellRing, BookOpenCheck, CalendarDays, CreditCard, FileCheck2, Globe, GraduationCap, Images, KeyRound, LayoutGrid, Mail, MessagesSquare, PiggyBank, School, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
 import { useCallback, useEffect, useState, type ComponentType } from 'react'
 import { checkAdmin, loadEvents, logout, reloadEvents, useCalendar, type Perm } from '@/lib/calendar'
 import { cn } from '@/lib/utils'
@@ -8,11 +8,21 @@ import { BlockLogo } from '@/components/fx/Fx'
 import { AppIntro } from './AppIntro'
 import { loadAll, syncNow, useAdmin } from './store'
 import { PhotoViewer, useRoute } from './ui'
-import { Home } from './pages/Home'
-import { Attendance } from './pages/Attendance'
-import { Students, StudentEditor } from './pages/Students'
-import { Payments } from './pages/Payments'
+import { StudentEditor } from './pages/Students'
 import { ChargeModal } from './pages/ChargeModal'
+import { HomeV2 } from './features/home/HomeV2'
+import { StudentsPage } from './features/students/StudentsPage'
+import { StudentFile } from './features/students/StudentFile'
+import { AttendancePage } from './features/attendance/AttendancePage'
+import { BillingPage } from './features/billing/BillingPage'
+import { EnrollmentsPage } from './features/enrollments/EnrollmentsPage'
+import { AcademicPage } from './features/academics/AcademicPage'
+import { GradesPage } from './features/grades/GradesPage'
+import { CashPage } from './features/cash/CashPage'
+import { MessagesPage } from './features/messages/MessagesPage'
+import { PortalAccountsPage } from './features/portal/PortalAccountsPage'
+import { EmailSettingsPage } from './features/settings/EmailSettingsPage'
+import { PaymentGatewayPage } from './features/settings/PaymentGatewayPage'
 import { ReminderModal } from './pages/Reminder'
 import { DayBillingModal } from './pages/DayBilling'
 import { Inscriptions } from './pages/Inscriptions'
@@ -27,20 +37,30 @@ import { ProgramsAdminPage } from './pages/ProgramsAdmin'
 import { roleColor, roleLabel } from './roles'
 
 /** perm: the page is only shown to users with that permission (the server enforces it too). group: menu section. */
-type Group = 'jardin' | 'web' | 'cuenta'
-type Page = { id: string; label: string; icon: ComponentType<{ size?: number; className?: string }>; view: ComponentType; perm?: Perm; group: Group }
+type Group = 'jardin' | 'academico' | 'dinero' | 'web' | 'cuenta'
+type Page = { id: string; label: string; icon: ComponentType<{ size?: number; className?: string }>; view: ComponentType; perm?: Perm; perms?: Perm[]; group: Group }
 const GROUPS: { id: Group; label: string }[] = [
   { id: 'jardin', label: 'El jardín' },
+  { id: 'academico', label: 'Académico' },
+  { id: 'dinero', label: 'Dinero' },
   { id: 'web', label: 'Página web' },
-  { id: 'cuenta', label: 'Cuenta' },
+  { id: 'cuenta', label: 'Configuración' },
 ]
 const ALL_PAGES: Page[] = [
-  { id: 'inicio', label: 'Inicio', icon: House, view: Home, perm: 'pagos', group: 'jardin' },
-  { id: 'asistencia', label: 'Asistencia', icon: ClipboardCheck, view: Attendance, perm: 'asistencia', group: 'jardin' },
-  { id: 'estudiantes', label: 'Estudiantes', icon: Users, view: Students, perm: 'estudiantes', group: 'jardin' },
-  { id: 'pagos', label: 'Pagos', icon: Wallet, view: Payments, perm: 'pagos', group: 'jardin' },
+  { id: 'inicio', label: 'Inicio', icon: House, view: HomeV2, group: 'jardin' },
+  { id: 'asistencia', label: 'Asistencia', icon: ClipboardCheck, view: AttendancePage, perm: 'asistencia', group: 'jardin' },
+  { id: 'estudiantes', label: 'Estudiantes', icon: Users, view: StudentsPage, perms: ['estudiantes', 'matriculas'], group: 'jardin' },
+  { id: 'matriculas', label: 'Matrículas', icon: FileCheck2, view: EnrollmentsPage, perm: 'matriculas', group: 'jardin' },
   { id: 'inscripciones', label: 'Inscripciones', icon: Bell, view: Inscriptions, perm: 'inscripciones', group: 'jardin' },
+  { id: 'mensajes', label: 'Mensajes', icon: MessagesSquare, view: MessagesPage, perm: 'mensajes', group: 'jardin' },
   { id: 'calendario', label: 'Calendario', icon: CalendarDays, view: CalendarPage, perm: 'calendario', group: 'jardin' },
+  { id: 'calificaciones', label: 'Calificaciones', icon: BookOpenCheck, view: GradesPage, perms: ['calificaciones', 'academico'], group: 'academico' },
+  { id: 'academico', label: 'Gestión académica', icon: School, view: AcademicPage, perm: 'academico', group: 'academico' },
+  { id: 'cartera', label: 'Cartera', icon: Wallet, view: BillingPage, perm: 'pagos', group: 'dinero' },
+  { id: 'caja', label: 'Caja', icon: PiggyBank, view: CashPage, perm: 'caja', group: 'dinero' },
+  { id: 'portal', label: 'Portal de familias', icon: KeyRound, view: PortalAccountsPage, perms: ['estudiantes', 'matriculas'], group: 'cuenta' },
+  { id: 'correo', label: 'Correo', icon: Mail, view: EmailSettingsPage, perm: 'ajustes', group: 'cuenta' },
+  { id: 'pagos-en-linea', label: 'Pagos en línea', icon: CreditCard, view: PaymentGatewayPage, perm: 'ajustes', group: 'cuenta' },
   { id: 'feed', label: 'Momentos', icon: Images, view: FeedPage, perm: 'feed', group: 'web' },
   { id: 'galeria', label: 'Galería', icon: LayoutGrid, view: GalleryAdminPage, perm: 'feed', group: 'web' },
   { id: 'niveles', label: 'Niveles y programas', icon: GraduationCap, view: ProgramsAdminPage, perm: 'feed', group: 'web' },
@@ -54,7 +74,7 @@ const ALL_PAGES: Page[] = [
 function NoAccess() {
   return <p className="rounded-2xl bg-white p-6 text-muted">Tu usuario todavía no tiene permisos. Pídele a la rectora que te los asigne.</p>
 }
-const MOBILE_PREF = ['inicio', 'asistencia', 'estudiantes', 'feed', 'pagos', 'calendario', 'inscripciones', 'notificaciones']
+const MOBILE_PREF = ['inicio', 'asistencia', 'estudiantes', 'cartera', 'calificaciones', 'feed', 'mensajes', 'calendario', 'inscripciones', 'notificaciones']
 
 /** The installed app opens straight on attendance; the browser on the dashboard. */
 const STANDALONE = window.matchMedia('(display-mode: standalone)').matches
@@ -62,7 +82,7 @@ const STANDALONE = window.matchMedia('(display-mode: standalone)').matches
 function Shell() {
   const perms = useCalendar((s) => s.perms)
   const role = useCalendar((s) => s.role)
-  const PAGES = ALL_PAGES.filter((p) => !p.perm || perms.includes(p.perm))
+  const PAGES = ALL_PAGES.filter((p) => (!p.perm || perms.includes(p.perm)) && (!p.perms || p.perms.some((x) => perms.includes(x))))
   const hasMore = PAGES.length > 5
   const MOBILE_MAIN = hasMore ? MOBILE_PREF.filter((id) => PAGES.some((p) => p.id === id)).slice(0, 4) : PAGES.map((p) => p.id)
   const START = (STANDALONE && PAGES.find((p) => p.id === 'asistencia')?.id) || PAGES[0]?.id || 'inicio'
@@ -288,6 +308,7 @@ function Shell() {
       </AnimatePresence>
 
       <StudentEditor />
+      <StudentFile />
       <ChargeModal />
       <ReminderModal />
       <DayBillingModal />
