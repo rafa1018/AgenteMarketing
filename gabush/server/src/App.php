@@ -57,8 +57,9 @@ final class App
     {
         $cfg = (string) $this->config->get('base_url', '');
         if ($cfg !== '') return rtrim($cfg, '/');
+        // the cron (command line) has no request: links in its e-mails point to the live site
+        if (empty($_SERVER['HTTP_HOST'])) return 'https://gabushkids.com';
         $https = \function_exists('rp_is_https') && \rp_is_https();
-        $host = $_SERVER['HTTP_HOST'] ?? 'gabushkids.com';
-        return ($https ? 'https://' : 'http://') . $host;
+        return ($https ? 'https://' : 'http://') . $_SERVER['HTTP_HOST'];
     }
 }

@@ -93,11 +93,24 @@ const tarArgs = ['-C', 'dist', '-cf', '-', ...(hasConfig ? ['--exclude=./api/con
 const tar = spawn('tar', tarArgs, { stdio: ['ignore', 'pipe', 'inherit'] })
 await run('ssh', [...ssh, `mkdir -p '${dir}' && tar -xf - -C '${dir}' && find '${dir}/assets' -type f -mtime +7 -delete 2>/dev/null; echo "[deploy] archivos en el servidor: $(find '${dir}' -type f | wc -l)"`], tar)
 
+// Fase 2 backend: server/ lives next to public_html, outside the web (code only: config and data stay on the server)
+const site = dir.replace(/\/public_html$/, '')
+console.log(`[deploy] subiendo server/ → ${site}/server`)
+const srv = spawn('tar', ['-C', 'server', '--exclude=./tests', '-cf', '-', '.'], { stdio: ['ignore', 'pipe', 'inherit'] })
+await run('ssh', [...ssh, `mkdir -p '${site}/server' && tar -xf - -C '${site}/server' && chmod -R go-w '${site}/server'`], srv)
+// database migrations — skipped while the database is still empty (the migrated data is loaded first with
+// `node scripts/publish-data.mjs`) or when config.php has no database yet
+await run('ssh', [
+  ...ssh,
+  `cd '${site}'; out=$(php server/bin/load-sql.php --check 2>&1) || { echo "[deploy] base de datos no disponible: $out"; exit 0; };
+   case "$out" in *"tablas: 0"*) echo "[deploy] base de datos vacía: carga los datos con node scripts/publish-data.mjs";; *) php server/bin/migrate.php;; esac`,
+]).catch(() => console.log('[deploy] no se pudieron revisar las migraciones'))
+
 // data folder: report only (never written by a deploy)
 await run('ssh', [...ssh, `d='domains/gabushkids.com/gabush-data'; if [ -d "$d" ]; then echo "[deploy] datos intactos en $d: $(ls "$d"/*.json 2>/dev/null | wc -l) archivos"; else echo "[deploy] aún no hay datos (se crean solos al primer uso)"; fi`]).catch(() => {})
 
 // quick health check of the live site
-for (const path of ['/', '/admin/', '/api/settings.php', '/api/feed.php']) {
+for (const path of ['/', '/admin/', '/familia/', '/api/settings.php', '/api/feed.php', '/api/v2/portal/me']) {
   const res = await fetch(cfg.url + path, { cache: 'no-store' }).catch(() => null)
   console.log(`[deploy] ${path.padEnd(18)} ${res ? res.status : 'sin respuesta'}`)
 }
