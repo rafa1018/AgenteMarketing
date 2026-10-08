@@ -161,7 +161,7 @@ function SheetEditor() {
                         })}
                       </ul>
                       <div className="grid gap-2 sm:grid-cols-[120px_120px_1fr]">
-                        <input value={r.score} onChange={(e) => setRows({ ...rows, [s.enrollmentId]: { ...r, score: e.target.value } })} inputMode="decimal" placeholder="Nota (opcional)" className="rounded-lg border border-line px-3 py-2" aria-label="Nota" />
+                        <input value={r.score} onChange={(e) => setRows({ ...rows, [s.enrollmentId]: { ...r, score: e.target.value } })} inputMode="decimal" placeholder="Nota 0–10 (opcional)" title="Nota de 0 a 10. Si la escribes, define el desempeño de la materia; si no, sale de los logros marcados." className={`rounded-lg border px-3 py-2 ${Number(r.score.replace(',', '.')) > 10 ? 'border-berry' : 'border-line'}`} aria-label="Nota de 0 a 10" />
                         <input value={r.absences} onChange={(e) => setRows({ ...rows, [s.enrollmentId]: { ...r, absences: e.target.value } })} inputMode="numeric" placeholder="Fallas" className="rounded-lg border border-line px-3 py-2" aria-label="Fallas" />
                         <input value={r.comments} onChange={(e) => setRows({ ...rows, [s.enrollmentId]: { ...r, comments: e.target.value } })} placeholder="Comentario para la familia (opcional)" className="rounded-lg border border-line px-3 py-2" aria-label="Comentario" />
                       </div>
