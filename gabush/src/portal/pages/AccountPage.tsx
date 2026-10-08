@@ -1,36 +1,10 @@
-import { BellOff, BellRing, Download, Loader2, LogOut, Share, Smartphone, Users } from 'lucide-react'
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { BellOff, BellRing, Loader2, LogOut, Users } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { fullName } from '@/shared/format'
 import { api, logout, toast, useSession } from '../session'
 import { Card, Title } from '../ui'
+import { InstallBox, isIOS, isStandalone } from '../install'
 import { ChangePassword } from './Auth'
-
-/* ───────── install (Android/desktop prompt; iPhone needs "Agregar a inicio") ───────── */
-type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }
-let installEvent: InstallEvent | null = null
-const installListeners = new Set<() => void>()
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault()
-    installEvent = e as InstallEvent
-    installListeners.forEach((l) => l())
-  })
-  window.addEventListener('appinstalled', () => {
-    installEvent = null
-    installListeners.forEach((l) => l())
-  })
-}
-const useInstallEvent = () =>
-  useSyncExternalStore(
-    (l) => {
-      installListeners.add(l)
-      return () => installListeners.delete(l)
-    },
-    () => installEvent,
-  )
-
-const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-const isStandalone = () => matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true
 
 /* ───────── push ───────── */
 type PushState = 'loading' | 'unsupported' | 'needs-install' | 'denied' | 'off' | 'on'
@@ -132,49 +106,6 @@ export function PushCard({ compact = false }: { compact?: boolean }) {
   )
 }
 
-function InstallCard() {
-  const ev = useInstallEvent()
-  const [installed] = useState(isStandalone)
-  if (installed) return null
-  return (
-    <Card>
-      <p className="flex items-center gap-2 font-semibold text-ink">
-        <Smartphone size={20} className="text-royal" /> Instala la app del jardín
-      </p>
-      {ev ? (
-        <>
-          <p className="mt-1 text-sm text-muted">Queda como una app en tu celular, con el ícono del león Gabush.</p>
-          <button
-            type="button"
-            onClick={async () => {
-              await ev.prompt()
-              await ev.userChoice
-              installEvent = null
-              installListeners.forEach((l) => l())
-            }}
-            className="btn btn-primary mt-3 w-full"
-          >
-            <Download size={18} /> Instalar
-          </button>
-        </>
-      ) : isIOS() ? (
-        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-text">
-          <li>Abre esta página en <b>Safari</b>.</li>
-          <li>
-            Toca el botón <b>Compartir</b> <Share size={14} className="inline align-[-2px]" />.
-          </li>
-          <li>
-            Elige <b>«Agregar a inicio»</b> y luego <b>Agregar</b>.
-          </li>
-          <li>Abre Gabush desde el nuevo ícono y activa las notificaciones.</li>
-        </ol>
-      ) : (
-        <p className="mt-1 text-sm text-muted">En el menú del navegador (⋮) elige «Instalar app» o «Agregar a la pantalla principal».</p>
-      )}
-    </Card>
-  )
-}
-
 export function AccountPage() {
   const { me } = useSession()
   if (!me) return null
@@ -205,7 +136,7 @@ export function AccountPage() {
         )}
       </Card>
       <PushCard />
-      <InstallCard />
+      <InstallBox />
       <Card>
         <ChangePassword />
       </Card>

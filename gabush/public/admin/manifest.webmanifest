@@ -1,7 +1,7 @@
 {
-  "name": "Gabush",
-  "short_name": "Gabush",
-  "description": "Panel del Jardín Infantil Gabush Kids: asistencia, estudiantes, pagos, calendario y la página web.",
+  "name": "Gabush Admin · Personal del jardín",
+  "short_name": "Gabush Admin",
+  "description": "Panel del personal del Jardín Infantil Gabush Kids (no es la app de familias): asistencia, estudiantes, pagos, calendario y la página web.",
   "id": "/admin/",
   "start_url": "/admin/",
   "scope": "/admin/",

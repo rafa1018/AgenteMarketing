@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { BlockLogo } from '@/components/fx/Fx'
 import { ApiError } from '@/shared/api'
 import { field } from '../../admin/ui'
+import { InstallBox } from '../install'
 import { api, login, logout, passwordChanged, toast } from '../session'
 import { Problem } from '../ui'
 
@@ -16,6 +17,9 @@ function Frame({ children }: { children: React.ReactNode }) {
           <p className="font-serif text-lg font-semibold text-ink">Portal de familias</p>
         </div>
         <div className="card p-6">{children}</div>
+        <div className="mt-4">
+          <InstallBox highlight={new URLSearchParams(location.search).has('instalar')} />
+        </div>
         <a href="/" className="mt-4 block text-center text-sm font-semibold text-royal">
           ← Ir a la página del jardín
         </a>

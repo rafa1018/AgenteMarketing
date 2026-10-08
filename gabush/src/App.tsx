@@ -17,6 +17,7 @@ import { Feed } from '@/components/sections/Feed'
 import { CtaBand, Faq, Testimonials } from '@/components/sections/Extras'
 import { Contact } from '@/components/sections/Contact'
 import { Calendar } from '@/components/sections/Calendar'
+import { FamilyApp } from '@/components/sections/FamilyApp'
 import { AdminLayer } from '@/components/admin/AdminUI'
 import { useReducedMotionPref } from '@/hooks/useMediaQuery'
 import { useT } from '@/i18n'
@@ -69,6 +70,7 @@ export default function App() {
         <Steps />
         <Gallery />
         <Calendar />
+        <FamilyApp />
         <Testimonials />
         <CtaBand />
         <Faq />
