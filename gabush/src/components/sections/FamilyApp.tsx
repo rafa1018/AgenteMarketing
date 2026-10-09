@@ -1,5 +1,6 @@
 import { Bell, BookOpenCheck, CalendarCheck, Download, LogIn, Wallet } from 'lucide-react'
 import { FadeIn } from '@/components/animations'
+import { PhoneDemo } from './PhoneDemo'
 import { useT } from '@/i18n'
 
 const FEATURES = [
@@ -50,51 +51,8 @@ export function FamilyApp() {
           </p>
         </FadeIn>
 
-        {/* phone preview of the portal */}
-        <FadeIn className="mx-auto w-full max-w-[300px]">
-          <div className="relative rounded-[2.6rem] bg-ink p-3 shadow-[0_40px_70px_-35px_rgba(35,32,107,0.9)]">
-            <div className="absolute top-3 left-1/2 h-5 w-24 -translate-x-1/2 rounded-b-2xl bg-ink" />
-            <div className="overflow-hidden rounded-[2rem] bg-paper">
-              <div className="flex items-center gap-2.5 bg-white px-4 pt-8 pb-3">
-                <img src="/images/opt/leon-asomado-160.webp" alt="" width={160} height={161} loading="lazy" className="size-9" />
-                <span className="leading-tight">
-                  <span className="block font-serif text-[15px] font-semibold text-ink">{t({ es: 'Hola, familia', en: 'Hi, family' })} 👋</span>
-                  <span className="block text-[11px] font-bold text-muted uppercase">Gabush · {t({ es: 'Familias', en: 'Families' })}</span>
-                </span>
-              </div>
-              <div className="space-y-2.5 p-3.5">
-                <div className="rounded-2xl bg-white p-3.5">
-                  <p className="text-[10px] font-bold tracking-wide text-muted uppercase">{t({ es: 'Pagos', en: 'Payments' })}</p>
-                  <p className="font-serif text-lg font-semibold text-leaf">{t({ es: '¡Estás al día! 🎉', en: "You're up to date! 🎉" })}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="rounded-2xl bg-white p-3">
-                    <BookOpenCheck size={18} className="text-pink" />
-                    <p className="mt-1 text-[12px] font-semibold text-ink">{t({ es: 'Boletín', en: 'Report card' })}</p>
-                    <span className="mt-1 inline-block rounded-full bg-[#e6f6dd] px-2 py-0.5 text-[10px] font-bold text-leaf">Excelente</span>
-                  </div>
-                  <div className="rounded-2xl bg-white p-3">
-                    <Bell size={18} className="text-sky" />
-                    <p className="mt-1 text-[12px] font-semibold text-ink">{t({ es: 'Novedades', en: 'News' })}</p>
-                    <span className="mt-1 inline-block text-[10px] font-bold text-pink">2 {t({ es: 'nuevas', en: 'new' })}</span>
-                  </div>
-                </div>
-                <div className="rounded-2xl bg-white p-3">
-                  <p className="text-[10px] font-bold tracking-wide text-muted uppercase">{t({ es: 'Asistencia', en: 'Attendance' })}</p>
-                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-paper">
-                    <div className="h-full w-[94%] rounded-full bg-leaf" />
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-4 border-t border-line bg-white py-2 text-center text-[9px] font-semibold text-muted">
-                <span className="text-ink">{t({ es: 'Inicio', en: 'Home' })}</span>
-                <span>{t({ es: 'Mensajes', en: 'Messages' })}</span>
-                <span>{t({ es: 'Pagos', en: 'Payments' })}</span>
-                <span>{t({ es: 'Notas', en: 'Grades' })}</span>
-              </div>
-            </div>
-          </div>
-        </FadeIn>
+        {/* animated tour of the app inside the phone (it has its own scroll entrance) */}
+        <PhoneDemo />
       </div>
     </section>
   )
