@@ -325,8 +325,33 @@ final class BillingService
         return ['created' => $created, 'skipped' => $skipped];
     }
 
-    /** Matrícula charge when an enrollment becomes active (once per enrollment). */
-    public function onEnrollmentActivated(int $enrollmentId, Actor $actor): void
+    /**
+     * What "Matricular (activar)" will charge: the matrícula amount(s), the due date it would get and when the
+     * pensions of that year start. @return array<string,mixed>
+     */
+    public function activationPreview(int $enrollmentId): array
+    {
+        $e = $this->db->one('SELECT id, year_id FROM enrollments WHERE id = ?', [$enrollmentId]);
+        if (!$e) return [];
+        $year = (int) $e['year_id'];
+        $items = [];
+        foreach ($this->db->all('SELECT code, name FROM billing_concepts WHERE active = 1 AND apply_on_enrollment = 1') as $c) {
+            $amount = $this->priceFor($enrollmentId, $c['code']);
+            if ($amount) $items[] = ['name' => $c['name'], 'amount' => $amount];
+        }
+        $months = $this->pensionMonthsFor($year);
+        return [
+            'year' => $year,
+            'items' => $items,
+            'dueOn' => $this->enrollmentDueOn($year),
+            'yearDeadline' => $this->db->value('SELECT enrollment_due_on FROM academic_years WHERE id = ?', [$year]),
+            'pensionMonths' => $months,
+            'pensionDueDay' => $this->lateFeePolicy()->dueDay,
+        ];
+    }
+
+    /** Matrícula charge when an enrollment becomes active (once per enrollment); $dueOn overrides the due date. */
+    public function onEnrollmentActivated(int $enrollmentId, Actor $actor, ?string $dueOn = null): void
     {
         $e = $this->db->one('SELECT e.*, g.name AS grade FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id LEFT JOIN grade_levels g ON g.id = c.grade_level_id WHERE e.id = ?', [$enrollmentId]);
         if (!$e) return;
@@ -337,7 +362,7 @@ final class BillingService
             $this->db->insert('charges', [
                 'student_id' => $e['student_id'], 'enrollment_id' => $enrollmentId, 'year_id' => $e['year_id'], 'concept_id' => $c['id'],
                 'description' => trim("{$c['name']} " . ($e['grade'] ?? '') . " {$e['year_id']}"), 'amount' => $amount,
-                'due_on' => $this->enrollmentDueOn((int) $e['year_id']), 'source' => 'automatico', 'created_by' => $actor->label(),
+                'due_on' => $dueOn ?? $this->enrollmentDueOn((int) $e['year_id']), 'source' => 'automatico', 'created_by' => $actor->label(),
             ]);
         }
     }

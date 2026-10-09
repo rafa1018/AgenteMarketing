@@ -15,6 +15,7 @@ export function EnrollmentTab({ detail, onChanged }: { detail: StudentDetail; on
   const e = detail.enrollments.find((x) => x.year === year) ?? null
   const m = useMutation()
   const [withdraw, setWithdraw] = useState(false)
+  const [activate, setActivate] = useState(false)
 
   const update = async (body: Record<string, unknown>, ok: string) => {
     if (!e) return
@@ -69,7 +70,7 @@ export function EnrollmentTab({ detail, onChanged }: { detail: StudentDetail; on
             {can('pagos') && <PlanFields key={e.id} enrollment={e} onSave={(body, ok) => update(body, ok)} defaultReason={reasonFor(detail.enrollments)} />}
             <div className="flex flex-wrap gap-2">
               {e.status === 'prematricula' && (
-                <button type="button" onClick={() => status('activo', {}, '¡Matriculado! Se generó el cobro de matrícula.')} disabled={m.busy} className="btn btn-primary !text-sm">
+                <button type="button" onClick={() => setActivate(true)} disabled={m.busy} className="btn btn-primary !text-sm">
                   <ShieldCheck size={17} /> Matricular (activar)
                 </button>
               )}
@@ -101,6 +102,18 @@ export function EnrollmentTab({ detail, onChanged }: { detail: StudentDetail; on
       <Trajectory enrollments={detail.enrollments} />
 
       <WithdrawModal open={withdraw} onClose={() => setWithdraw(false)} onConfirm={(reason, d) => status('retirado', { reason, date: d }, 'Estudiante retirado')} />
+      {e && (
+        <ActivateModal
+          open={activate}
+          enrollmentId={e.id}
+          name={detail.student.firstName}
+          onClose={() => setActivate(false)}
+          onConfirm={async (dueOn, applyToYear) => {
+            setActivate(false)
+            await status('activo', { enrollmentDueOn: dueOn, applyToYear }, '¡Matriculado! Se generó el cobro de matrícula.')
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -208,6 +221,102 @@ function PlanFields({ enrollment: e, onSave, defaultReason }: { enrollment: Enro
         </p>
       )}
     </div>
+  )
+}
+
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+type Activation = { year: number; items: { name: string; amount: number }[]; dueOn: string; yearDeadline: string | null; pensionMonths: number[]; pensionDueDay: number }
+
+/**
+ * "Matricular (activar)": shows what will be charged, lets the staff choose when the matrícula is due (and save
+ * it as the deadline of the whole year when the year has none) and says when the pensions start.
+ */
+function ActivateModal({ open, enrollmentId, name, onClose, onConfirm }: { open: boolean; enrollmentId: number; name: string; onClose: () => void; onConfirm: (dueOn: string, applyToYear: boolean) => Promise<void> }) {
+  const { data, error, loading } = useQuery(open ? `activation:${enrollmentId}` : null, () => api2.get<Activation>(`/enrollments/${enrollmentId}/activation`))
+  const [dueOn, setDueOn] = useState('')
+  const [applyToYear, setApplyToYear] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [last, setLast] = useState<Activation | null>(null)
+  if (data && data !== last) {
+    setLast(data)
+    setDueOn(data.dueOn)
+    setApplyToYear(!data.yearDeadline) // the year has no deadline yet: suggest saving it for everyone
+  }
+  const today = new Date().toISOString().slice(0, 10)
+  const total = data?.items.reduce((s, i) => s + i.amount, 0) ?? 0
+  const first = data?.pensionMonths[0]
+  return (
+    <Modal open={open} onClose={onClose} label="Matricular" closeLabel="Cerrar" className="sm:!max-w-lg">
+      <div className="space-y-4 p-6">
+        <h2 className="text-[1.5rem]">Matricular a {name}{data ? ` en ${data.year}` : ''}</h2>
+        {error ? (
+          <ErrorBox message={error.message} />
+        ) : loading || !data ? (
+          <Spinner />
+        ) : (
+          <>
+            <div className="rounded-xl bg-paper p-4 text-[15px]">
+              <p className="font-semibold text-ink">Se genera este cobro:</p>
+              {data.items.length ? (
+                <ul className="mt-1 space-y-0.5">
+                  {data.items.map((i) => (
+                    <li key={i.name} className="flex justify-between gap-3">
+                      <span>{i.name} {data.year}</span>
+                      <b className="tabular-nums">{money(i.amount)}</b>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted">Ningún cobro de matrícula (sin precio para este grado o plan).</p>
+              )}
+            </div>
+            {data.items.length > 0 && (
+              <>
+                <Field label="¿Hasta cuándo puede pagar la matrícula?" hint="Antes de esta fecha el cobro no aparece como vencido.">
+                  <input type="date" value={dueOn} onChange={(ev) => setDueOn(ev.target.value)} className={inputCls()} />
+                </Field>
+                {!data.yearDeadline && (
+                  <p className="rounded-xl bg-butter px-4 py-3 text-[14px] text-[#8a5716]">
+                    El año {data.year} aún no tiene fecha límite de matrícula: sin ella, la matrícula vence el mismo día en que se matricula.
+                  </p>
+                )}
+                {dueOn < today && <p className="text-[13px] font-semibold text-berry">Esa fecha ya pasó: el cobro quedará vencido de una vez.</p>}
+                {can('pagos') && (
+                  <label className="flex items-start gap-2 text-[14px] text-ink">
+                    <input type="checkbox" checked={applyToYear} onChange={(ev) => setApplyToYear(ev.target.checked)} className="mt-0.5 size-5 accent-[#3a36a8]" />
+                    <span>
+                      Usar esta fecha para todas las matrículas de {data.year}
+                      <span className="block text-[12px] text-muted">También mueve a esta fecha las matrículas de {data.year} que ya estén pendientes sin pagar.</span>
+                    </span>
+                  </label>
+                )}
+              </>
+            )}
+            <p className="rounded-xl bg-[#eaf3fa] px-4 py-3 text-[14px] text-[#185a8a]">
+              <b>Pensiones {data.year}:</b> {first ? `empiezan en ${MONTHS[first - 1]} (${data.pensionMonths.length} meses) y vencen el día ${data.pensionDueDay} de cada mes.` : 'no hay meses de pensión configurados.'} Se cambian en Cartera → Precios y mora, eligiendo el año {data.year}.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={onClose} className="btn btn-ghost">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={busy || (data.items.length > 0 && !dueOn)}
+                onClick={async () => {
+                  setBusy(true)
+                  await onConfirm(dueOn, applyToYear)
+                  setBusy(false)
+                }}
+                className="btn btn-primary"
+              >
+                {busy ? <Loader2 size={17} className="animate-spin" /> : <ShieldCheck size={17} />} Matricular
+              </button>
+            </div>
+            {total > 0 && <p className="text-center text-[12px] text-muted">Total a cobrar: {money(total)}</p>}
+          </>
+        )}
+      </div>
+    </Modal>
   )
 }
 

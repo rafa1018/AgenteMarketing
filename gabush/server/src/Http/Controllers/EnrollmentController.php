@@ -27,6 +27,7 @@ final class EnrollmentController extends Controller
         $r->add('POST', '/enrollments', [$c, 'enroll']);
         $r->add('PUT', '/enrollments/{id}', [$c, 'update']);
         $r->add('POST', '/enrollments/{id}/status', [$c, 'changeStatus']);
+        $r->add('GET', '/enrollments/{id}/activation', [$c, 'activationPreview']);
         $r->add('POST', '/enrollments/promote', [$c, 'promote']);
         $r->add('GET', '/enrollments/{id}/documents', [$c, 'documents']);
         $r->add('POST', '/enrollments/{id}/documents/{type}', [$c, 'uploadDocument']);
@@ -158,18 +159,33 @@ final class EnrollmentController extends Controller
         $to = $v->oneOf('status', EnrollmentRules::STATES, null, true);
         $reason = $v->str('reason', 200);
         $date = $v->date('date') ?? date('Y-m-d');
+        // matrícula due date chosen when activating; applyToYear = save it as the deadline of the whole year
+        $dueOn = $v->date('enrollmentDueOn');
+        $applyToYear = $v->bool('applyToYear', false);
         $v->check();
         EnrollmentRules::assertTransition($e['status'], $to);
+        if ($dueOn && $to === 'activo' && $applyToYear) {
+            if (!$actor->can('pagos')) throw HttpError::forbidden();
+            $this->db()->update('academic_years', ['enrollment_due_on' => $dueOn], ['id' => (int) $e['year_id']]);
+            $this->billing()->moveEnrollmentDeadline((int) $e['year_id']);
+        }
         if ($to !== 'retirado' && $e['status'] === 'retirado' && $e['course_id']) $this->checkCapacity((int) $e['course_id'], $id);
         $row = ['status' => $to];
         if ($to === 'retirado') { $row['withdrawn_on'] = $date; $row['withdraw_reason'] = $reason; }
         else { $row['withdrawn_on'] = null; $row['withdraw_reason'] = null; }
         if ($to === 'activo' && !$e['enrolled_on']) $row['enrolled_on'] = $date;
         $this->db()->update('enrollments', $row, ['id' => $id]);
-        if ($to === 'activo') $this->billing()->onEnrollmentActivated($id, $actor);
+        if ($to === 'activo') $this->billing()->onEnrollmentActivated($id, $actor, $dueOn);
         if ($to === 'retirado') $this->billing()->onEnrollmentWithdrawn($id, $date, $actor);
-        $this->audit()->log($actor, 'enrollment.status', 'enrollment', $id, ['from' => $e['status'], 'to' => $to, 'reason' => $reason]);
+        $this->audit()->log($actor, 'enrollment.status', 'enrollment', $id, ['from' => $e['status'], 'to' => $to, 'reason' => $reason, 'enrollmentDueOn' => $dueOn, 'applyToYear' => $applyToYear]);
         return [];
+    }
+
+    /** What activating this enrollment will charge, its due date and when the pensions start. */
+    public function activationPreview(Request $req): array
+    {
+        $this->staff($req, 'matriculas');
+        return $this->billing()->activationPreview($req->intParam('id')) ?: throw HttpError::notFound();
     }
 
     /**
