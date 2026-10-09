@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Gabush\Http\Views;
 
 /**
- * Printable "paz y salvo", same layout the school used in Cerkademia. The authorized signature is printed only
+ * Printable "paz y salvo", same layout the school used in Cerkademia. The rectora's signature is printed only
  * when the student owes nothing; otherwise the signature line stays blank and the pending amount is stated.
  */
 final class PazYSalvoView
@@ -66,7 +66,7 @@ final class PazYSalvoView
             . '</div>'
             . $statement
             . '<div class="foot"><div>(Fecha y hora de impresión: ' . $e($printed) . ')</div>'
-            . '<div class="signbox">' . $sign . '<hr>' . $who . '<div class="t">' . $e($signature['title'] ?: 'Firma autorizada Cartera') . '</div></div>'
+            . '<div class="signbox">' . $sign . '<hr>' . $who . '<div class="t">' . $e($signature['title'] ?: 'Rectora') . '</div></div>'
             . '<div class="slogan">SU PUNTUALIDAD NOS PERMITE SERVIRLES MEJOR</div></div>'
             . '</div></body></html>';
     }

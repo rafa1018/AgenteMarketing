@@ -83,7 +83,7 @@ export function LoginForm() {
       </span>
       <h1 className="mt-4 text-[1.7rem]">{t(ui.admin.loginTitle)}</h1>
       <p className="mt-1 text-[15px] text-muted">{t({ es: 'Ingresa para administrar el jardín.', en: 'Log in to manage the kindergarten.' })}</p>
-      {notice === 'expired' && !error && <p className="mt-4 rounded-lg bg-[#fff4e0] px-3 py-2 text-sm font-medium text-[#8a5716]">{t(ui.admin.expired)}</p>}
+      {(notice === 'expired' || notice === 'idle') && !error && <p className="mt-4 rounded-lg bg-[#fff4e0] px-3 py-2 text-sm font-medium text-[#8a5716]">{t(notice === 'idle' ? ui.admin.idle : ui.admin.expired)}</p>}
 
       <div className="mt-6 space-y-4">
         <div>

@@ -9,34 +9,44 @@ use Gabush\Domain\Shared\DomainError;
 use Gabush\Infrastructure\Storage\PrivateFiles;
 
 /**
- * The authorized signature printed on payment receipts and on the "paz y salvo" (only when the student is up
- * to date). Kept as a private PNG; documents embed it inline, so there is no public URL to copy it from.
+ * The school's authorized signatures, kept as private PNGs (documents embed them inline, so there is no public
+ * URL to copy them from):
+ *  - "rectora": the paz y salvo (only when the student is up to date) and the report cards;
+ *  - "contadora": the payment receipts (only once the payment is approved).
  */
 final class Signature
 {
-    private const KEY = 'signature';
+    public const KINDS = ['rectora', 'contadora'];
+    private const KEYS = ['rectora' => 'signature', 'contadora' => 'signature_contadora'];
+    private const TITLES = ['rectora' => 'Rectora', 'contadora' => 'Contadora'];
 
-    public function __construct(private readonly Settings $settings, private readonly PrivateFiles $files)
+    public function __construct(private readonly Settings $settings, private readonly PrivateFiles $files, private readonly string $kind = 'rectora')
     {
     }
 
-    public static function from(App $app): self
+    /** @param 'rectora'|'contadora' $kind */
+    public static function from(App $app, string $kind = 'rectora'): self
     {
-        return $app->service(self::class, static fn(App $a) => new self(
+        $kind = in_array($kind, self::KINDS, true) ? $kind : 'rectora';
+        return $app->service(self::class . ':' . $kind, static fn(App $a) => new self(
             $a->service(Settings::class, static fn(App $x) => new Settings($x->db())),
             $a->service(PrivateFiles::class, static fn(App $x) => new PrivateFiles($x->dataDir())),
+            $kind,
         ));
     }
 
     /** @return array{image:?string,name:string,title:string,updatedAt:?string} image = data: URI (null when none) */
     public function get(): array
     {
-        $s = (array) $this->settings->get(self::KEY, []);
+        $s = (array) $this->settings->get(self::KEYS[$this->kind], []);
         $image = null;
         if (!empty($s['path']) && $this->files->exists($s['path'])) {
             $image = 'data:image/png;base64,' . base64_encode((string) file_get_contents($this->files->path($s['path'])));
         }
-        return ['image' => $image, 'name' => (string) ($s['name'] ?? ''), 'title' => (string) ($s['title'] ?? 'Firma autorizada Cartera'), 'updatedAt' => $s['updatedAt'] ?? null];
+        $title = trim((string) ($s['title'] ?? ''));
+        // the single signature of before was titled "Firma autorizada Cartera": it is the rectora's now
+        if ($title === '' || ($this->kind === 'rectora' && $title === 'Firma autorizada Cartera')) $title = self::TITLES[$this->kind];
+        return ['image' => $image, 'name' => (string) ($s['name'] ?? ''), 'title' => $title, 'updatedAt' => $s['updatedAt'] ?? null];
     }
 
     /**
@@ -46,17 +56,17 @@ final class Signature
      */
     public function save(?array $upload, string $name, string $title, bool $cleanBackground): array
     {
-        $s = (array) $this->settings->get(self::KEY, []);
+        $s = (array) $this->settings->get(self::KEYS[$this->kind], []);
         if ($upload) {
-            $path = self::storeImage($this->files, $upload, $cleanBackground, 'signature/firma');
+            $path = self::storeImage($this->files, $upload, $cleanBackground, $this->kind === 'rectora' ? 'signature/firma' : 'signature/firma-' . $this->kind);
             if (!empty($s['path']) && $s['path'] !== $path) $this->files->delete($s['path']);
             $s['path'] = $path;
         }
         if (empty($s['path'])) throw new DomainError('no_image', 'Sube primero la imagen de la firma.');
         $s['name'] = mb_substr(trim($name), 0, 120);
-        $s['title'] = mb_substr(trim($title), 0, 80) ?: 'Firma autorizada Cartera';
+        $s['title'] = mb_substr(trim($title), 0, 80) ?: self::TITLES[$this->kind];
         $s['updatedAt'] = date('Y-m-d H:i:s');
-        $this->settings->set(self::KEY, $s);
+        $this->settings->set(self::KEYS[$this->kind], $s);
         return $this->get();
     }
 
@@ -88,9 +98,9 @@ final class Signature
 
     public function remove(): void
     {
-        $s = (array) $this->settings->get(self::KEY, []);
+        $s = (array) $this->settings->get(self::KEYS[$this->kind], []);
         if (!empty($s['path'])) $this->files->delete($s['path']);
-        $this->settings->set(self::KEY, []);
+        $this->settings->set(self::KEYS[$this->kind], []);
     }
 
     /** Scales to at most 900 px wide, crops the empty margins and (optionally) makes the background transparent. */

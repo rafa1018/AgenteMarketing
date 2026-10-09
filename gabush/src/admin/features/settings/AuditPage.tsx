@@ -10,7 +10,7 @@ import { Badge, CourseSelect, Empty, ErrorBox, Spinner, Tabs, YearPicker, inputC
 
 type Portal = 'todos' | 'familia' | 'panel'
 type Presence = { portal: 'familia' | 'panel'; userId: string; name: string | null; role: string | null; lastSeen: string; lastLogin: string | null; logins: number; ip: string | null; device: string | null; online: number; course: string | null }
-type AccessEvent = { id: number; portal: 'familia' | 'panel'; userId: string; name: string | null; role: string | null; event: 'ingreso' | 'salida' | 'fallido'; ip: string | null; device: string | null; at: string }
+type AccessEvent = { id: number; portal: 'familia' | 'panel'; userId: string; name: string | null; role: string | null; event: 'ingreso' | 'salida' | 'fallido' | 'inactividad'; ip: string | null; device: string | null; at: string }
 type PeriodCount = { views: number; downloads: number; shared: number; last: string }
 type BoletinRow = { id: number; name: string; course: string | null; total: number; views: number; downloads: number; shared: number; firstSeen: string | null; lastSeen: string | null; byPeriod: Record<string, PeriodCount> }
 type BoletinEvent = { id: number; studentId: number; student: string; course: string | null; periodName: string | null; viewer: 'familia' | 'personal'; viewerName: string | null; action: string; device: string | null; at: string }
@@ -215,6 +215,7 @@ function AccessTab() {
           <option value="ingreso">Ingresos</option>
           <option value="salida">Salidas</option>
           <option value="fallido">Intentos fallidos</option>
+          <option value="inactividad">Cerradas por inactividad</option>
         </select>
         <SearchBox value={q} onChange={setQ} placeholder="Nombre, usuario o IP…" />
       </div>
@@ -229,7 +230,9 @@ function AccessTab() {
         <ul className="card divide-y divide-line p-0">
           {data.events.map((e) => (
             <li key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-[14px]">
-              <Badge tone={e.event === 'ingreso' ? 'green' : e.event === 'fallido' ? 'red' : 'gray'}>{e.event === 'ingreso' ? 'Ingresó' : e.event === 'fallido' ? 'Intento fallido' : 'Salió'}</Badge>
+              <Badge tone={e.event === 'ingreso' ? 'green' : e.event === 'fallido' ? 'red' : e.event === 'inactividad' ? 'yellow' : 'gray'}>
+                {e.event === 'ingreso' ? 'Ingresó' : e.event === 'fallido' ? 'Intento fallido' : e.event === 'inactividad' ? 'Cerró por inactividad' : 'Salió'}
+              </Badge>
               <span className="min-w-0 flex-1">
                 <b className="text-ink">{e.name ?? e.userId}</b>
                 <span className="text-muted"> · {e.portal === 'familia' ? 'Portal familias' : ROLE[e.role ?? ''] ?? 'Panel'}</span>

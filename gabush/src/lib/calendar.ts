@@ -196,12 +196,18 @@ export async function login(user: string, password: string): Promise<LoginError 
 
 const signedOut = (notice: string | null = null) => {
   hint.set(false)
-  set({ admin: false, user: '', name: '', role: '', perms: [], csrf: '', editing: null, panelOpen: false, scheduleOpen: false, loginOpen: notice === 'expired', notice })
+  set({ admin: false, user: '', name: '', role: '', perms: [], csrf: '', editing: null, panelOpen: false, scheduleOpen: false, loginOpen: notice === 'expired' || notice === 'idle', notice })
 }
 
 export async function logout() {
   await post('auth.php', { action: 'logout' })
   signedOut()
+}
+
+/** Closed by the inactivity guard: the audit records it as such and the login screen says why. */
+export async function logoutIdle() {
+  await post('auth.php', { action: 'logout', reason: 'idle' })
+  signedOut('idle')
 }
 
 export type SaveError = 'validation' | 'expired' | 'generic'

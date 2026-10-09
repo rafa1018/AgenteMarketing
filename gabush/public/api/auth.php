@@ -45,7 +45,7 @@ $action = $in['action'] ?? '';
 
 if ($action === 'logout') {
     rp_require_admin();
-    if ($me = rp_current_user()) auth_audit((string) $me['id'], (string) $me['name'], (string) $me['role'], 'salida');
+    if ($me = rp_current_user()) auth_audit((string) $me['id'], (string) $me['name'], (string) $me['role'], ($in['reason'] ?? '') === 'idle' ? 'inactividad' : 'salida');
     $_SESSION = [];
     $p = session_get_cookie_params();
     setcookie(session_name(), '', ['expires' => time() - 3600, 'path' => $p['path'], 'secure' => $p['secure'], 'httponly' => true, 'samesite' => 'Strict']);

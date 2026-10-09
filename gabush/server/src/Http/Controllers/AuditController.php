@@ -108,7 +108,7 @@ final class AuditController extends Controller
     {
         $this->staff($req, 'usuarios');
         [$where, $p] = $this->portalFilter($req, 'a');
-        if (in_array($ev = (string) $req->query('event', ''), ['ingreso', 'salida', 'fallido'], true)) { $where[] = 'a.event = ?'; $p[] = $ev; }
+        if (in_array($ev = (string) $req->query('event', ''), ['ingreso', 'salida', 'fallido', 'inactividad'], true)) { $where[] = 'a.event = ?'; $p[] = $ev; }
         if (($role = (string) $req->query('role', '')) !== '') { $where[] = 'a.role = ?'; $p[] = $role; }
         if (($q = trim((string) $req->query('q', ''))) !== '') { $where[] = '(a.user_name LIKE ? OR a.user_id LIKE ? OR a.ip LIKE ?)'; array_push($p, "%$q%", "%$q%", "%$q%"); }
         [$rw, $rp] = $this->range($req, 'a.created_at');

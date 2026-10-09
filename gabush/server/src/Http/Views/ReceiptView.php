@@ -8,7 +8,7 @@ final class ReceiptView
 {
     /**
      * @param array<string,mixed> $r BillingService::receipt()
-     * @param array{image:?string,name:string,title:string}|null $signature printed only on approved payments
+     * @param array{image:?string,name:string,title:string}|null $signature the contadora's, printed only on approved payments
      */
     public static function render(array $r, ?array $signature = null): string
     {
@@ -25,7 +25,7 @@ final class ReceiptView
         $printed = date('d/m/Y h:i:s a');
         $signed = $r['status'] === 'aprobado' && !empty($signature['image']);
         $sign = ($signed ? '<img class="sig" src="' . $e($signature['image']) . '" alt="Firma">' : '<div class="sig-blank"></div>')
-            . '<hr>' . ($signed && $signature['name'] ? '<div class="who">' . $e($signature['name']) . '</div>' : '') . 'Firma autorizada de recibido';
+            . '<hr>' . ($signed && $signature['name'] ? '<div class="who">' . $e($signature['name']) . ($signature['title'] ? ' · ' . $e($signature['title']) : '') . '</div>' : '') . 'Firma autorizada de recibido';
         return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<title>Comprobante ' . $e($r['receipt']) . ' · ' . $e($school) . '</title><style>'
             . '*{box-sizing:border-box}body{margin:0;background:#eef1f6;font-family:Arial,Helvetica,sans-serif;color:#111}'

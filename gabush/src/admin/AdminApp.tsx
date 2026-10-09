@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { AdminLayer, LoginForm } from '@/components/admin/AdminUI'
 import { BlockLogo } from '@/components/fx/Fx'
 import { AppIntro } from './AppIntro'
+import { IdleGuard } from './IdleGuard'
 import { loadAll, syncNow, useAdmin } from './store'
 import { PhotoViewer, useRoute } from './ui'
 import { StudentEditor } from './pages/Students'
@@ -374,6 +375,7 @@ export function AdminApp() {
     <>
       {intro && <AppIntro onDone={finishIntro} />}
       {body}
+      {checked && admin && <IdleGuard />}
     </>
   )
 }

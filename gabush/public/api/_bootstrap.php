@@ -133,7 +133,9 @@ function rp_is_bot(): bool
 
 /* ───────────── Admin session (calendar module) ───────────── */
 
-const RP_ADMIN_IDLE = 28800; // 8 h of inactivity logs the admin out
+// 30 min without any request ends the panel session (a tab left open keeps it alive with a heartbeat while
+// the person is active; the panel itself warns and closes after 15 min of inactivity — src/admin/IdleGuard.tsx)
+const RP_ADMIN_IDLE = 1800;
 
 function rp_is_https(): bool
 {

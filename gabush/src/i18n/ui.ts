@@ -212,6 +212,7 @@ export const ui = {
     notConfigured: { es: 'El administrador aún no está configurado en el servidor.', en: 'The administrator is not configured on the server yet.' },
     generic: { es: 'No se pudo conectar. Intenta de nuevo.', en: 'Could not connect. Please try again.' },
     expired: { es: 'Tu sesión expiró. Vuelve a ingresar.', en: 'Your session expired. Please log in again.' },
+    idle: { es: 'Cerramos tu sesión por inactividad, para proteger la información del jardín. Vuelve a ingresar.', en: 'We closed your session after a period of inactivity. Please log in again.' },
     panel: { es: 'Administrar', en: 'Manage' },
     panelTitle: { es: 'Módulo de calendario', en: 'Calendar module' },
     signedAs: { es: 'Sesión iniciada como', en: 'Signed in as' },

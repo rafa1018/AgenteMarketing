@@ -7,13 +7,34 @@ import { api2 } from '../../v2/api'
 import { ErrorBox, Field, Spinner, inputCls } from '../../v2/kit'
 
 type Sig = { image: string | null; name: string; title: string; updatedAt: string | null }
+type Kind = 'rectora' | 'contadora'
 
-/**
- * The rectora's signature: printed automatically on payment receipts and on the paz y salvo when the student
- * is up to date (pending → the signature line stays blank).
- */
-export function SignatureCard() {
-  const { data, error, loading, reload, setData } = useQuery('signature', () => api2.get<{ signature: Sig }>('/billing/signature'))
+const TEXT: Record<Kind, { title: string; where: React.ReactNode; saved: string; placeholder: string }> = {
+  rectora: {
+    title: 'Firma de la rectora',
+    where: (
+      <>
+        Se pone sola en el <b>paz y salvo</b> (solo cuando el estudiante está al día; si tiene saldo pendiente queda en blanco) y en los <b>boletines</b>.
+      </>
+    ),
+    saved: 'Firma de la rectora guardada: ya sale en el paz y salvo y en los boletines',
+    placeholder: 'Ej. Angela Moya',
+  },
+  contadora: {
+    title: 'Firma de la contadora',
+    where: (
+      <>
+        Se pone sola en los <b>comprobantes de pago</b> una vez el pago está aprobado. Mientras no haya firma, la línea del comprobante queda en blanco.
+      </>
+    ),
+    saved: 'Firma de la contadora guardada: ya sale en los comprobantes de pago',
+    placeholder: 'Ej. Nombre de la contadora',
+  },
+}
+
+/** One of the school's signatures (rectora / contadora): image, name and the text under the line. */
+export function SignatureCard({ kind = 'rectora' }: { kind?: Kind }) {
+  const { data, error, loading, reload, setData } = useQuery(`signature:${kind}`, () => api2.get<{ signature: Sig }>(`/billing/signature?kind=${kind}`))
   const [name, setName] = useState('')
   const [title, setTitle] = useState('')
   const [clean, setClean] = useState(true)
@@ -22,6 +43,7 @@ export function SignatureCard() {
   const input = useRef<HTMLInputElement>(null)
   const m = useMutation()
   const editable = can('ajustes')
+  const text = TEXT[kind]
   useEffect(() => {
     if (data) {
       setName(data.signature.name)
@@ -39,6 +61,7 @@ export function SignatureCard() {
   const sig = data!.signature
   const save = async () => {
     const fd = new FormData()
+    fd.append('kind', kind)
     if (file) fd.append('file', file)
     fd.append('name', name)
     fd.append('title', title)
@@ -47,23 +70,21 @@ export function SignatureCard() {
     if (r) {
       setData(r)
       setFile(null)
-      toast('Firma guardada: ya sale en los comprobantes y en el paz y salvo')
+      toast(text.saved)
     }
   }
   return (
     <section className="card space-y-4 p-4 sm:p-6">
       <div>
         <h3 className="flex items-center gap-2 text-lg">
-          <PenLine size={19} className="text-royal" /> Firma digital
+          <PenLine size={19} className="text-royal" /> {text.title}
         </h3>
-        <p className="mt-1 text-[14px] text-muted">
-          Se pone sola en los <b>comprobantes de pago</b> y en el <b>paz y salvo</b> cuando el estudiante está al día. Si tiene saldo pendiente, la firma queda en blanco.
-        </p>
+        <p className="mt-1 text-[14px] text-muted">{text.where}</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-[260px_1fr]">
         <div className="grid min-h-32 place-items-center rounded-2xl border-2 border-dashed border-line bg-white p-3">
           {preview || sig.image ? (
-            <img src={preview ?? sig.image!} alt="Firma" className="max-h-28 max-w-full object-contain" />
+            <img src={preview ?? sig.image!} alt={text.title} className="max-h-28 max-w-full object-contain" />
           ) : (
             <p className="text-center text-sm text-muted">Aún no hay firma</p>
           )}
@@ -83,9 +104,9 @@ export function SignatureCard() {
           )}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Nombre de quien firma (opcional)">
-              <input value={name} onChange={(e) => setName(e.target.value)} disabled={!editable} placeholder="Ej. Rectora" className={inputCls()} />
+              <input value={name} onChange={(e) => setName(e.target.value)} disabled={!editable} placeholder={text.placeholder} className={inputCls()} />
             </Field>
-            <Field label="Texto bajo la firma">
+            <Field label="Cargo bajo la firma">
               <input value={title} onChange={(e) => setTitle(e.target.value)} disabled={!editable} className={inputCls()} />
             </Field>
           </div>
@@ -100,7 +121,7 @@ export function SignatureCard() {
                   type="button"
                   disabled={m.busy}
                   onClick={async () => {
-                    const r = await m.run(() => api2.del<{ signature: Sig }>('/billing/signature'))
+                    const r = await m.run(() => api2.del<{ signature: Sig }>(`/billing/signature?kind=${kind}`))
                     if (r) {
                       setData(r)
                       toast('Firma quitada')

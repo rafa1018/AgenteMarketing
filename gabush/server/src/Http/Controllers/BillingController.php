@@ -200,7 +200,7 @@ final class BillingController extends Controller
         $family = FamilyAuth::current();
         if (!$family || $family->studentId !== $r['studentId']) $this->staff($req, 'pagos');
         if ($req->query('format') === 'json') return Response::json(['ok' => true, 'receipt' => $r]);
-        return Response::html(ReceiptView::render($r, Signature::from($this->app)->get()));
+        return Response::html(ReceiptView::render($r, Signature::from($this->app, 'contadora')->get()));
     }
 
     /** Printable "paz y salvo" — staff, or the family of that student. Signed only when nothing is pending. */
@@ -212,33 +212,41 @@ final class BillingController extends Controller
         return Response::html(PazYSalvoView::render($this->billing()->clearance($id), Signature::from($this->app)->get()));
     }
 
-    // ───────────────────────── signature ─────────────────────────
+    // ───────────────────────── signatures (?kind=rectora|contadora) ─────────────────────────
+    private static function signatureKind(Request $req): string
+    {
+        $k = (string) ($req->query('kind') ?? $req->post['kind'] ?? 'rectora');
+        return in_array($k, Signature::KINDS, true) ? $k : 'rectora';
+    }
+
     public function signature(Request $req): array
     {
         $this->staff($req, 'pagos', 'ajustes');
-        return ['signature' => Signature::from($this->app)->get()];
+        return ['signature' => Signature::from($this->app, self::signatureKind($req))->get()];
     }
 
-    /** multipart: file (optional when only the name changes), name, title, clean (1/0) */
+    /** multipart: kind, file (optional when only the name changes), name, title, clean (1/0) */
     public function saveSignature(Request $req): array
     {
         $actor = $this->staffWrite($req, 'ajustes');
-        $sig = Signature::from($this->app)->save(
+        $kind = self::signatureKind($req);
+        $sig = Signature::from($this->app, $kind)->save(
             $req->files['file'] ?? null,
             (string) ($req->post['name'] ?? ''),
             (string) ($req->post['title'] ?? ''),
             ($req->post['clean'] ?? '1') !== '0',
         );
-        $this->audit()->log($actor, 'signature.save', 'settings', 'signature');
+        $this->audit()->log($actor, 'signature.save', 'settings', 'signature:' . $kind);
         return ['signature' => $sig];
     }
 
     public function deleteSignature(Request $req): array
     {
         $actor = $this->staffWrite($req, 'ajustes');
-        Signature::from($this->app)->remove();
-        $this->audit()->log($actor, 'signature.delete', 'settings', 'signature');
-        return ['signature' => Signature::from($this->app)->get()];
+        $kind = self::signatureKind($req);
+        Signature::from($this->app, $kind)->remove();
+        $this->audit()->log($actor, 'signature.delete', 'settings', 'signature:' . $kind);
+        return ['signature' => Signature::from($this->app, $kind)->get()];
     }
 
     public function paymentsReport(Request $req): array
