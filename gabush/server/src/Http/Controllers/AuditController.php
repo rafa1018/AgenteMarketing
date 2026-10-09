@@ -138,6 +138,8 @@ final class AuditController extends Controller
         if ($period !== '') { $w[] = 'v.period = ?'; $p[] = $period; }
         if (in_array($viewer = (string) $req->query('viewer', 'familia'), ['familia', 'personal'], true)) { $w[] = 'v.viewer = ?'; $p[] = $viewer; }
         if ($course) { $w[] = 'e.course_id = ?'; $p[] = $course; }
+        $student = (int) $req->query('student', 0);
+        if ($student) { $w[] = 'v.student_id = ?'; $p[] = $student; }
         [$rw, $rp] = $this->range($req, 'v.created_at');
         $w = [...$w, ...$rw];
         $p = [...$p, ...$rp];
@@ -159,6 +161,7 @@ final class AuditController extends Controller
         $sp[] = $year;
         $courseSql = '';
         if ($course) { $courseSql = ' AND e.course_id = ?'; $sp[] = $course; }
+        if ($student) { $courseSql .= ' AND s.id = ?'; $sp[] = $student; }
         $students = $this->db()->all(
             "SELECT s.id, CONCAT(s.last_name, ' ', COALESCE(s.second_last_name, ''), ', ', s.first_name) AS name, c.name AS course,
                     COUNT(v.id) AS total, SUM(v.action = 'ver') AS views, SUM(v.action = 'descargar') AS downloads,

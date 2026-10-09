@@ -1,4 +1,4 @@
-import { FileDown, Search, Trash2 } from 'lucide-react'
+import { FileDown, Search, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { dateTime, todayISO } from '@/shared/format'
@@ -259,8 +259,9 @@ function BoletinesTab() {
   const [viewer, setViewer] = useState<'familia' | 'personal' | 'todos'>('familia')
   const [view, setView] = useState<'ninos' | 'detalle'>('ninos')
   const [range, setRange] = useState<Range>({ from: today(), to: today() })
-  const { data, error, loading, reload } = useQuery(`bv:${year}:${period}:${course}:${viewer}:${range.from}:${range.to}`, () =>
-    api2.get<{ students: BoletinRow[]; events: BoletinEvent[] }>('/audit/boletines' + qs({ year, period: period || null, course, viewer, from: range.from || null, to: range.to || null })),
+  const [student, setStudent] = useState<Picked | null>(null)
+  const { data, error, loading, reload } = useQuery(`bv:${year}:${period}:${course}:${viewer}:${range.from}:${range.to}:${student?.id ?? ''}`, () =>
+    api2.get<{ students: BoletinRow[]; events: BoletinEvent[] }>('/audit/boletines' + qs({ year, period: period || null, course, viewer, from: range.from || null, to: range.to || null, student: student?.id ?? null })),
   )
   const seen = data?.students.filter((s) => s.total > 0).length ?? 0
   // one column per report card: Periodo 1…4 and the final one (or just the chosen period)
@@ -282,6 +283,7 @@ function BoletinesTab() {
           ))}
         </div>
       </div>
+      <StudentPicker year={year} value={student} onChange={setStudent} />
       <RangeFilter value={range} onChange={setRange} />
       {error ? (
         <ErrorBox message={error.message} onRetry={reload} />
@@ -370,6 +372,86 @@ function BoletinesTab() {
             </ul>
           )}
         </>
+      )}
+    </div>
+  )
+}
+
+type Picked = { id: number; name: string; course: string | null }
+
+/**
+ * Search box with suggestions (autocomplete): type 2+ letters of the name, code or document and pick the child.
+ * Once picked it shows as a chip with ✕ to clear the filter.
+ */
+function StudentPicker({ year, value, onChange }: { year: number | null; value: Picked | null; onChange: (s: Picked | null) => void }) {
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(0)
+  const term = q.trim()
+  const { data, loading } = useQuery(term.length >= 2 ? `pick:${year}:${term}` : null, () =>
+    api2.get<{ students: { id: number; firstName: string; lastName: string; secondLastName: string | null; course: string | null; code: string }[] }>('/students' + qs({ year, q: term })),
+  )
+  const options = (data?.students ?? []).slice(0, 8).map((s) => ({ id: s.id, name: `${s.firstName} ${s.lastName} ${s.secondLastName ?? ''}`.trim(), course: s.course, code: s.code }))
+  const pick = (o: Picked) => {
+    onChange(o)
+    setQ('')
+    setOpen(false)
+  }
+  if (value)
+    return (
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-2 rounded-full bg-[#eeedfb] py-1.5 pr-1.5 pl-3.5 text-[14px] font-semibold text-royal">
+          Estudiante: {value.name}
+          {value.course && <span className="font-normal text-muted">· {value.course}</span>}
+          <button type="button" aria-label="Quitar filtro de estudiante" onClick={() => onChange(null)} className="grid size-6 place-items-center rounded-full hover:bg-white">
+            <X size={14} />
+          </button>
+        </span>
+      </div>
+    )
+  return (
+    <div className="relative">
+      <Search size={16} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
+      <input
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value)
+          setOpen(true)
+          setActive(0)
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        onKeyDown={(e) => {
+          if (!options.length) return
+          if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, options.length - 1)) }
+          if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)) }
+          if (e.key === 'Enter') { e.preventDefault(); pick(options[active]) }
+          if (e.key === 'Escape') setOpen(false)
+        }}
+        role="combobox"
+        aria-expanded={open && term.length >= 2}
+        aria-autocomplete="list"
+        aria-label="Filtrar por estudiante"
+        placeholder="Filtrar por estudiante: escribe su nombre, código o documento…"
+        className="min-h-11 w-full rounded-xl border border-line bg-white pr-3 pl-10 text-[14px]"
+      />
+      {open && term.length >= 2 && (
+        <ul role="listbox" className="absolute inset-x-0 top-full z-30 mt-1 max-h-72 overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-lg">
+          {loading && !data ? (
+            <li className="px-3 py-2 text-sm text-muted">Buscando…</li>
+          ) : !options.length ? (
+            <li className="px-3 py-2 text-sm text-muted">Ningún estudiante con «{term}».</li>
+          ) : (
+            options.map((o, i) => (
+              <li key={o.id} role="option" aria-selected={i === active}>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(o)} onMouseEnter={() => setActive(i)} className={cn('flex w-full items-baseline gap-2 rounded-lg px-3 py-2 text-left', i === active && 'bg-paper')}>
+                  <span className="font-semibold text-ink">{o.name}</span>
+                  <span className="text-[12px] text-muted">{[o.course, o.code].filter(Boolean).join(' · ')}</span>
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
       )}
     </div>
   )
