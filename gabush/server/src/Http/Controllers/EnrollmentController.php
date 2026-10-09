@@ -175,7 +175,11 @@ final class EnrollmentController extends Controller
         else { $row['withdrawn_on'] = null; $row['withdraw_reason'] = null; }
         if ($to === 'activo' && !$e['enrolled_on']) $row['enrolled_on'] = $date;
         $this->db()->update('enrollments', $row, ['id' => $id]);
-        if ($to === 'activo') $this->billing()->onEnrollmentActivated($id, $actor, $dueOn);
+        if ($to === 'activo') {
+            $this->billing()->onEnrollmentActivated($id, $actor, $dueOn);
+            // enrolled after the year's deadline: the matrícula extraordinaria applies right away
+            $this->billing()->applyEnrollmentLateFees($actor, (int) $e['year_id']);
+        }
         if ($to === 'retirado') $this->billing()->onEnrollmentWithdrawn($id, $date, $actor);
         $this->audit()->log($actor, 'enrollment.status', 'enrollment', $id, ['from' => $e['status'], 'to' => $to, 'reason' => $reason, 'enrollmentDueOn' => $dueOn, 'applyToYear' => $applyToYear]);
         return [];

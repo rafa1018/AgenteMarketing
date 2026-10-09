@@ -98,7 +98,7 @@ function Overview() {
   )
 }
 
-type Debtor = { id: number; code: string; firstName: string; lastName: string; secondLastName: string | null; course: string | null; guardian: string | null; guardianPhone: string | null; status: string | null; balance: number; overdue: number; lateFees: number; credit: number }
+type Debtor = { id: number; code: string; firstName: string; lastName: string; secondLastName: string | null; course: string | null; guardian: string | null; guardianPhone: string | null; status: string | null; balance: number; overdue: number; lateFees: number; credit: number; byYear?: { year: number | null; balance: number; overdue: number }[] }
 
 function Debtors() {
   const { year } = useSetup()
@@ -138,6 +138,16 @@ function Debtors() {
                   <span className="block text-[13px] text-muted">
                     {d.code} · {d.course ?? 'sin curso'} {d.status && d.status !== 'activo' && <StatusBadge status={d.status} />} · {d.guardian ?? 'sin acudiente'}
                   </span>
+                  {/* which years the debt comes from */}
+                  {!!d.byYear?.length && (
+                    <span className="mt-1 flex flex-wrap gap-1.5">
+                      {d.byYear.map((y) => (
+                        <span key={y.year ?? 'x'} className={`rounded-full px-2 py-0.5 text-[12px] font-semibold ${y.year === year ? 'bg-[#fde7f1] text-pink' : 'bg-butter text-[#8a5716]'}`}>
+                          {y.year ?? 'Sin año'}: {money(y.balance)}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </button>
                 <span className="text-right">
                   <span className="block font-serif text-lg font-semibold text-berry tabular-nums">{money(d.balance)}</span>
@@ -158,7 +168,14 @@ function Debtors() {
   )
 }
 
-type PaymentRow = { id: number; receipt: string; paidOn: string; amount: number; method: string; reference: string | null; status: string; source: string; createdBy: string | null; studentId: number; code: string; firstName: string; lastName: string; concepts: string | null }
+type PaymentRow = { id: number; receipt: string; paidOn: string; amount: number; method: string; reference: string | null; status: string; source: string; createdBy: string | null; studentId: number; code: string; firstName: string; lastName: string; concepts: string | null; guardian: string | null; guardianPhone: string | null }
+
+/** WhatsApp to the family: payment received, with the receipt number and where to download it. */
+const paymentWhatsapp = (p: PaymentRow) => {
+  const hi = (p.guardian ?? '').trim().split(/\s+/)[0]
+  const text = `Hola${hi ? ` ${hi}` : ''}, le saludamos del Jardín Infantil Gabush. Recibimos el pago de ${money(p.amount)} del ${date(p.paidOn)} (comprobante ${p.receipt}) por: ${p.concepts ?? 'abono a la cuenta'}, de ${p.firstName}. Puede ver y descargar el comprobante en el portal de familias: https://gabushkids.com/familia/ ¡Muchas gracias!`
+  return `https://wa.me/57${(p.guardianPhone ?? '').replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(text)}`
+}
 
 function PaymentsReport() {
   const [from, setFrom] = useState(todayISO().slice(0, 8) + '01')
@@ -221,6 +238,11 @@ function PaymentsReport() {
                 {p.source === 'en_linea' && <Badge tone="violet">En línea</Badge>}
                 {p.status !== 'aprobado' && <StatusBadge status={p.status} />}
                 <span className="font-semibold text-ink tabular-nums">{money(p.amount)}</span>
+                {p.status === 'aprobado' && p.guardianPhone && (
+                  <a href={paymentWhatsapp(p)} target="_blank" rel="noopener noreferrer" className="grid size-9 place-items-center rounded-lg bg-[#e7f9ee] text-[#128c4a] hover:bg-[#25d366] hover:text-white" title={`Enviar a ${p.guardian ?? 'la familia'} por WhatsApp`}>
+                    <MessageCircle size={17} />
+                  </a>
+                )}
                 <a href={`/api/v2/billing/payments/${p.id}/receipt`} target="_blank" rel="noopener noreferrer" className="grid size-9 place-items-center rounded-lg text-muted hover:bg-paper hover:text-ink" title="Comprobante">
                   <Printer size={17} />
                 </a>
@@ -237,9 +259,10 @@ type LateFee = { enabled: boolean; amountPerDay: number; dueDay: number; graceDa
 
 function BillingConfig() {
   const { setup, year } = useSetup()
-  const settings = useQuery(year ? `billing-settings:${year}` : null, () => api2.get<{ lateFee: LateFee; pensionMonths: number[]; enrollmentDueDays: number; enrollmentDueOn: string | null }>('/billing/settings' + qs({ year })))
+  const settings = useQuery(year ? `billing-settings:${year}` : null, () => api2.get<{ lateFee: LateFee; pensionMonths: number[]; enrollmentDueDays: number; enrollmentDueOn: string | null; enrollmentLateFee: number }>('/billing/settings' + qs({ year })))
   const [dueDays, setDueDays] = useState(0)
   const [dueOn, setDueOn] = useState('')
+  const [extra, setExtra] = useState('')
   const prices = useQuery(year ? `prices:${year}` : null, () => api2.get<{ prices: { conceptId: number; gradeLevelId: number | null; amount: number }[] }>('/billing/prices' + qs({ year })))
   const [lf, setLf] = useState<LateFee | null>(null)
   const [months, setMonths] = useState<number[]>([])
@@ -252,6 +275,7 @@ function BillingConfig() {
       setMonths(settings.data.pensionMonths)
       setDueDays(settings.data.enrollmentDueDays ?? 0)
       setDueOn(settings.data.enrollmentDueOn ?? '')
+      setExtra(settings.data.enrollmentLateFee ? String(settings.data.enrollmentLateFee) : '')
     }
   }, [settings.data])
   useEffect(() => {
@@ -261,8 +285,13 @@ function BillingConfig() {
   const grades = setup?.gradeLevels.filter((g) => g.active) ?? []
 
   const saveSettings = async () => {
-    const r = await m.run(() => api2.put<{ movedEnrollmentCharges?: number }>('/billing/settings' + qs({ year }), { lateFee: lf, pensionMonths: months, enrollmentDueDays: dueDays, enrollmentDueOn: dueOn || null }))
-    if (r) toast(r.movedEnrollmentCharges ? `Configuración guardada · ${r.movedEnrollmentCharges} matrículas pendientes ahora vencen el ${date(dueOn)}` : 'Configuración guardada')
+    const r = await m.run(() => api2.put<{ movedEnrollmentCharges?: number; extraEnrollmentCharges?: number }>('/billing/settings' + qs({ year }), { lateFee: lf, pensionMonths: months, enrollmentDueDays: dueDays, enrollmentDueOn: dueOn || null, enrollmentLateFee: extra ? parseMoney(extra) : 0 }))
+    if (r) {
+      const parts = ['Configuración guardada']
+      if (r.movedEnrollmentCharges) parts.push(`${r.movedEnrollmentCharges} matrículas pendientes ahora vencen el ${date(dueOn)}`)
+      if (r.extraEnrollmentCharges) parts.push(`${r.extraEnrollmentCharges} matrículas sin pagar recibieron la matrícula extraordinaria`)
+      toast(parts.join(' · '))
+    }
   }
   const savePrices = async () => {
     const items = concepts.flatMap((c) => grades.map((g) => ({ conceptId: c.id, gradeLevelId: g.id, amount: grid[`${c.id}:${g.id}`] ? parseMoney(grid[`${c.id}:${g.id}`]) : null })))
@@ -370,9 +399,12 @@ function BillingConfig() {
             ))}
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={`Fecha límite para pagar la matrícula ${year}`} hint="Quien se matricule antes, la paga hasta esta fecha. Las matrículas pendientes de este año se mueven a esta fecha.">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label={`Fecha límite para pagar la matrícula ${year}`} hint="Es el plazo: hasta ese día la matrícula sale pendiente (no vencida). Si pagan antes, queda saldada. Al cambiarla, las matrículas de este año aún sin pagar pasan a esta fecha.">
             <input type="date" value={dueOn} onChange={(e) => setDueOn(e.target.value)} className={inputCls()} />
+          </Field>
+          <Field label="Matrícula extraordinaria (valor adicional)" hint={dueOn ? `Se suma una sola vez a quien no haya pagado la matrícula al ${date(dueOn)}, y a quien se matricule después. Vacío = no se cobra.` : 'Primero pon la fecha límite. Vacío = no se cobra.'}>
+            <input value={extra} onChange={(e) => setExtra(e.target.value)} inputMode="numeric" placeholder="Ej. 50.000" className={inputCls()} />
           </Field>
           <Field label="Plazo si se matricula después de esa fecha (días)" hint={dueDays ? `Vence ${dueDays} días después de matricular.` : 'Con 0, vence el mismo día en que se matricula.'}>
             <input type="number" min={0} max={120} value={dueDays} onChange={(e) => setDueDays(Math.max(0, Number(e.target.value) || 0))} className={inputCls()} />
@@ -384,6 +416,7 @@ function BillingConfig() {
             <li>
               <b>Matrícula:</b> se genera al tocar «Matricular (activar)» y vence {dueOn ? `el ${date(dueOn)}` : dueDays ? `${dueDays} días después` : 'ese mismo día'}
               {dueOn && dueDays ? ` (o ${dueDays} días después si se matricula más tarde)` : ''}. No genera mora.
+              {dueOn && extra && parseMoney(extra) > 0 ? ` Si al ${date(dueOn)} no la han pagado, se le suma la matrícula extraordinaria de ${money(parseMoney(extra))} (una sola vez; se puede quitar en el cobro).` : ''}
             </li>
             <li>
               <b>Pensión:</b> se genera sola el día 1 de cada mes marcado ({months.map((x) => MONTH_NAMES[x - 1].slice(0, 3)).join(', ') || 'ninguno'}) y vence el día {lf.dueDay}. La primera es la del primer mes marcado del año; quien entra a mitad de año paga desde el mes en que entra.

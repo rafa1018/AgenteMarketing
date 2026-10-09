@@ -157,10 +157,25 @@ final class BillingService
     public function summary(int $studentId, ?int $year = null): array
     {
         $charges = $this->charges($studentId, $year);
-        $balance = array_sum(array_map(static fn($c) => $c['status'] === 'abierto' ? $c['balance'] : 0, $charges));
+        // a charge of a year that has not started yet (e.g. the 2027 matrícula while in 2026) and is not due yet
+        // is an upcoming commitment, not a debt today: it does not count in the balance nor block the paz y salvo
+        $current = $this->settings->activeYear();
+        $isUpcoming = static fn($c) => $c['status'] === 'abierto' && !$c['overdue'] && $c['year'] !== null && $c['year'] > $current;
+        $upcoming = array_sum(array_map(static fn($c) => $isUpcoming($c) ? $c['balance'] : 0, $charges));
+        $balance = array_sum(array_map(static fn($c) => $c['status'] === 'abierto' && !$isUpcoming($c) ? $c['balance'] : 0, $charges));
         $overdue = array_sum(array_map(static fn($c) => $c['overdue'] ? $c['balance'] : 0, $charges));
         $credit = $this->credit($studentId);
-        return ['balance' => $balance, 'overdue' => $overdue, 'lateFees' => array_sum(array_column($charges, 'lateFees')), 'credit' => $credit, 'charged' => array_sum(array_column($charges, 'net')), 'paid' => array_sum(array_column($charges, 'paid'))];
+        // what is owed today, split by the year each charge belongs to (oldest first)
+        $byYear = [];
+        foreach ($charges as $c) {
+            if ($c['status'] !== 'abierto' || $isUpcoming($c) || $c['balance'] <= 0) continue;
+            $y = (int) ($c['year'] ?? 0);
+            $byYear[$y] ??= ['year' => $y ?: null, 'balance' => 0, 'overdue' => 0];
+            $byYear[$y]['balance'] += $c['balance'];
+            if ($c['overdue']) $byYear[$y]['overdue'] += $c['balance'];
+        }
+        ksort($byYear);
+        return ['balance' => $balance, 'byYear' => array_values($byYear), 'upcoming' => $upcoming, 'overdue' => $overdue, 'lateFees' => array_sum(array_column($charges, 'lateFees')), 'credit' => $credit, 'charged' => array_sum(array_column($charges, 'net')), 'paid' => array_sum(array_column($charges, 'paid'))];
     }
 
     /** Money paid that was not applied to any charge (saldo a favor). */
@@ -326,6 +341,43 @@ final class BillingService
     }
 
     /**
+     * Matrícula extraordinaria: once a year's deadline has passed, every matrícula of that year still unpaid
+     * gets the year's extra value as a "recargo" (once; legacy_ref "mextra:<charge>", so it can be removed by
+     * hand and is never added twice). Runs daily from the cron, when someone is enrolled and when the year's
+     * dates are saved. @return int matrículas charged
+     */
+    public function applyEnrollmentLateFees(Actor $actor, ?int $year = null): int
+    {
+        $today = $this->today->format('Y-m-d');
+        $years = $this->db->all(
+            'SELECT id, enrollment_due_on, enrollment_late_fee FROM academic_years WHERE enrollment_due_on IS NOT NULL AND enrollment_due_on < ? AND enrollment_late_fee > 0' . ($year ? ' AND id = ?' : ''),
+            $year ? [$today, $year] : [$today],
+        );
+        $done = 0;
+        foreach ($years as $y) {
+            $rows = $this->db->all(
+                "SELECT c.id FROM charges c JOIN billing_concepts bc ON bc.id = c.concept_id AND bc.apply_on_enrollment = 1
+                 WHERE c.year_id = ? AND c.status = 'abierto'
+                   AND NOT EXISTS (SELECT 1 FROM charge_adjustments a WHERE a.legacy_ref = CONCAT('mextra:', c.id))",
+                [$y['id']],
+            );
+            $date = (new DateTimeImmutable((string) $y['enrollment_due_on']))->format('d/m/Y');
+            foreach ($rows as $r) {
+                $this->db->transaction(function () use ($r, $y, $date, $actor): void {
+                    $this->db->insert('charge_adjustments', [
+                        'charge_id' => $r['id'], 'kind' => 'recargo', 'amount' => (int) $y['enrollment_late_fee'],
+                        'reason' => "Matrícula extraordinaria (después del $date)", 'created_by' => $actor->label(), 'legacy_ref' => 'mextra:' . $r['id'],
+                    ]);
+                    $this->refreshStatus((int) $r['id']);
+                });
+                $done++;
+            }
+        }
+        if ($done) $this->audit->log($actor, 'charges.enrollment_late_fee', 'academic_year', $year, ['charges' => $done]);
+        return $done;
+    }
+
+    /**
      * What "Matricular (activar)" will charge: the matrícula amount(s), the due date it would get and when the
      * pensions of that year start. @return array<string,mixed>
      */
@@ -340,11 +392,17 @@ final class BillingService
             if ($amount) $items[] = ['name' => $c['name'], 'amount' => $amount];
         }
         $months = $this->pensionMonthsFor($year);
+        $y = $this->db->one('SELECT enrollment_due_on, enrollment_late_fee FROM academic_years WHERE id = ?', [$year]);
+        $deadline = $y['enrollment_due_on'] ?? null;
+        $extra = (int) ($y['enrollment_late_fee'] ?? 0);
         return [
             'year' => $year,
             'items' => $items,
             'dueOn' => $this->enrollmentDueOn($year),
-            'yearDeadline' => $this->db->value('SELECT enrollment_due_on FROM academic_years WHERE id = ?', [$year]),
+            'yearDeadline' => $deadline,
+            // matrícula extraordinaria: the value, and whether it applies right away (deadline already passed)
+            'lateFee' => $extra,
+            'lateFeeNow' => $extra > 0 && $deadline && $deadline < $this->today->format('Y-m-d'),
             'pensionMonths' => $months,
             'pensionDueDay' => $this->lateFeePolicy()->dueDay,
         ];

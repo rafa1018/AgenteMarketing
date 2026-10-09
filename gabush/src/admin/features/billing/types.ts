@@ -35,7 +35,8 @@ export interface Payment {
   createdAt: string
   charges: { chargeId: number; description: string; amount: number; year: number | null }[]
 }
-export interface Summary { balance: number; overdue: number; lateFees: number; credit: number; charged: number; paid: number }
+/** balance: what is owed today · upcoming: charges of a year that has not started and are not due yet */
+export interface Summary { balance: number; byYear?: { year: number | null; balance: number; overdue: number }[]; upcoming?: number; overdue: number; lateFees: number; credit: number; charged: number; paid: number }
 export interface Statement { summary: Summary; total: Summary; charges: Charge[]; payments: Payment[]; checkouts: { id: number; reference: string; provider: string; amount: number; status: string; paymentId: number | null; createdAt: string }[]; since?: string | null; years?: number }
 
 export const METHODS: [string, string][] = [

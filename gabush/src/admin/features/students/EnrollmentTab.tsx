@@ -225,7 +225,7 @@ function PlanFields({ enrollment: e, onSave, defaultReason }: { enrollment: Enro
 }
 
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
-type Activation = { year: number; items: { name: string; amount: number }[]; dueOn: string; yearDeadline: string | null; pensionMonths: number[]; pensionDueDay: number }
+type Activation = { year: number; items: { name: string; amount: number }[]; dueOn: string; yearDeadline: string | null; lateFee: number; lateFeeNow: boolean; pensionMonths: number[]; pensionDueDay: number }
 
 /**
  * "Matricular (activar)": shows what will be charged, lets the staff choose when the matrícula is due (and save
@@ -243,7 +243,7 @@ function ActivateModal({ open, enrollmentId, name, onClose, onConfirm }: { open:
     setApplyToYear(!data.yearDeadline) // the year has no deadline yet: suggest saving it for everyone
   }
   const today = new Date().toISOString().slice(0, 10)
-  const total = data?.items.reduce((s, i) => s + i.amount, 0) ?? 0
+  const total = (data?.items.reduce((s, i) => s + i.amount, 0) ?? 0) + (data?.items.length && data.lateFeeNow ? data.lateFee : 0)
   const first = data?.pensionMonths[0]
   return (
     <Modal open={open} onClose={onClose} label="Matricular" closeLabel="Cerrar" className="sm:!max-w-lg">
@@ -268,6 +268,12 @@ function ActivateModal({ open, enrollmentId, name, onClose, onConfirm }: { open:
                 </ul>
               ) : (
                 <p className="text-muted">Ningún cobro de matrícula (sin precio para este grado o plan).</p>
+              )}
+              {data.items.length > 0 && data.lateFeeNow && (
+                <p className="mt-2 flex justify-between gap-3 border-t border-line pt-2 text-berry">
+                  <span>Matrícula extraordinaria (ya pasó la fecha límite del {date(data.yearDeadline)})</span>
+                  <b className="tabular-nums">+ {money(data.lateFee)}</b>
+                </p>
               )}
             </div>
             {data.items.length > 0 && (

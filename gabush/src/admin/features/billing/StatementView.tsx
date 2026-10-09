@@ -60,11 +60,28 @@ export function StatementView({ studentId }: { studentId: number }) {
         </p>
       )}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Saldo pendiente (todos los años)" value={money(s.balance)} tone={s.balance > 0 ? 'red' : 'green'} />
+        <Stat label="Saldo pendiente hoy" value={money(s.balance)} tone={s.balance > 0 ? 'red' : 'green'} />
         <Stat label="Vencido" value={money(s.overdue)} tone={s.overdue > 0 ? 'red' : 'ink'} />
         <Stat label="Mora acumulada" value={money(s.lateFees)} tone={s.lateFees > 0 ? 'pink' : 'ink'} />
         <Stat label="Saldo a favor" value={money(s.credit)} tone={s.credit > 0 ? 'green' : 'ink'} />
       </div>
+      {!!s.byYear?.length && s.balance > 0 && (
+        // which year each part of today's balance belongs to
+        <p className="flex flex-wrap items-center gap-1.5 text-[14px] text-muted">
+          <span className="font-semibold text-ink">Lo que debe hoy, por año:</span>
+          {s.byYear.map((y) => (
+            <span key={y.year ?? 'x'} className={`rounded-full px-2.5 py-0.5 text-[13px] font-semibold ${y.year === year ? 'bg-[#fde7f1] text-pink' : 'bg-butter text-[#8a5716]'}`}>
+              {y.year ?? 'Sin año'}: {money(y.balance)}
+              {y.overdue > 0 && y.overdue < y.balance ? ` (vencido ${money(y.overdue)})` : ''}
+            </span>
+          ))}
+        </p>
+      )}
+      {(s.upcoming ?? 0) > 0 && (
+        <p className="rounded-xl bg-[#eaf3fa] px-4 py-3 text-[14px] text-[#185a8a]">
+          <b>Próximo año:</b> {money(s.upcoming!)} por cobros del año siguiente que aún no vencen (por ejemplo, la matrícula). No cuentan como deuda hoy ni impiden el paz y salvo; la familia los puede pagar por adelantado.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => setPaying(pending.map((c) => c.id))} className="btn btn-primary !text-sm">
           <HandCoins size={18} /> Registrar pago

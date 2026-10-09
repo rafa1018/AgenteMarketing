@@ -261,8 +261,10 @@ final class BillingController extends Controller
         $rows = $this->db()->all(
             "SELECT p.id, p.receipt_number AS receipt, p.paid_on AS paidOn, p.amount, p.method, p.reference, p.status, p.source, p.created_by AS createdBy,
                     s.id AS studentId, s.code, s.first_name AS firstName, s.last_name AS lastName,
-                    (SELECT GROUP_CONCAT(c.description ORDER BY pa.id SEPARATOR ' · ') FROM payment_allocations pa JOIN charges c ON c.id = pa.charge_id WHERE pa.payment_id = p.id) AS concepts
+                    (SELECT GROUP_CONCAT(c.description ORDER BY pa.id SEPARATOR ' · ') FROM payment_allocations pa JOIN charges c ON c.id = pa.charge_id WHERE pa.payment_id = p.id) AS concepts,
+                    g.full_name AS guardian, g.phone AS guardianPhone
              FROM payments p JOIN students s ON s.id = p.student_id
+             LEFT JOIN guardians g ON g.id = (SELECT g2.id FROM guardians g2 WHERE g2.family_id = s.family_id AND g2.phone IS NOT NULL AND g2.phone <> '' ORDER BY g2.is_billing DESC, g2.is_primary DESC, g2.id LIMIT 1)
              WHERE p.paid_on BETWEEN ? AND ? $where ORDER BY p.paid_on DESC, p.id DESC LIMIT 2000",
             $params,
         );
@@ -298,13 +300,14 @@ final class BillingController extends Controller
     {
         $this->staff($req, 'pagos', 'ajustes');
         $year = $this->year($req);
-        $y = $this->db()->one('SELECT starts_on, ends_on, enrollment_due_on FROM academic_years WHERE id = ?', [$year]);
+        $y = $this->db()->one('SELECT starts_on, ends_on, enrollment_due_on, enrollment_late_fee FROM academic_years WHERE id = ?', [$year]);
         return [
             'year' => $year,
             'lateFee' => $this->billing()->lateFeePolicy()->toArray(),
             'pensionMonths' => $this->billing()->pensionMonthsFor($year), // of the chosen year
             'enrollmentDueDays' => $this->billing()->enrollmentDueDays(),
             'enrollmentDueOn' => $y['enrollment_due_on'] ?? null,
+            'enrollmentLateFee' => isset($y['enrollment_late_fee']) ? (int) $y['enrollment_late_fee'] : 0,
             'startsOn' => $y['starts_on'] ?? null,
             'endsOn' => $y['ends_on'] ?? null,
         ];
@@ -327,6 +330,7 @@ final class BillingController extends Controller
         // dates of the chosen year: pension months and the matrícula deadline
         $year = $this->year($req);
         $moved = 0;
+        $extra = 0;
         if ($this->db()->value('SELECT 1 FROM academic_years WHERE id = ?', [$year])) {
             if ($months) {
                 sort($months);
@@ -337,11 +341,17 @@ final class BillingController extends Controller
                 $this->db()->update('academic_years', ['enrollment_due_on' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $due) ? $due : null], ['id' => $year]);
                 $moved = $this->billing()->moveEnrollmentDeadline($year);
             }
+            if ($v->has('enrollmentLateFee')) {
+                $fee = max(0, min(100_000_000, (int) ($req->json()['enrollmentLateFee'] ?? 0)));
+                $this->db()->update('academic_years', ['enrollment_late_fee' => $fee ?: null], ['id' => $year]);
+            }
+            // a deadline already past with an extra value: the unpaid matrículas get it now
+            $extra = $this->billing()->applyEnrollmentLateFees($actor, $year);
         } elseif ($months) {
             $this->settings()->patch('billing', ['pensionMonths' => $months]);
         }
         $this->audit()->log($actor, 'billing.settings', 'settings', 'billing', ['lateFee' => $lf, 'months' => $months, 'year' => $year]);
-        return $this->settingsShow($req) + ['movedEnrollmentCharges' => $moved];
+        return $this->settingsShow($req) + ['movedEnrollmentCharges' => $moved, 'extraEnrollmentCharges' => $extra];
     }
 
     /** Price table of a year: concept × grade level. */
