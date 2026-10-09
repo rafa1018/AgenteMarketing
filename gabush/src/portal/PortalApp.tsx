@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { Bell, BookOpenCheck, CalendarDays, ClipboardCheck, FileText, Home, Loader2, LogOut, Mail, Menu, NotebookPen, School, UserCog, Wallet, X } from 'lucide-react'
+import { Backpack, Bell, BookOpenCheck, CalendarDays, ClipboardCheck, FileText, Home, Loader2, LogOut, Mail, Menu, NotebookPen, School, UserCog, Wallet, X } from 'lucide-react'
 import { useEffect, useState, type ComponentType } from 'react'
 import { cn } from '@/lib/utils'
 import { checkSession, logout, useSession, useToast } from './session'
@@ -12,6 +12,7 @@ import { AttendancePage } from './pages/AttendancePage'
 import { SubjectsPage } from './pages/SubjectsPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { DocumentsPage } from './pages/DocumentsPage'
+import { SuppliesPage } from './pages/SuppliesPage'
 import { ObserverPage } from './pages/ObserverPage'
 import { AccountPage } from './pages/AccountPage'
 import { NotificationsPage } from './pages/NotificationsPage'
@@ -27,6 +28,7 @@ const PAGES: Page[] = [
   { id: 'materias', label: 'Materias', icon: School, view: SubjectsPage },
   { id: 'calendario', label: 'Calendario', icon: CalendarDays, view: CalendarPage },
   { id: 'documentos', label: 'Documentos', icon: FileText, view: DocumentsPage },
+  { id: 'utiles', label: 'Útiles escolares', icon: Backpack, view: SuppliesPage },
   { id: 'observador', label: 'Observaciones', icon: NotebookPen, view: ObserverPage },
   { id: 'novedades', label: 'Novedades', icon: Bell, view: NotificationsPage },
   { id: 'cuenta', label: 'Mi cuenta', icon: UserCog, view: AccountPage },

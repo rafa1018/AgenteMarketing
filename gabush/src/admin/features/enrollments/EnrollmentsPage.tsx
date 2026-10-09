@@ -8,19 +8,21 @@ import { ConfirmModal, PageHead } from '../../ui'
 import { api2, qs, useSetup, type DocumentType } from '../../v2/api'
 import { Badge, Empty, ErrorBox, Field, Spinner, StatusBadge, StudentAvatar, Tabs, YearPicker, inputCls, useTab } from '../../v2/kit'
 import { openStudent } from '../students/openStudent'
+import { SuppliesTab } from './SuppliesTab'
 import type { StudentRow } from '../students/types'
 
-type Tab = 'cupos' | 'documentos' | 'requeridos' | 'siguiente'
+type Tab = 'cupos' | 'documentos' | 'requeridos' | 'utiles' | 'siguiente'
 
 export function EnrollmentsPage() {
   const [tab, setTab] = useTab<Tab>('cupos')
   return (
     <div className="space-y-5">
-      <PageHead title="Matrículas" sub="Cupos por curso, documentos y el paso al año siguiente." actions={<YearPicker />} />
-      <Tabs tabs={[{ id: 'cupos', label: 'Cupos por curso' }, { id: 'documentos', label: 'Documentos pendientes' }, { id: 'requeridos', label: 'Documentos requeridos' }, { id: 'siguiente', label: 'Año siguiente' }]} value={tab} onChange={setTab} />
+      <PageHead title="Matrículas" sub="Cupos por curso, documentos, lista de útiles y el paso al año siguiente." actions={<YearPicker />} />
+      <Tabs tabs={[{ id: 'cupos', label: 'Cupos por curso' }, { id: 'documentos', label: 'Documentos pendientes' }, { id: 'requeridos', label: 'Documentos requeridos' }, { id: 'utiles', label: 'Lista de útiles' }, { id: 'siguiente', label: 'Año siguiente' }]} value={tab} onChange={setTab} />
       {tab === 'cupos' && <Capacity />}
       {tab === 'documentos' && <PendingDocs />}
       {tab === 'requeridos' && <DocTypes />}
+      {tab === 'utiles' && <SuppliesTab />}
       {tab === 'siguiente' && <NextYear />}
     </div>
   )

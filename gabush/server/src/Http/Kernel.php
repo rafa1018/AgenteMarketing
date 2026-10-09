@@ -32,6 +32,7 @@ final class Kernel
         Controllers\StaffController::class,
         Controllers\AuditController::class,
         Controllers\StaffAttendanceController::class,
+        Controllers\SupplyController::class,
     ];
 
     public function __construct(private readonly App $app)
