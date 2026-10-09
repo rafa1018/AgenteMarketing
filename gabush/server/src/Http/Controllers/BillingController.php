@@ -38,6 +38,8 @@ final class BillingController extends Controller
         $r->add('POST', '/billing/payments/{id}/void', [$c, 'voidPayment']);
         $r->add('GET', '/billing/payments/{id}/receipt', [$c, 'receipt']);
         $r->add('GET', '/billing/students/{id}/paz-y-salvo', [$c, 'clearance']);
+        $r->add('GET', '/billing/concept-charges', [$c, 'conceptChargesPending']);
+        $r->add('POST', '/billing/concept-charges', [$c, 'chargeConceptToEnrolled']);
         $r->add('GET', '/billing/signature', [$c, 'signature']);
         $r->add('POST', '/billing/signature', [$c, 'saveSignature']);
         $r->add('DELETE', '/billing/signature', [$c, 'deleteSignature']);
@@ -352,6 +354,29 @@ final class BillingController extends Controller
         }
         $this->audit()->log($actor, 'billing.settings', 'settings', 'billing', ['lateFee' => $lf, 'months' => $months, 'year' => $year]);
         return $this->settingsShow($req) + ['movedEnrollmentCharges' => $moved, 'extraEnrollmentCharges' => $extra];
+    }
+
+    private const BULK_CONCEPTS = ['UTILES', 'CLAUSURA'];
+
+    /** ?year=&concept=UTILES|CLAUSURA → how many active students of the year don't have that charge yet. */
+    public function conceptChargesPending(Request $req): array
+    {
+        $this->staff($req, 'pagos');
+        $code = (string) $req->query('concept', '');
+        if (!in_array($code, self::BULK_CONCEPTS, true)) throw HttpError::validation(['concept' => 'Concepto no válido.']);
+        return $this->billing()->conceptChargesPending($this->year($req), $code);
+    }
+
+    /** {year, concept, dueOn}: charges it to every active student of the year that doesn't have it yet. */
+    public function chargeConceptToEnrolled(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'pagos');
+        $v = Validate::of($req);
+        $year = $v->int('year', 2000, 2100, true);
+        $code = $v->oneOf('concept', self::BULK_CONCEPTS, null, true);
+        $dueOn = $v->date('dueOn', true);
+        $v->check();
+        return ['created' => $this->billing()->chargeConceptToEnrolled($year, $code, $dueOn, $actor)];
     }
 
     /** Price table of a year: concept × grade level. */

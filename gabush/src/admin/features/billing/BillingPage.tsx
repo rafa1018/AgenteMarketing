@@ -255,6 +255,50 @@ function PaymentsReport() {
   )
 }
 
+/**
+ * Charge a yearly concept (útiles, clausura) to every active student of the year that doesn't have it yet,
+ * at the price of their grade, with the chosen due date.
+ */
+function ConceptCharger({ year, code, label, defaultDue, hint }: { year: number; code: 'UTILES' | 'CLAUSURA'; label: string; defaultDue: string; hint: string }) {
+  const { data, reload } = useQuery(`concept-pending:${year}:${code}`, () => api2.get<{ missing: number; withoutPrice: number; concept: string | null }>('/billing/concept-charges' + qs({ year, concept: code })))
+  const [due, setDue] = useState(defaultDue)
+  const m = useMutation()
+  useEffect(() => setDue((d) => d || defaultDue), [defaultDue])
+  if (!data?.concept) return null
+  const run = async () => {
+    const r = await m.run(() => api2.post<{ created: number }>('/billing/concept-charges', { year, concept: code, dueOn: due }))
+    if (r) {
+      toast(r.created ? `Se cobró ${label.toLowerCase()} a ${r.created} estudiantes de ${year}` : 'No había a quién cobrar')
+      reload()
+    }
+  }
+  return (
+    <div className="space-y-2 rounded-2xl bg-paper p-4">
+      <p className="font-semibold text-ink">Cobrar {label.toLowerCase()} {year} a los ya matriculados</p>
+      <p className="text-[13px] text-muted">{hint}</p>
+      <p className="text-[14px]">
+        {data.missing ? (
+          <b className="text-ink">{data.missing} matriculados aún no tienen este cobro.</b>
+        ) : (
+          <span className="text-leaf">Todos los matriculados con precio ya lo tienen.</span>
+        )}
+        {data.withoutPrice > 0 && <span className="block text-[13px] text-[#8a5716]">{data.withoutPrice} no tienen precio para su grado: ponlo en la tabla y guarda.</span>}
+      </p>
+      {data.missing > 0 && (
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label="Vence el">
+            <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className={inputCls()} />
+          </Field>
+          <button type="button" disabled={m.busy || !due} onClick={run} className="btn btn-primary !min-h-[46px] !text-sm disabled:opacity-50">
+            Cobrar a {data.missing}
+          </button>
+        </div>
+      )}
+      {m.message && <ErrorBox message={m.message} />}
+    </div>
+  )
+}
+
 type LateFee = { enabled: boolean; amountPerDay: number; dueDay: number; graceDays: number; maxAmount: number | null; appliesFrom: string | null; mode: 'dia' | 'mes' }
 
 function BillingConfig() {
@@ -281,7 +325,7 @@ function BillingConfig() {
   useEffect(() => {
     setGrid(Object.fromEntries((prices.data?.prices ?? []).map((p) => [`${p.conceptId}:${p.gradeLevelId ?? ''}`, String(p.amount)])))
   }, [prices.data])
-  const concepts = (setup?.concepts ?? []).filter((c) => c.active && ['PENSION', 'MATRICULA', 'CLAUSURA'].includes(c.code))
+  const concepts = (setup?.concepts ?? []).filter((c) => c.active && ['MATRICULA', 'UTILES', 'PENSION', 'CLAUSURA'].includes(c.code)).sort((a, b) => ['MATRICULA', 'UTILES', 'PENSION', 'CLAUSURA'].indexOf(a.code) - ['MATRICULA', 'UTILES', 'PENSION', 'CLAUSURA'].indexOf(b.code))
   const grades = setup?.gradeLevels.filter((g) => g.active) ?? []
 
   const saveSettings = async () => {
@@ -338,9 +382,18 @@ function BillingConfig() {
             </tbody>
           </table>
         </div>
+        <p className="text-[13px] text-muted">
+          <b>Matrícula</b> y <b>útiles escolares</b> se cobran solos al tocar «Matricular (activar)», con la misma fecha límite. La <b>pensión</b> se genera cada mes. La <b>clausura</b> se cobra cuando tú decidas, con el botón de abajo.
+        </p>
         <button type="button" disabled={m.busy} onClick={savePrices} className="btn btn-primary !text-sm">
           <Save size={17} /> Guardar precios
         </button>
+        {year && (
+          <div className="grid gap-3 border-t border-line pt-4 lg:grid-cols-2">
+            <ConceptCharger year={year} code="UTILES" label="Útiles escolares" defaultDue={settings.data?.enrollmentDueOn ?? ''} hint="Para los que ya estaban matriculados antes de poner el precio de los útiles." />
+            <ConceptCharger year={year} code="CLAUSURA" label="Clausura" defaultDue="" hint="Cuando tengas el valor de la clausura, ponlo en la tabla, guarda y cóbralo aquí a todos los matriculados." />
+          </div>
+        )}
       </section>
 
       <section className="card space-y-4 p-4 sm:p-6">

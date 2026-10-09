@@ -355,8 +355,9 @@ final class BillingService
         );
         $done = 0;
         foreach ($years as $y) {
+            // only the matrícula itself (not the school supplies or other charges made when enrolling)
             $rows = $this->db->all(
-                "SELECT c.id FROM charges c JOIN billing_concepts bc ON bc.id = c.concept_id AND bc.apply_on_enrollment = 1
+                "SELECT c.id FROM charges c JOIN billing_concepts bc ON bc.id = c.concept_id AND bc.code = 'MATRICULA'
                  WHERE c.year_id = ? AND c.status = 'abierto'
                    AND NOT EXISTS (SELECT 1 FROM charge_adjustments a WHERE a.legacy_ref = CONCAT('mextra:', c.id))",
                 [$y['id']],
@@ -375,6 +376,56 @@ final class BillingService
         }
         if ($done) $this->audit->log($actor, 'charges.enrollment_late_fee', 'academic_year', $year, ['charges' => $done]);
         return $done;
+    }
+
+    /**
+     * Active students of $year that do not have a charge of $code yet (útiles, clausura…): how many, and how
+     * many of them have no price for their grade. @return array{missing:int,withoutPrice:int,concept:?string}
+     */
+    public function conceptChargesPending(int $year, string $code): array
+    {
+        $concept = $this->db->one('SELECT id, name FROM billing_concepts WHERE code = ? AND active = 1', [$code]);
+        if (!$concept) return ['missing' => 0, 'withoutPrice' => 0, 'concept' => null];
+        $missing = 0;
+        $noPrice = 0;
+        foreach ($this->enrollmentsWithout($year, (int) $concept['id']) as $eid) {
+            $this->priceFor($eid, $code) ? $missing++ : $noPrice++;
+        }
+        return ['missing' => $missing, 'withoutPrice' => $noPrice, 'concept' => $concept['name']];
+    }
+
+    /**
+     * Charges $code to every active student of $year that does not have it yet, at their grade's price,
+     * due on $dueOn (e.g. the school supplies to those enrolled before the price existed, or the clausura).
+     * @return int charges created
+     */
+    public function chargeConceptToEnrolled(int $year, string $code, string $dueOn, Actor $actor): int
+    {
+        $concept = $this->db->one('SELECT id, name FROM billing_concepts WHERE code = ? AND active = 1', [$code]) ?? throw new DomainError('concept', 'Ese concepto no existe.');
+        $created = 0;
+        foreach ($this->enrollmentsWithout($year, (int) $concept['id']) as $eid) {
+            $amount = $this->priceFor($eid, $code);
+            if (!$amount) continue;
+            $e = $this->db->one('SELECT e.student_id, g.name AS grade FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id LEFT JOIN grade_levels g ON g.id = c.grade_level_id WHERE e.id = ?', [$eid]);
+            $this->db->insert('charges', [
+                'student_id' => $e['student_id'], 'enrollment_id' => $eid, 'year_id' => $year, 'concept_id' => $concept['id'],
+                'description' => trim("{$concept['name']} " . ($e['grade'] ?? '') . " $year"), 'amount' => $amount,
+                'due_on' => $dueOn, 'source' => 'automatico', 'created_by' => $actor->label(),
+            ]);
+            $created++;
+        }
+        $this->audit->log($actor, 'charges.concept_to_enrolled', 'academic_year', $year, ['concept' => $code, 'created' => $created, 'dueOn' => $dueOn]);
+        return $created;
+    }
+
+    /** @return list<int> active enrollments of the year without a (non-voided) charge of the concept */
+    private function enrollmentsWithout(int $year, int $conceptId): array
+    {
+        return array_map('intval', array_column($this->db->all(
+            "SELECT e.id FROM enrollments e WHERE e.year_id = ? AND e.status = 'activo'
+               AND NOT EXISTS (SELECT 1 FROM charges c WHERE c.enrollment_id = e.id AND c.concept_id = ? AND c.status <> 'anulado')",
+            [$year, $conceptId],
+        ), 'id'));
     }
 
     /**
