@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useMotionValueEvent, useScroll } from 'motion/react'
 import { Menu, X } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { site, whatsappLink } from '@/data/site'
 import { useActiveSection } from '@/hooks/useMediaQuery'
 import { useT } from '@/i18n'
@@ -18,6 +18,7 @@ export const NAV = [
   { id: 'momentos', label: ui.nav.feed, color: '#1fa3dd' },
   { id: 'galeria', label: ui.nav.spaces, color: '#5cb531' },
   { id: 'calendario', label: ui.nav.calendar, color: '#f26b1d' },
+  { id: 'app-familias', label: ui.nav.app, color: '#8e44c9' },
   { id: 'contacto', label: ui.nav.contact, color: '#23206b' },
 ] as const
 const IDS = NAV.map((n) => n.id)
@@ -30,9 +31,19 @@ export function Navbar({ visible }: { visible: boolean }) {
   const { scrollY } = useScroll()
   useMotionValueEvent(scrollY, 'change', (v) => setScrolled(v > 24))
 
+  // From the mobile menu, scroll once the menu has finished closing (the page under it is then stable).
+  const pending = useRef<string | null>(null)
   const go = (id: string) => {
+    if (!open) return scrollToId(id)
+    pending.current = id
     setOpen(false)
-    scrollToId(id)
+    // safety net in case the exit animation never reports back
+    window.setTimeout(() => flush(), 600)
+  }
+  const flush = () => {
+    const id = pending.current
+    pending.current = null
+    if (id) scrollToId(id)
   }
 
   return (
@@ -64,7 +75,8 @@ export function Navbar({ visible }: { visible: boolean }) {
 
           <ul className="hidden items-center gap-0.5 lg:flex">
             {NAV.slice(1).map((n) => (
-              <li key={n.id}>
+              // "App" only where the bar has room for it (it is always in the mobile menu and the footer)
+              <li key={n.id} className={n.id === 'app-familias' ? 'hidden xl:block' : undefined}>
                 <a
                   href={`#${n.id}`}
                   onClick={(e) => {
@@ -101,14 +113,16 @@ export function Navbar({ visible }: { visible: boolean }) {
           </div>
         </nav>
 
-        <AnimatePresence>
+        <AnimatePresence onExitComplete={flush}>
           {open && (
             <motion.div
               id="mobile-menu"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.25 }}
+              // no height animation: measuring "auto" heights makes motion restore the page's scroll position,
+              // which cancelled the scroll to the chosen section
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
               className="overflow-hidden px-3 lg:hidden"
             >
               <ul className="grid grid-cols-2 gap-2 pb-3">

@@ -24,6 +24,11 @@ await logo.clone().resize({ width: 480 }).png({ compressionLevel: 9 }).toFile(`$
 /* ── iPhone frame of the family-app demo (transparent screen) ── */
 if (existsSync(`${IN}/phone-17.png`)) await sharp(`${IN}/phone-17.png`).webp({ quality: 92, alphaQuality: 100 }).toFile(`${OUT}/phone-17.webp`)
 
+/* ── Lion holding the family-app phone from its right side (eyes closed) ── */
+if (existsSync(`${IN}/animals/leon-sosteniendo-ojos-cerrados.png`)) {
+  await sharp(`${IN}/animals/leon-sosteniendo-ojos-cerrados.png`).resize({ width: 480 }).webp({ quality: 86, alphaQuality: 95 }).toFile(`${OUT}/leon-sosteniendo-cerrados-480.webp`)
+}
+
 /* ── Lion mascot, favicons and PWA icons → scripts/lion.mjs ── */
 await import('./lion.mjs')
 

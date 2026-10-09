@@ -9,6 +9,7 @@ export const ui = {
     spaces: { es: 'Galería', en: 'Gallery' },
     feed: { es: 'Momentos', en: 'Moments' },
     calendar: { es: 'Calendario', en: 'Calendar' },
+    app: { es: 'App', en: 'App' },
     faq: { es: 'Preguntas', en: 'FAQ' },
     contact: { es: 'Contacto', en: 'Contact' },
     menu: { es: 'Abrir menú', en: 'Open menu' },

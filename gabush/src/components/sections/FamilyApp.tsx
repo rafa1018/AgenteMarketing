@@ -1,7 +1,8 @@
 import { Bell, BookOpenCheck, CalendarCheck, Download, LogIn, Wallet } from 'lucide-react'
 import { FadeIn } from '@/components/animations'
-import { PhoneDemo } from './PhoneDemo'
 import { useT } from '@/i18n'
+import { LionBlink } from './LionBlink'
+import { PhoneDemo } from './PhoneDemo'
 
 const FEATURES = [
   { icon: BookOpenCheck, es: 'Notas y boletín de cada periodo en PDF', en: 'Grades and each term report card as PDF', color: '#e5197e' },
@@ -51,8 +52,12 @@ export function FamilyApp() {
           </p>
         </FadeIn>
 
-        {/* animated tour of the app inside the phone (it has its own scroll entrance) */}
-        <PhoneDemo />
+        {/* animated tour of the app inside the phone (it has its own scroll entrance), with the lion beside it */}
+        <div className="relative mx-auto w-full max-w-[280px] sm:max-w-[320px] lg:mr-[150px] xl:mr-[170px]">
+          {/* the lion's paws grab the phone's right edge (13.8 % into his image) */}
+          <LionBlink className="absolute bottom-[150px] left-[calc(100%-20px)] z-10 w-[118px] sm:bottom-[130px] sm:left-[calc(100%-29px)] sm:w-[190px] xl:left-[calc(100%-35px)] xl:w-[230px]" />
+          <PhoneDemo />
+        </div>
       </div>
     </section>
   )
