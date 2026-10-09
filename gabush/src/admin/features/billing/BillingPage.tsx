@@ -26,10 +26,8 @@ export function BillingPage() {
       {tab === 'config' && (
         <div className="space-y-5">
           <BillingConfig />
-          <div className="grid gap-5 xl:grid-cols-2">
-            <SignatureCard kind="rectora" />
-            <SignatureCard kind="contadora" />
-          </div>
+          <SignatureCard kind="rectora" />
+          <SignatureCard kind="contadora" />
         </div>
       )}
     </div>
