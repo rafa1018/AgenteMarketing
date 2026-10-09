@@ -21,6 +21,46 @@ final class AuditController extends Controller
         $r->add('GET', '/audit/presence', [$c, 'presence']);
         $r->add('GET', '/audit/access', [$c, 'access']);
         $r->add('GET', '/audit/boletines', [$c, 'boletines']);
+        $r->add('DELETE', '/audit/access/{id}', [$c, 'deleteAccess']);
+        $r->add('DELETE', '/audit/boletines/{id}', [$c, 'deleteBoletin']);
+        $r->add('POST', '/audit/presence/delete', [$c, 'deletePresence']);
+    }
+
+    public function deleteAccess(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'usuarios');
+        $this->db()->run('DELETE FROM access_log WHERE id = ?', [$req->intParam('id')]);
+        $this->audit()->log($actor, 'audit.delete_access', 'access_log', $req->intParam('id'));
+        return [];
+    }
+
+    public function deleteBoletin(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'usuarios');
+        $this->db()->run('DELETE FROM boletin_views WHERE id = ?', [$req->intParam('id')]);
+        $this->audit()->log($actor, 'audit.delete_boletin_view', 'boletin_views', $req->intParam('id'));
+        return [];
+    }
+
+    /** {portal, userId}: forgets the connection record of that user (it starts again on their next visit). */
+    public function deletePresence(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'usuarios');
+        $in = $req->json();
+        $portal = in_array($in['portal'] ?? '', ['familia', 'panel'], true) ? $in['portal'] : throw \Gabush\Http\HttpError::validation(['portal' => 'Portal no válido.']);
+        $this->db()->run('DELETE FROM user_presence WHERE portal = ? AND user_id = ?', [$portal, (string) ($in['userId'] ?? '')]);
+        $this->audit()->log($actor, 'audit.delete_presence', 'user_presence', null, ['portal' => $portal, 'user' => $in['userId'] ?? '']);
+        return [];
+    }
+
+    /** ?from=&to= (YYYY-MM-DD) on a datetime column; nothing when absent. @return array{0:list<string>,1:list<string>} */
+    private function range(Request $req, string $col): array
+    {
+        $w = [];
+        $p = [];
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $f = (string) $req->query('from', ''))) { $w[] = "$col >= ?"; $p[] = $f; }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $t = (string) $req->query('to', ''))) { $w[] = "$col < ? + INTERVAL 1 DAY"; $p[] = $t; }
+        return [$w, $p];
     }
 
     /** ?portal=familia|panel|todos&q=&role=&online=1 */
@@ -31,6 +71,9 @@ final class AuditController extends Controller
         if (($role = (string) $req->query('role', '')) !== '') { $where[] = 'u.role = ?'; $p[] = $role; }
         if (($q = trim((string) $req->query('q', ''))) !== '') { $where[] = '(u.user_name LIKE ? OR c.name LIKE ?)'; array_push($p, "%$q%", "%$q%"); }
         if ($req->query('online') === '1') $where[] = 'u.last_seen >= NOW() - INTERVAL ' . self::ONLINE_MINUTES . ' MINUTE';
+        [$rw, $rp] = $this->range($req, 'u.last_seen');
+        $where = [...$where, ...$rw];
+        $p = [...$p, ...$rp];
         $year = $this->settings()->activeYear();
         $rows = $this->db()->all(
             "SELECT u.portal, u.user_id AS userId, u.user_name AS name, u.role, u.last_seen AS lastSeen, u.last_login AS lastLogin, u.logins, u.ip, u.device,
@@ -68,8 +111,9 @@ final class AuditController extends Controller
         if (in_array($ev = (string) $req->query('event', ''), ['ingreso', 'salida', 'fallido'], true)) { $where[] = 'a.event = ?'; $p[] = $ev; }
         if (($role = (string) $req->query('role', '')) !== '') { $where[] = 'a.role = ?'; $p[] = $role; }
         if (($q = trim((string) $req->query('q', ''))) !== '') { $where[] = '(a.user_name LIKE ? OR a.user_id LIKE ? OR a.ip LIKE ?)'; array_push($p, "%$q%", "%$q%", "%$q%"); }
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $req->query('from', ''))) { $where[] = 'a.created_at >= ?'; $p[] = $req->query('from'); }
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $req->query('to', ''))) { $where[] = 'a.created_at < ? + INTERVAL 1 DAY'; $p[] = $req->query('to'); }
+        [$rw, $rp] = $this->range($req, 'a.created_at');
+        $where = [...$where, ...$rw];
+        $p = [...$p, ...$rp];
         $rows = $this->db()->all(
             'SELECT a.id, a.portal, a.user_id AS userId, a.user_name AS name, a.role, a.event, a.ip, a.device, a.created_at AS at
              FROM access_log a WHERE ' . implode(' AND ', $where) . ' ORDER BY a.id DESC LIMIT 400',
@@ -94,6 +138,9 @@ final class AuditController extends Controller
         if ($period !== '') { $w[] = 'v.period = ?'; $p[] = $period; }
         if (in_array($viewer = (string) $req->query('viewer', 'familia'), ['familia', 'personal'], true)) { $w[] = 'v.viewer = ?'; $p[] = $viewer; }
         if ($course) { $w[] = 'e.course_id = ?'; $p[] = $course; }
+        [$rw, $rp] = $this->range($req, 'v.created_at');
+        $w = [...$w, ...$rw];
+        $p = [...$p, ...$rp];
         $events = $this->db()->all(
             "SELECT v.id, v.student_id AS studentId, CONCAT(s.first_name, ' ', s.last_name) AS student, c.name AS course, v.period, v.period_name AS periodName,
                     v.viewer, v.viewer_name AS viewerName, v.action, v.ip, v.device, v.created_at AS at
@@ -106,6 +153,9 @@ final class AuditController extends Controller
         $sp = [$year];
         $periodSql = '';
         if ($period !== '') { $periodSql = ' AND v.period = ?'; $sp[] = $period; }
+        [$rw, $rp] = $this->range($req, 'v.created_at');
+        foreach ($rw as $cond) $periodSql .= " AND $cond";
+        $sp = [...$sp, ...$rp];
         $sp[] = $year;
         $courseSql = '';
         if ($course) { $courseSql = ' AND e.course_id = ?'; $sp[] = $course; }
@@ -119,6 +169,19 @@ final class AuditController extends Controller
              GROUP BY s.id ORDER BY COUNT(v.id) = 0 DESC, c.name, s.last_name, s.first_name",
             $sp,
         );
+        // which report card each family opened: per child and period, how many times seen / downloaded
+        $bp = [$year, ...$rp];
+        $bw = $rw ? ' AND ' . implode(' AND ', $rw) : '';
+        $byPeriod = [];
+        foreach ($this->db()->all(
+            "SELECT v.student_id, v.period, SUM(v.action = 'ver') AS views, SUM(v.action = 'descargar') AS downloads, SUM(v.action IN ('compartir','imprimir')) AS shared, MAX(v.created_at) AS last
+             FROM boletin_views v WHERE v.year_id = ? AND v.viewer = 'familia'$bw GROUP BY v.student_id, v.period",
+            $bp,
+        ) as $r) {
+            $byPeriod[(int) $r['student_id']][$r['period']] = ['views' => (int) $r['views'], 'downloads' => (int) $r['downloads'], 'shared' => (int) $r['shared'], 'last' => $r['last']];
+        }
+        foreach ($students as &$s) $s['byPeriod'] = (object) ($byPeriod[(int) $s['id']] ?? []);
+        unset($s);
         return ['events' => self::intsAll($events, 'id', 'studentId'), 'students' => self::intsAll($students, 'id', 'total', 'views', 'downloads', 'shared')];
     }
 

@@ -128,7 +128,17 @@ function CoursesTab() {
   const { setup, year, reload } = useSetup()
   const [editing, setEditing] = useState<Partial<CourseInfo> | null>(null)
   const [room, setRoom] = useState<Partial<Classroom> | null>(null)
+  const [status, setStatus] = useState<'activos' | 'inactivos' | 'todos'>('activos')
+  const m = useMutation()
   if (!setup) return <Spinner />
+  const shown = setup.courses.filter((c) => status === 'todos' || (status === 'activos' ? c.active : !c.active))
+  const toggle = async (c: CourseInfo) => {
+    if (await m.run(() => api2.post(`/courses/${c.id}/active`, { active: !c.active }))) {
+      toast(c.active ? `${c.name} inactivo: ya no sale en las listas de cursos` : `${c.name} activo de nuevo`)
+      reload()
+    }
+  }
+  const nActive = setup.courses.filter((c) => c.active).length
   return (
     <div className="space-y-6">
       <section className="space-y-3">
@@ -138,12 +148,16 @@ function CoursesTab() {
             <Plus size={17} /> Nuevo curso
           </button>
         </div>
+        <StatusTabs value={status} onChange={setStatus} counts={[nActive, setup.courses.length - nActive]} labels={['Activos', 'Inactivos', 'Todos']} />
+        {m.message && <ErrorBox message={m.message} />}
         {!setup.courses.length ? (
           <Empty title="Este año no tiene cursos">Crea el primero, o copia los del año anterior desde Matrículas → Año siguiente.</Empty>
+        ) : !shown.length ? (
+          <Empty title={status === 'inactivos' ? 'No hay cursos inactivos' : 'No hay cursos activos'} />
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {setup.courses.map((c) => (
-              <li key={c.id} className="card p-4">
+            {shown.map((c) => (
+              <li key={c.id} className={`card p-4 ${c.active ? '' : 'opacity-70'}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-serif text-lg font-semibold text-ink">{c.name}</p>
@@ -160,9 +174,15 @@ function CoursesTab() {
                     <Pencil size={16} />
                   </button>
                 </div>
-                <Badge tone={c.enrolled >= c.capacity ? 'red' : 'green'} className="mt-2">
-                  {c.enrolled} de {c.capacity} cupos
-                </Badge>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Badge tone={c.enrolled >= c.capacity ? 'red' : 'green'}>
+                    {c.enrolled} de {c.capacity} cupos
+                  </Badge>
+                  {!c.active && <Badge>Inactivo</Badge>}
+                  <button type="button" disabled={m.busy} onClick={() => toggle(c)} className={`ml-auto rounded-full px-3 py-1 text-[12px] font-bold ring-1 ${c.active ? 'text-muted ring-line hover:text-berry hover:ring-berry' : 'text-leaf ring-leaf hover:bg-[#e9f4ee]'}`}>
+                    {c.active ? 'Inactivar' : 'Activar'}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -478,11 +498,34 @@ function LevelsCard() {
 }
 
 /* ───────── subjects, areas, levels ───────── */
+/** Activos / Inactivos / Todos with counts. */
+function StatusTabs<T extends 'activos' | 'inactivos' | 'todos'>({ value, onChange, counts, labels }: { value: T; onChange: (v: T) => void; counts: [number, number]; labels: [string, string, string] }) {
+  const items = [['activos', `${labels[0]} (${counts[0]})`], ['inactivos', `${labels[1]} (${counts[1]})`], ['todos', labels[2]]] as [T, string][]
+  return (
+    <div className="inline-flex rounded-full bg-white p-1 ring-1 ring-line">
+      {items.map(([id, label]) => (
+        <button key={id} type="button" onClick={() => onChange(id)} className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${value === id ? 'bg-ink text-white' : 'text-muted hover:text-ink'}`}>
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function SubjectsTab() {
   const { setup, reload } = useSetup()
   const [subject, setSubject] = useState<{ id?: number; name: string; areaId: number | ''; active: boolean } | null>(null)
+  const [status, setStatus] = useState<'activos' | 'inactivos' | 'todos'>('activos')
   const m = useMutation()
+  const toggle = async (s: { id: number; name: string; areaId: number | null; active: number }) => {
+    if (await m.run(() => api2.put(`/subjects/${s.id}`, { name: s.name, areaId: s.areaId, active: !s.active }))) {
+      toast(s.active ? `${s.name} inactiva: ya no sale para calificar ni en los cursos` : `${s.name} activa de nuevo`)
+      reload()
+    }
+  }
   if (!setup) return <Spinner />
+  const nActive = setup.subjects.filter((s) => s.active).length
+  const subjects = setup.subjects.filter((s) => status === 'todos' || (status === 'activos' ? s.active : !s.active))
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <section className="card p-4 sm:p-5">
@@ -492,12 +535,19 @@ function SubjectsTab() {
             <Plus size={15} /> Materia
           </button>
         </div>
+        <div className="mt-3">
+          <StatusTabs value={status} onChange={setStatus} counts={[nActive, setup.subjects.length - nActive]} labels={['Activas', 'Inactivas', 'Todas']} />
+        </div>
+        {m.message && <div className="mt-2"><ErrorBox message={m.message} /></div>}
         <ul className="mt-2 divide-y divide-line">
-          {setup.subjects.map((s) => (
-            <li key={s.id} className="flex items-center gap-2 py-2">
+          {!subjects.length && <li className="py-3 text-sm text-muted">No hay materias {status === 'inactivos' ? 'inactivas' : 'activas'}.</li>}
+          {subjects.map((s) => (
+            <li key={s.id} className={`flex items-center gap-2 py-2 ${s.active ? '' : 'opacity-70'}`}>
               <span className="flex-1 font-semibold text-ink">{s.name}</span>
               <span className="text-[13px] text-muted">{setup.areas.find((a) => a.id === s.areaId)?.name ?? '—'}</span>
-              {!s.active && <Badge>Inactiva</Badge>}
+              <button type="button" disabled={m.busy} onClick={() => toggle(s)} className={`rounded-full px-2.5 py-0.5 text-[12px] font-bold ring-1 ${s.active ? 'text-muted ring-line hover:text-berry hover:ring-berry' : 'text-leaf ring-leaf'}`}>
+                {s.active ? 'Inactivar' : 'Activar'}
+              </button>
               <button type="button" aria-label="Editar" onClick={() => setSubject({ id: s.id, name: s.name, areaId: s.areaId ?? '', active: Boolean(s.active) })} className="text-muted hover:text-ink">
                 <Pencil size={15} />
               </button>

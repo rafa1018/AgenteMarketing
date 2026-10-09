@@ -307,7 +307,7 @@ function rp_device(string $ua): array
  * - Everyone else lives in <data>/users.json and is managed by whoever has the "usuarios" permission.
  * - Permissions are re-read on every request, so changes (or deactivating someone) apply immediately.
  */
-const RP_PERMS = ['asistencia', 'estudiantes', 'pagos', 'inscripciones', 'calendario', 'feed', 'ajustes', 'usuarios', 'matriculas', 'academico', 'calificaciones', 'observador', 'caja', 'mensajes'];
+const RP_PERMS = ['asistencia', 'estudiantes', 'pagos', 'inscripciones', 'calendario', 'feed', 'ajustes', 'usuarios', 'matriculas', 'academico', 'calificaciones', 'observador', 'caja', 'mensajes', 'personal'];
 const RP_ROOT = 'root';
 
 /** The logged-in user: ['id', 'user', 'name', 'role', 'perms'] — null when nobody (or a deactivated user) is logged in. */

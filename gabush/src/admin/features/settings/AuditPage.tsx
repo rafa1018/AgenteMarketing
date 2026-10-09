@@ -1,8 +1,9 @@
-import { FileDown, Search } from 'lucide-react'
+import { FileDown, Search, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { dateTime } from '@/shared/format'
+import { dateTime, todayISO } from '@/shared/format'
 import { useQuery } from '@/shared/useQuery'
+import { toast } from '../../store'
 import { PageHead } from '../../ui'
 import { api2, qs, useSetup } from '../../v2/api'
 import { Badge, CourseSelect, Empty, ErrorBox, Spinner, Tabs, YearPicker, inputCls, useTab } from '../../v2/kit'
@@ -10,11 +11,73 @@ import { Badge, CourseSelect, Empty, ErrorBox, Spinner, Tabs, YearPicker, inputC
 type Portal = 'todos' | 'familia' | 'panel'
 type Presence = { portal: 'familia' | 'panel'; userId: string; name: string | null; role: string | null; lastSeen: string; lastLogin: string | null; logins: number; ip: string | null; device: string | null; online: number; course: string | null }
 type AccessEvent = { id: number; portal: 'familia' | 'panel'; userId: string; name: string | null; role: string | null; event: 'ingreso' | 'salida' | 'fallido'; ip: string | null; device: string | null; at: string }
-type BoletinRow = { id: number; name: string; course: string | null; total: number; views: number; downloads: number; shared: number; firstSeen: string | null; lastSeen: string | null }
+type PeriodCount = { views: number; downloads: number; shared: number; last: string }
+type BoletinRow = { id: number; name: string; course: string | null; total: number; views: number; downloads: number; shared: number; firstSeen: string | null; lastSeen: string | null; byPeriod: Record<string, PeriodCount> }
 type BoletinEvent = { id: number; studentId: number; student: string; course: string | null; periodName: string | null; viewer: 'familia' | 'personal'; viewerName: string | null; action: string; device: string | null; at: string }
 
 const ROLE: Record<string, string> = { admin: 'Administración', rectora: 'Rectora', docente: 'Docente', auxiliar: 'Auxiliar', personalizado: 'Personalizado', familia: 'Familia' }
 const ACTION: Record<string, string> = { ver: 'Lo abrió', descargar: 'Descargó el PDF', compartir: 'Lo compartió', imprimir: 'Lo imprimió' }
+
+/** Date range of the lists: starts on today; quick buttons for the usual ranges. */
+type Range = { from: string; to: string }
+const today = () => todayISO()
+const daysAgo = (n: number) => {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return d.toISOString().slice(0, 10)
+}
+function RangeFilter({ value, onChange }: { value: Range; onChange: (r: Range) => void }) {
+  const presets: [string, Range][] = [
+    ['Hoy', { from: today(), to: today() }],
+    ['7 días', { from: daysAgo(6), to: today() }],
+    ['Este mes', { from: today().slice(0, 8) + '01', to: today() }],
+    ['Todo', { from: '', to: '' }],
+  ]
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {presets.map(([label, r]) => (
+        <button key={label} type="button" onClick={() => onChange(r)} className={cn('rounded-full px-3 py-1.5 text-[13px] font-semibold ring-1 ring-line', value.from === r.from && value.to === r.to ? 'bg-ink text-white ring-ink' : 'bg-white text-muted hover:text-ink')}>
+          {label}
+        </button>
+      ))}
+      <input type="date" value={value.from} onChange={(e) => onChange({ ...value, from: e.target.value })} aria-label="Desde" className="min-h-9 rounded-full border border-line bg-white px-3 text-[13px]" />
+      <span className="text-muted">a</span>
+      <input type="date" value={value.to} onChange={(e) => onChange({ ...value, to: e.target.value })} aria-label="Hasta" className="min-h-9 rounded-full border border-line bg-white px-3 text-[13px]" />
+    </div>
+  )
+}
+
+/** Trash button that asks first. */
+function DeleteButton({ what, onDelete }: { what: string; onDelete: () => Promise<unknown> }) {
+  const [ask, setAsk] = useState(false)
+  const [busy, setBusy] = useState(false)
+  if (!ask)
+    return (
+      <button type="button" title={`Eliminar ${what}`} aria-label={`Eliminar ${what}`} onClick={() => setAsk(true)} className="grid size-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-[#fdf0ef] hover:text-berry">
+        <Trash2 size={15} />
+      </button>
+    )
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true)
+          await onDelete().catch(() => toast('No se pudo eliminar'))
+          setBusy(false)
+          setAsk(false)
+        }}
+        className="rounded-full bg-berry px-2.5 py-1 text-[12px] font-bold text-white"
+      >
+        Eliminar
+      </button>
+      <button type="button" onClick={() => setAsk(false)} className="rounded-full px-2 py-1 text-[12px] font-semibold text-muted">
+        No
+      </button>
+    </span>
+  )
+}
 
 /** Families / panel switch shared by the tabs. */
 function PortalFilter({ value, onChange }: { value: Portal; onChange: (p: Portal) => void }) {
@@ -49,8 +112,9 @@ function PresenceTab() {
   const [role, setRole] = useState('')
   const [q, setQ] = useState('')
   const [online, setOnline] = useState(false)
-  const { data, error, loading, reload } = useQuery(`presence:${portal}:${role}:${q}:${online}`, () =>
-    api2.get<{ users: Presence[]; counts: { familiaOnline: number; panelOnline: number; familias: number; panel: number; familiasNunca: number }; roles: string[]; onlineMinutes: number }>('/audit/presence' + qs({ portal, role: portal === 'panel' ? role || null : null, q: q.trim() || null, online: online ? 1 : null })),
+  const [range, setRange] = useState<Range>({ from: today(), to: today() })
+  const { data, error, loading, reload } = useQuery(`presence:${portal}:${role}:${q}:${online}:${range.from}:${range.to}`, () =>
+    api2.get<{ users: Presence[]; counts: { familiaOnline: number; panelOnline: number; familias: number; panel: number; familiasNunca: number }; roles: string[]; onlineMinutes: number }>('/audit/presence' + qs({ portal, role: portal === 'panel' ? role || null : null, q: q.trim() || null, online: online ? 1 : null, from: range.from || null, to: range.to || null })),
   )
   return (
     <div className="space-y-4">
@@ -75,12 +139,13 @@ function PresenceTab() {
         </label>
         <SearchBox value={q} onChange={setQ} placeholder="Buscar por nombre o curso…" />
       </div>
+      <RangeFilter value={range} onChange={setRange} />
       {error ? (
         <ErrorBox message={error.message} onRetry={reload} />
       ) : loading && !data ? (
         <Spinner />
       ) : !data?.users.length ? (
-        <Empty title="Sin registros con ese filtro">Las conexiones se registran desde que se activó la auditoría.</Empty>
+        <Empty title="Nadie se conectó en esas fechas">Cambia las fechas (por ejemplo «Todo»). Las conexiones se registran desde que se activó la auditoría.</Empty>
       ) : (
         <div className="card overflow-x-auto p-0">
           <table className="w-full min-w-[720px] text-left text-[14px]">
@@ -92,6 +157,7 @@ function PresenceTab() {
                 <th className="px-3 py-2.5">Último ingreso</th>
                 <th className="px-3 py-2.5 text-right">Ingresos</th>
                 <th className="px-4 py-2.5">Dispositivo</th>
+                <th className="w-10" />
               </tr>
             </thead>
             <tbody>
@@ -111,6 +177,16 @@ function PresenceTab() {
                   <td className="px-3 py-2.5 whitespace-nowrap text-muted">{dateTime(u.lastLogin)}</td>
                   <td className="px-3 py-2.5 text-right font-semibold tabular-nums">{u.logins}</td>
                   <td className="px-4 py-2.5 text-[13px] text-muted">{u.device ?? '—'}</td>
+                  <td className="pr-2">
+                    <DeleteButton
+                      what="este registro de conexión"
+                      onDelete={async () => {
+                        await api2.post('/audit/presence/delete', { portal: u.portal, userId: u.userId })
+                        toast('Registro eliminado')
+                        reload()
+                      }}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -126,10 +202,9 @@ function AccessTab() {
   const [portal, setPortal] = useState<Portal>('todos')
   const [event, setEvent] = useState('')
   const [q, setQ] = useState('')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  const { data, error, loading, reload } = useQuery(`access:${portal}:${event}:${q}:${from}:${to}`, () =>
-    api2.get<{ events: AccessEvent[] }>('/audit/access' + qs({ portal, event: event || null, q: q.trim() || null, from: from || null, to: to || null })),
+  const [range, setRange] = useState<Range>({ from: today(), to: today() })
+  const { data, error, loading, reload } = useQuery(`access:${portal}:${event}:${q}:${range.from}:${range.to}`, () =>
+    api2.get<{ events: AccessEvent[] }>('/audit/access' + qs({ portal, event: event || null, q: q.trim() || null, from: range.from || null, to: range.to || null })),
   )
   return (
     <div className="space-y-4">
@@ -141,10 +216,9 @@ function AccessTab() {
           <option value="salida">Salidas</option>
           <option value="fallido">Intentos fallidos</option>
         </select>
-        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Desde" className="min-h-10 rounded-full border border-line bg-white px-3 text-[13px]" />
-        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Hasta" className="min-h-10 rounded-full border border-line bg-white px-3 text-[13px]" />
         <SearchBox value={q} onChange={setQ} placeholder="Nombre, usuario o IP…" />
       </div>
+      <RangeFilter value={range} onChange={setRange} />
       {error ? (
         <ErrorBox message={error.message} onRetry={reload} />
       ) : loading && !data ? (
@@ -162,6 +236,14 @@ function AccessTab() {
               </span>
               <span className="text-[13px] text-muted">{e.device ?? ''}{e.ip ? ` · ${e.ip}` : ''}</span>
               <span className="w-36 text-right text-[13px] whitespace-nowrap text-ink">{dateTime(e.at)}</span>
+              <DeleteButton
+                what="este ingreso"
+                onDelete={async () => {
+                  await api2.del(`/audit/access/${e.id}`)
+                  toast('Registro eliminado')
+                  reload()
+                }}
+              />
             </li>
           ))}
         </ul>
@@ -176,10 +258,13 @@ function BoletinesTab() {
   const [course, setCourse] = useState<number | null>(null)
   const [viewer, setViewer] = useState<'familia' | 'personal' | 'todos'>('familia')
   const [view, setView] = useState<'ninos' | 'detalle'>('ninos')
-  const { data, error, loading, reload } = useQuery(`bv:${year}:${period}:${course}:${viewer}`, () =>
-    api2.get<{ students: BoletinRow[]; events: BoletinEvent[] }>('/audit/boletines' + qs({ year, period: period || null, course, viewer })),
+  const [range, setRange] = useState<Range>({ from: today(), to: today() })
+  const { data, error, loading, reload } = useQuery(`bv:${year}:${period}:${course}:${viewer}:${range.from}:${range.to}`, () =>
+    api2.get<{ students: BoletinRow[]; events: BoletinEvent[] }>('/audit/boletines' + qs({ year, period: period || null, course, viewer, from: range.from || null, to: range.to || null })),
   )
   const seen = data?.students.filter((s) => s.total > 0).length ?? 0
+  // one column per report card: Periodo 1…4 and the final one (or just the chosen period)
+  const columns = [...(setup?.periods ?? []).map((p) => ({ key: String(p.id), label: `P${p.number}`, name: p.name })), { key: 'final', label: 'Final', name: 'Informe final' }].filter((c) => !period || c.key === period)
   return (
     <div className="space-y-4">
       <div className="grid gap-2 sm:grid-cols-3">
@@ -197,6 +282,7 @@ function BoletinesTab() {
           ))}
         </div>
       </div>
+      <RangeFilter value={range} onChange={setRange} />
       {error ? (
         <ErrorBox message={error.message} onRetry={reload} />
       ) : loading && !data ? (
@@ -204,17 +290,16 @@ function BoletinesTab() {
       ) : !data ? null : view === 'ninos' ? (
         <>
           <p className="text-[14px] text-muted">
-            <b className="text-ink">{seen}</b> de {data.students.length} familias abrieron el boletín{period ? '' : ' (algún periodo)'}. Arriba salen las que aún no lo han visto.
+            <b className="text-ink">{seen}</b> de {data.students.length} familias abrieron {period ? 'ese boletín' : 'algún boletín'} en las fechas elegidas. Arriba salen las que no lo han abierto. En cada periodo: 👁 veces que lo abrió · ⬇ veces que lo descargó.
           </p>
           <div className="card overflow-x-auto p-0">
             <table className="w-full min-w-[640px] text-left text-[14px]">
               <thead className="bg-paper text-[12px] font-bold tracking-wide text-muted uppercase">
                 <tr>
                   <th className="px-4 py-2.5">Estudiante</th>
-                  <th className="px-3 py-2.5">Estado</th>
-                  <th className="px-3 py-2.5 text-right">Abierto</th>
-                  <th className="px-3 py-2.5 text-right">Descargas</th>
-                  <th className="px-3 py-2.5">Primera vez</th>
+                  {columns.map((c) => (
+                    <th key={c.key} title={c.name} className="px-2 py-2.5 text-center">{c.label}</th>
+                  ))}
                   <th className="px-4 py-2.5">Última vez</th>
                 </tr>
               </thead>
@@ -225,11 +310,22 @@ function BoletinesTab() {
                       <span className="block font-semibold text-ink">{s.name}</span>
                       <span className="block text-[12px] text-muted">{s.course}</span>
                     </td>
-                    <td className="px-3 py-2.5">{s.downloads ? <Badge tone="green">Lo descargó</Badge> : s.views ? <Badge tone="blue">Lo vio</Badge> : <Badge tone="red">No lo ha visto</Badge>}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{s.views}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{s.downloads}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-muted">{dateTime(s.firstSeen)}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap text-muted">{dateTime(s.lastSeen)}</td>
+                    {columns.map((c) => {
+                      const x = s.byPeriod?.[c.key]
+                      return (
+                        <td key={c.key} className="px-2 py-2.5 text-center">
+                          {!x ? (
+                            <span className="text-[12px] font-semibold text-berry/70" title={`No ha abierto ${c.name}`}>—</span>
+                          ) : (
+                            <span title={`${c.name}: abierto ${x.views} vez/veces, descargado ${x.downloads}, última vez ${dateTime(x.last)}`} className={cn('inline-flex flex-col items-center rounded-lg px-2 py-1 text-[12px] font-bold leading-tight tabular-nums', x.downloads ? 'bg-[#e9f4ee] text-leaf' : 'bg-[#eaf3fa] text-[#185a8a]')}>
+                              <span>👁 {x.views}</span>
+                              {x.downloads > 0 && <span>⬇ {x.downloads}</span>}
+                            </span>
+                          )}
+                        </td>
+                      )
+                    })}
+                    <td className="px-4 py-2.5 whitespace-nowrap text-muted">{s.total ? dateTime(s.lastSeen) : <Badge tone="red">No lo ha visto</Badge>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -261,6 +357,14 @@ function BoletinesTab() {
                     </span>
                   </span>
                   <span className="text-[13px] whitespace-nowrap text-ink">{dateTime(e.at)}</span>
+                  <DeleteButton
+                    what="este registro"
+                    onDelete={async () => {
+                      await api2.del(`/audit/boletines/${e.id}`)
+                      toast('Registro eliminado')
+                      reload()
+                    }}
+                  />
                 </li>
               ))}
             </ul>

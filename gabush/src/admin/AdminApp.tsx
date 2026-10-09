@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { Activity, Archive, BarChart3, Bell, FileSpreadsheet, BellRing, BookOpenCheck, CalendarDays, CreditCard, FileCheck2, Globe, GraduationCap, Images, KeyRound, LayoutGrid, Mail, MessagesSquare, PiggyBank, School, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
+import { Activity, Archive, BarChart3, UserRoundCheck, Bell, FileSpreadsheet, BellRing, BookOpenCheck, CalendarDays, CreditCard, FileCheck2, Globe, GraduationCap, Images, KeyRound, LayoutGrid, Mail, MessagesSquare, PiggyBank, School, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
 import { useCallback, useEffect, useState, type ComponentType } from 'react'
 import { checkAdmin, loadEvents, logout, reloadEvents, useCalendar, type Perm } from '@/lib/calendar'
 import { cn } from '@/lib/utils'
@@ -18,6 +18,7 @@ import { BillingPage } from './features/billing/BillingPage'
 import { ReportsPage } from './features/reports/ReportsPage'
 import { BackupsPage } from './features/settings/BackupsPage'
 import { AuditPage } from './features/settings/AuditPage'
+import { StaffAttendancePage } from './features/staff/StaffAttendancePage'
 import { EnrollmentsPage } from './features/enrollments/EnrollmentsPage'
 import { AcademicPage } from './features/academics/AcademicPage'
 import { GradesPage } from './features/grades/GradesPage'
@@ -52,6 +53,7 @@ const GROUPS: { id: Group; label: string }[] = [
 const ALL_PAGES: Page[] = [
   { id: 'inicio', label: 'Inicio', icon: House, view: HomeV2, group: 'jardin' },
   { id: 'asistencia', label: 'Asistencia', icon: ClipboardCheck, view: AttendancePage, perm: 'asistencia', group: 'jardin' },
+  { id: 'personal', label: 'Asistencia del personal', icon: UserRoundCheck, view: StaffAttendancePage, perm: 'personal', group: 'jardin' },
   { id: 'estudiantes', label: 'Estudiantes', icon: Users, view: StudentsPage, perms: ['estudiantes', 'matriculas'], group: 'jardin' },
   { id: 'matriculas', label: 'Matrículas', icon: FileCheck2, view: EnrollmentsPage, perm: 'matriculas', group: 'jardin' },
   { id: 'inscripciones', label: 'Inscripciones', icon: Bell, view: Inscriptions, perm: 'inscripciones', group: 'jardin' },

@@ -171,6 +171,7 @@ export type Perm =
   | 'observador'
   | 'caja'
   | 'mensajes'
+  | 'personal'
 /** What the logged-in person may do (the server checks it again on every request). */
 export const can = (p: Perm) => state.perms.includes(p)
 export const useCan = (p: Perm) => useCalendar((s) => s.perms.includes(p))

@@ -24,6 +24,8 @@ export interface Setup {
    * the subjects assigned to her in each one (null = all, the rectora)
    */
   me: { staffId: Id | null; staffName: string | null; courses: Id[] | null; subjects: Record<string, Id[]> | null }
+  /** course id → the subjects that course has this year */
+  courseSubjects: Record<string, Id[]>
   activeYear: number
   year: number
   years: YearInfo[]

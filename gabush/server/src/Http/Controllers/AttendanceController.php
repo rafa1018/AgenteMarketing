@@ -27,10 +27,11 @@ final class AttendanceController extends Controller
     /** ?date=YYYY-MM-DD&course=ID → the course roster with the day's marks. */
     public function day(Request $req): array
     {
-        $this->staff($req, 'asistencia');
+        $actor = $this->staff($req, 'asistencia');
         $date = (string) $req->query('date', date('Y-m-d'));
         $course = (int) $req->query('course');
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !$course) throw HttpError::validation(['date' => 'Elige el curso y la fecha.']);
+        $this->assertTeacherCourse($actor, $course);
         $rows = $this->db()->all(
             "SELECT s.id, s.code, s.first_name AS firstName, s.last_name AS lastName, s.second_last_name AS secondLastName, s.photo_path IS NOT NULL AS hasPhoto,
                     a.status, a.note, a.recorded_by AS recordedBy, a.recorded_at AS recordedAt
@@ -52,6 +53,13 @@ final class AttendanceController extends Controller
         $notify = $v->bool('notify', true);
         $v->check();
         if ($date > date('Y-m-d')) throw HttpError::validation(['date' => 'No se puede tomar asistencia de un día futuro.']);
+        if ($this->isTeacher($actor) && $items) {
+            $ids = array_map(static fn($it) => (int) ($it['studentId'] ?? 0), $items);
+            $year = (int) substr($date, 0, 4);
+            foreach ($this->db()->all('SELECT DISTINCT course_id FROM enrollments WHERE year_id = ? AND student_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', [$year, ...$ids]) as $r) {
+                $this->assertTeacherCourse($actor, (int) $r['course_id']);
+            }
+        }
         $changed = [];
         $this->db()->transaction(function ($db) use ($items, $date, $actor, &$changed): void {
             foreach ($items as $it) {
@@ -77,11 +85,26 @@ final class AttendanceController extends Controller
         return ['saved' => count($items)];
     }
 
+    /**
+     * A user linked to a teacher's record (Usuarios → Ficha de personal) takes attendance only in her courses;
+     * the rectora and staff users without a record (reception…) see every course.
+     */
+    private function isTeacher(\Gabush\Application\Shared\Actor $a): bool
+    {
+        return !$a->can('academico') && (bool) $this->db()->value('SELECT 1 FROM staff WHERE user_id = ? AND active = 1', [$a->id]);
+    }
+
+    private function assertTeacherCourse(\Gabush\Application\Shared\Actor $a, int $course): void
+    {
+        if ($this->isTeacher($a)) $this->assertMyCourse($a, $course);
+    }
+
     /** Counts per student for a course and month (or the whole year). */
     public function summary(Request $req): array
     {
-        $this->staff($req, 'asistencia');
+        $actor = $this->staff($req, 'asistencia');
         $course = (int) $req->query('course');
+        $this->assertTeacherCourse($actor, $course);
         $from = (string) $req->query('from', date('Y-m-01'));
         $to = (string) $req->query('to', date('Y-m-t'));
         $rows = $this->db()->all(

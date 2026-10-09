@@ -50,7 +50,7 @@ abstract class Controller
         if ($a->can('academico')) return null;
         return array_map('intval', array_column($this->db()->all(
             'SELECT c.id FROM courses c JOIN staff s ON s.user_id = ? AND s.active = 1
-             WHERE c.year_id = ? AND (c.director_staff_id = s.id OR EXISTS (SELECT 1 FROM course_subjects cs WHERE cs.course_id = c.id AND cs.teacher_staff_id = s.id))
+             WHERE c.year_id = ? AND c.active = 1 AND (c.director_staff_id = s.id OR EXISTS (SELECT 1 FROM course_subjects cs WHERE cs.course_id = c.id AND cs.teacher_staff_id = s.id))
              ORDER BY c.name',
             [$a->id, $year],
         ), 'id'));

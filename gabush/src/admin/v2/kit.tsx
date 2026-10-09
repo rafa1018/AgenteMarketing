@@ -171,7 +171,7 @@ export function CourseSelect({ value, onChange, allowAll = true, className, only
   return (
     <select value={value ?? ''} onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)} className={cn(field, className)} aria-label="Curso">
       {allowAll ? <option value="">Todos los cursos</option> : <option value="">Elige el curso…</option>}
-      {setup?.courses.filter((c) => !only || only.includes(c.id)).map((c) => (
+      {setup?.courses.filter((c) => (c.active || c.id === value) && (!only || only.includes(c.id))).map((c) => (
         <option key={c.id} value={c.id}>
           {c.name} ({c.enrolled}/{c.capacity})
         </option>

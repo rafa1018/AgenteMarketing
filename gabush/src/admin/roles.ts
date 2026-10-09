@@ -16,6 +16,7 @@ export const PERMS: { id: Perm; label: string; detail: string }[] = [
   { id: 'observador', label: 'Observador', detail: 'Escribir anotaciones del estudiante (salud, convivencia, avances).' },
   { id: 'caja', label: 'Caja', detail: 'Registrar ingresos y egresos del jardín y ver los saldos.' },
   { id: 'mensajes', label: 'Mensajes a familias', detail: 'Enviar mensajes, actividades y circulares a la bandeja de las familias.' },
+  { id: 'personal', label: 'Asistencia del personal', detail: 'Marcar la asistencia, llegadas tarde, permisos e incapacidades del equipo de trabajo.' },
 ]
 
 export type Role = 'rectora' | 'docente' | 'auxiliar' | 'personalizado'

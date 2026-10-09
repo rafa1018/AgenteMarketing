@@ -24,16 +24,19 @@ export function AttendancePage() {
   const { setup } = useSetup()
   const [tab, setTab] = useTab<'dia' | 'resumen'>('dia')
   const [course, setCourse] = useState<number | null>(null)
+  // a teacher (user linked to her staff record) only takes attendance in her courses
+  const only = setup?.me?.staffId ? setup.me.courses : null
   useEffect(() => {
-    if (!course && setup?.courses.length) setCourse(setup.courses.find((c) => c.enrolled > 0)?.id ?? setup.courses[0].id)
-  }, [setup, course])
+    const list = (setup?.courses ?? []).filter((c) => c.active && (!only || only.includes(c.id)))
+    if (!course && list.length) setCourse(list.find((c) => c.enrolled > 0)?.id ?? list[0].id)
+  }, [setup, course, only])
   return (
     <div className="space-y-5">
       <PageHead title="Asistencia" sub="Marca la asistencia de cada curso; la familia recibe un aviso si su hijo faltó o llegó tarde." />
       <div className="flex flex-wrap items-center gap-3">
         <Tabs tabs={[{ id: 'dia', label: 'Tomar asistencia' }, { id: 'resumen', label: 'Resumen del mes' }]} value={tab} onChange={setTab} />
         <div className="w-full sm:ml-auto sm:w-64">
-          <CourseSelect value={course} onChange={setCourse} allowAll={false} />
+          <CourseSelect value={course} onChange={setCourse} allowAll={false} only={only} />
         </div>
       </div>
       {!course ? <Empty icon={<ClipboardCheck />} title="Elige un curso" /> : tab === 'dia' ? <DaySheet course={course} /> : <MonthSummary course={course} />}

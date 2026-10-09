@@ -118,16 +118,18 @@ function SheetEditor() {
   // with just one course / subject it is picked by itself
   const mine = setup?.me?.courses ?? null
   const mySubjects = setup?.me?.subjects ?? null
-  const subjectOptions = (setup?.subjects ?? []).filter((s) => s.active && (!mySubjects || (course !== null && (mySubjects[course] ?? []).includes(s.id))))
+  // only the active subjects the chosen course has (and, for a teacher, the ones assigned to her)
+  const courseHas = course !== null ? (setup?.courseSubjects?.[course] ?? []) : []
+  const subjectOptions = (setup?.subjects ?? []).filter((s) => s.active && courseHas.includes(s.id) && (!mySubjects || (course !== null && (mySubjects[course] ?? []).includes(s.id))))
   useEffect(() => {
     if (mine?.length === 1 && !course) setCourse(mine[0])
   }, [mine, course])
+  const optionIds = subjectOptions.map((s) => s.id).join(',')
   useEffect(() => {
-    if (!mySubjects || course === null) return
-    const own = mySubjects[course] ?? []
-    if (subject && !own.includes(subject)) setSubject('')
-    else if (!subject && own.length === 1) setSubject(own[0])
-  }, [mySubjects, course, subject])
+    const ids = optionIds ? optionIds.split(',').map(Number) : []
+    if (subject && !ids.includes(subject)) setSubject('')
+    else if (!subject && ids.length === 1) setSubject(ids[0])
+  }, [optionIds, subject])
   const [ach, setAch] = useState<AchievementDraft | null>(null)
   const levelName = (id: number | null) => setup?.levels.find((l) => l.id === id)?.name ?? null
   const subjectName = setup?.subjects.find((s) => s.id === subject)?.name ?? ''
@@ -180,8 +182,8 @@ function SheetEditor() {
       {picked && <StudentNotes key={picked.id} student={picked} year={year} periods={setup.periods} period={period} onPeriod={setPeriod} onClose={() => setPicked(null)} onSaved={() => ready && reload()} />}
       <div className="grid gap-2 sm:grid-cols-3">
         <CourseSelect value={course} onChange={setCourse} allowAll={false} only={mine} />
-        <select value={subject} onChange={(e) => setSubject(e.target.value ? Number(e.target.value) : '')} className={sel} aria-label="Materia">
-          <option value="">Elige la materia…</option>
+        <select value={subject} onChange={(e) => setSubject(e.target.value ? Number(e.target.value) : '')} disabled={course === null} className={cn(sel, course === null && 'opacity-60')} aria-label="Materia">
+          <option value="">{course === null ? 'Primero elige el curso' : 'Elige la materia…'}</option>
           {subjectOptions.map((s) => (
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
@@ -199,8 +201,12 @@ function SheetEditor() {
         <Empty title={`No tienes cursos asignados en ${year}`}>
           Pídele a la rectora que te asigne como director(a) de grupo o como docente de alguna materia (Gestión académica → Cursos) y que tu usuario esté vinculado a tu ficha de personal (Usuarios).
         </Empty>
-      ) : mySubjects && course !== null && !subjectOptions.length ? (
-        <Empty title="No tienes materias asignadas en este curso">Puedes ver los boletines del curso, pero para calificar la rectora debe asignarte materias (Gestión académica → Cursos → Materias del curso y docente).</Empty>
+      ) : course !== null && !subjectOptions.length ? (
+        mySubjects ? (
+          <Empty title="No tienes materias asignadas en este curso">Puedes ver los boletines del curso, pero para calificar la rectora debe asignarte materias (Gestión académica → Cursos → Materias del curso y docente).</Empty>
+        ) : (
+          <Empty title="Este curso no tiene materias">Asígnale sus materias y docentes en Gestión académica → Cursos.</Empty>
+        )
       ) : !ready ? (
         <Empty title={course && period ? 'Elige la materia para calificar' : 'Elige curso, materia y periodo'}>
           {course && period ? (

@@ -25,6 +25,19 @@ final class CourseController extends Controller
         $r->add('POST', '/courses', [$c, 'saveCourse']);
         $r->add('PUT', '/courses/{id}', [$c, 'saveCourse']);
         $r->add('DELETE', '/courses/{id}', [$c, 'deleteCourse']);
+        $r->add('POST', '/courses/{id}/active', [$c, 'setActive']);
+    }
+
+    /** {active}: an inactive course leaves the course lists (attendance, grades, enrollment…) but keeps its history. */
+    public function setActive(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'academico');
+        $id = $req->intParam('id');
+        $this->db()->one('SELECT id FROM courses WHERE id = ?', [$id]) ?? throw HttpError::notFound();
+        $active = Validate::of($req)->bool('active', true);
+        $this->db()->update('courses', ['active' => $active ? 1 : 0], ['id' => $id]);
+        $this->audit()->log($actor, $active ? 'course.activate' : 'course.deactivate', 'course', $id);
+        return ['active' => $active];
     }
 
     public function saveGrade(Request $req): array

@@ -22,9 +22,15 @@ final class SetupController extends Controller
         $year = $this->year($req);
         $db = $this->db();
         $me = $db->one('SELECT id, full_name FROM staff WHERE user_id = ? AND active = 1', [$actor->id]);
+        // subjects of each course this year (Gestión académica → Cursos → Materias del curso)
+        $courseSubjects = [];
+        foreach ($db->all('SELECT cs.course_id, cs.subject_id FROM course_subjects cs JOIN courses c ON c.id = cs.course_id WHERE c.year_id = ?', [$year]) as $r) {
+            $courseSubjects[(int) $r['course_id']][] = (int) $r['subject_id'];
+        }
         return [
             // who is working: their staff record and, for teachers, the courses they direct this year (null = all)
             'me' => ['staffId' => $me ? (int) $me['id'] : null, 'staffName' => $me['full_name'] ?? null, 'courses' => $this->myCourses($actor, $year), 'subjects' => ($s = $this->mySubjects($actor, $year)) === null ? null : (object) $s],
+            'courseSubjects' => (object) $courseSubjects,
             'activeYear' => $this->settings()->activeYear(),
             'year' => $year,
             'years' => self::intsAll($db->all('SELECT id, name, starts_on AS startsOn, ends_on AS endsOn, status FROM academic_years ORDER BY id DESC'), 'id'),
