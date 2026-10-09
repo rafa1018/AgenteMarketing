@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { cn } from '@/lib/utils'
 
 /*
- * Animated tour of the family app inside the iPhone frame (public/images/phone-17.png): the phone's home
+ * Animated tour of the family app inside the iPhone frame (public/images/opt/phone-17.webp, from phone-17.png): the phone's home
  * screen → tap on "Gabush" → splash → sign in → Inicio, Mensajes, Pagos and Notas. Everything is drawn here
  * with sample data (no real child), at a 360 px wide "virtual phone" scaled to the frame.
  * Plays by itself; the step dots and the app's bottom bar let the visitor explore. Reduced motion: no autoplay.
@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 
 const VW = 360 // virtual screen width (px); height follows the frame's screen ratio
 const VH = 783
-// transparent screen area of phone-17.png (389 × 800): x 17–371, y 14–785
+// transparent screen area of the frame (389 × 800): x 17–371, y 14–785
 const SCREEN = { left: `${(17 / 389) * 100}%`, top: `${(14 / 800) * 100}%`, width: `${(355 / 389) * 100}%`, height: `${(772 / 800) * 100}%` }
 
 type SceneId = 'phone' | 'splash' | 'login' | 'inicio' | 'mensajes' | 'pagos' | 'notas' | 'asistencia' | 'aviso' | 'mas'
@@ -142,7 +142,7 @@ export function PhoneDemo() {
             </AnimatePresence>
           </div>
         </div>
-        <img src="/images/phone-17.png" alt="" width={389} height={800} className="pointer-events-none absolute inset-0 size-full select-none" draggable={false} />
+        <img src="/images/opt/phone-17.webp" alt="" width={389} height={800} className="pointer-events-none absolute inset-0 size-full select-none" draggable={false} />
       </motion.div>
 
       {/* steps */}

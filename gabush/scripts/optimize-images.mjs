@@ -21,6 +21,9 @@ const logo = sharp(`${IN}/logo.png`).trim({ threshold: 2 })
 for (const w of [240, 480]) await logo.clone().resize({ width: w }).webp({ quality: 90, alphaQuality: 95 }).toFile(`${OUT}/logo-${w}.webp`)
 await logo.clone().resize({ width: 480 }).png({ compressionLevel: 9 }).toFile(`${OUT}/logo-480.png`)
 
+/* ── iPhone frame of the family-app demo (transparent screen) ── */
+if (existsSync(`${IN}/phone-17.png`)) await sharp(`${IN}/phone-17.png`).webp({ quality: 92, alphaQuality: 100 }).toFile(`${OUT}/phone-17.webp`)
+
 /* ── Lion mascot, favicons and PWA icons → scripts/lion.mjs ── */
 await import('./lion.mjs')
 

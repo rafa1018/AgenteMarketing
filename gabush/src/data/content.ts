@@ -73,6 +73,6 @@ export const faq: { q: L; a: L; hours?: boolean }[] = [
   },
   {
     q: { es: '¿Cuánto cuesta?', en: 'How much does it cost?' },
-    a: { es: '[AGREGAR INFORMACIÓN DE PRECIOS] Escríbenos y te damos toda la información.', en: '[ADD PRICING INFORMATION] Message us and we will share all the details.' },
+    a: { es: 'El valor de la matrícula y la pensión depende del nivel y la jornada. Escríbenos por WhatsApp y te enviamos la información completa del año.', en: 'Enrollment and tuition depend on the level and the schedule. Message us on WhatsApp and we will send you all the details for the year.' },
   },
 ]
