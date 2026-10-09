@@ -1,13 +1,55 @@
-import { Ban, ChevronDown, FilePlus2, HandCoins, Percent, Printer, Receipt, ShieldCheck, ShieldOff, Trash2, Undo2 } from 'lucide-react'
+import { Ban, CalendarClock, ChevronDown, FilePlus2, HandCoins, Percent, Printer, Receipt, ShieldCheck, ShieldOff, Trash2, Undo2 } from 'lucide-react'
 import { useState } from 'react'
+import { Modal } from '@/components/ui/Modal'
 import { cn } from '@/lib/utils'
-import { useQuery } from '@/shared/useQuery'
+import { useMutation, useQuery } from '@/shared/useQuery'
 import { date, discountReason, money } from '@/shared/format'
 import { toast } from '../../store'
 import { api2, qs, useSetup } from '../../v2/api'
-import { Badge, ErrorBox, Spinner, Stat, StatusBadge } from '../../v2/kit'
+import { Badge, ErrorBox, Field, Spinner, Stat, StatusBadge, inputCls } from '../../v2/kit'
 import { AdjustModal, ChargeFormModal, PaymentModal, VoidModal } from './BillingModals'
 import { methodLabel, type Charge, type Statement } from './types'
+
+/** New due date of a pending charge. */
+function DueDateModal({ charge, onClose, onDone }: { charge: Charge | null; onClose: () => void; onDone: () => void }) {
+  const [due, setDue] = useState('')
+  const [last, setLast] = useState<Charge | null>(null)
+  const m = useMutation()
+  if (charge !== last) {
+    setLast(charge)
+    setDue(charge?.dueOn ?? '')
+  }
+  return (
+    <Modal open={Boolean(charge)} onClose={onClose} label="Cambiar vencimiento" closeLabel="Cerrar" className="sm:!max-w-md">
+      {charge && (
+        <div className="space-y-4 p-6">
+          <h2 className="text-[1.4rem]">Cambiar vencimiento</h2>
+          <p className="text-[14px] text-muted">
+            {charge.description} · hoy vence el {date(charge.dueOn)}. Antes de la nueva fecha no aparece como vencido.
+          </p>
+          <Field label="Nueva fecha de vencimiento">
+            <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className={inputCls()} />
+          </Field>
+          {m.message && <ErrorBox message={m.message} />}
+          <button
+            type="button"
+            disabled={m.busy || !due || due === charge.dueOn}
+            onClick={async () => {
+              if (await m.run(() => api2.post(`/billing/charges/${charge.id}/due`, { dueOn: due }))) {
+                toast(`Ahora vence el ${date(due)}`)
+                onClose()
+                onDone()
+              }
+            }}
+            className="btn btn-primary w-full disabled:opacity-50"
+          >
+            Guardar fecha
+          </button>
+        </div>
+      )}
+    </Modal>
+  )
+}
 
 /** Account of one student: what was charged, adjustments, what was paid, receipts. */
 export function StatementView({ studentId }: { studentId: number }) {
@@ -18,6 +60,7 @@ export function StatementView({ studentId }: { studentId: number }) {
   const [charging, setCharging] = useState(false)
   const [adjusting, setAdjusting] = useState<Charge | null>(null)
   const [voiding, setVoiding] = useState<{ kind: 'charge' | 'payment'; id: number; label: string } | null>(null)
+  const [redating, setRedating] = useState<Charge | null>(null)
   const [open, setOpen] = useState<number | null>(null)
 
   if (error) return <ErrorBox message={error.message} onRetry={reload} />
@@ -167,6 +210,11 @@ export function StatementView({ studentId }: { studentId: number }) {
                           <button type="button" onClick={() => setAdjusting(c)} className="btn btn-ghost !min-h-9 !px-3 !text-[13px]">
                             <Percent size={15} /> Descuento / recargo
                           </button>
+                          {c.status === 'abierto' && (
+                            <button type="button" onClick={() => setRedating(c)} className="btn btn-ghost !min-h-9 !px-3 !text-[13px]">
+                              <CalendarClock size={15} /> Cambiar vencimiento
+                            </button>
+                          )}
                           {c.lateFeeApplies && c.status === 'abierto' && (mora && mora.waived ? (
                             <button type="button" onClick={() => waive(c, false)} className="btn btn-ghost !min-h-9 !px-3 !text-[13px]">
                               <Undo2 size={15} /> Volver a cobrar mora
@@ -231,6 +279,7 @@ export function StatementView({ studentId }: { studentId: number }) {
       <ChargeFormModal studentId={studentId} open={charging} onClose={() => setCharging(false)} onDone={reload} />
       <AdjustModal charge={adjusting} onClose={() => setAdjusting(null)} onDone={reload} defaultReason={discountReason(data.since, data.years ?? 0)} />
       <VoidModal target={voiding} onClose={() => setVoiding(null)} onDone={reload} />
+      <DueDateModal charge={redating} onClose={() => setRedating(null)} onDone={reload} />
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { listName } from '@/shared/format'
 import { toast } from '../../store'
 import { ConfirmModal, PageHead } from '../../ui'
 import { api2, qs, useSetup, type DocumentType } from '../../v2/api'
-import { Badge, Empty, ErrorBox, Field, Spinner, Tabs, YearPicker, inputCls, useTab } from '../../v2/kit'
+import { Badge, Empty, ErrorBox, Field, Spinner, StatusBadge, StudentAvatar, Tabs, YearPicker, inputCls, useTab } from '../../v2/kit'
 import { openStudent } from '../students/openStudent'
 import type { StudentRow } from '../students/types'
 
@@ -29,6 +29,7 @@ export function EnrollmentsPage() {
 function Capacity() {
   const { year } = useSetup()
   const { data, error, loading, reload } = useQuery(year ? `cap:${year}` : null, () => api2.get<{ courses: { id: number; name: string; gradeLevel: string; capacity: number; classroom: string | null; director: string | null; active_students: number; pre: number; withdrawn: number }[] }>('/courses' + qs({ year })))
+  const [roster, setRoster] = useState<{ id: number; name: string } | null>(null)
   if (error) return <ErrorBox message={error.message} onRetry={reload} />
   if (loading && !data) return <Spinner />
   const courses = data?.courses ?? []
@@ -44,7 +45,8 @@ function Capacity() {
           const used = (c.active_students || 0) + (c.pre || 0)
           const pct = Math.min(100, Math.round((used / Math.max(1, c.capacity)) * 100))
           return (
-            <li key={c.id} className="card p-4">
+            <li key={c.id}>
+              <button type="button" onClick={() => setRoster({ id: c.id, name: c.name })} title="Ver los estudiantes del curso" className="card block w-full p-4 text-left transition-shadow hover:ring-2 hover:ring-royal/40">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="font-serif text-lg font-semibold text-ink">{c.name}</p>
@@ -62,12 +64,73 @@ function Capacity() {
               <p className="mt-2 text-[13px] text-muted">
                 {c.active_students || 0} activos{c.pre ? ` · ${c.pre} prematrícula` : ''}
                 {c.withdrawn ? ` · ${c.withdrawn} retirados` : ''}
+                <span className="float-right font-semibold text-royal">Ver lista →</span>
               </p>
+              </button>
             </li>
           )
         })}
       </ul>
+      <CourseRoster course={roster} onClose={() => setRoster(null)} />
     </div>
+  )
+}
+
+type RosterStudent = { id: number; code: string; firstName: string; middleName: string | null; lastName: string; secondLastName: string | null; hasPhoto: number; status: 'activo' | 'prematricula' | 'retirado'; orderNumber: number | null }
+
+/** Students of one course (active, pre-enrolled, withdrawn); tapping one opens their file. */
+function CourseRoster({ course, onClose }: { course: { id: number; name: string } | null; onClose: () => void }) {
+  const { data, error, loading } = useQuery(course ? `roster:${course.id}` : null, () => api2.get<{ students: RosterStudent[] }>(`/courses/${course!.id}`))
+  const groups: [RosterStudent['status'], string][] = [['activo', 'Matriculados'], ['prematricula', 'En prematrícula'], ['retirado', 'Retirados']]
+  return (
+    <Modal open={Boolean(course)} onClose={onClose} label={course ? `Curso ${course.name}` : 'Curso'} closeLabel="Cerrar" className="sm:!max-w-lg">
+      {course && (
+        <div className="space-y-4 p-6">
+          <h2 className="text-[1.5rem]">{course.name}</h2>
+          {error ? (
+            <ErrorBox message={error.message} />
+          ) : loading || !data ? (
+            <Spinner />
+          ) : !data.students.length ? (
+            <Empty title="Este curso aún no tiene estudiantes" />
+          ) : (
+            groups.map(([status, label]) => {
+              const list = data.students.filter((s) => s.status === status)
+              if (!list.length) return null
+              return (
+                <section key={status}>
+                  <p className="mb-1.5 text-[12px] font-bold tracking-wide text-muted uppercase">
+                    {label} ({list.length})
+                  </p>
+                  <ul className="divide-y divide-line rounded-2xl bg-white ring-1 ring-line">
+                    {list.map((s, i) => (
+                      <li key={s.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose()
+                            openStudent(s.id, 'matricula')
+                          }}
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-paper"
+                        >
+                          <span className="w-6 text-right text-[12px] font-semibold text-muted tabular-nums">{s.orderNumber ?? i + 1}</span>
+                          <StudentAvatar s={s} size={36} zoom={false} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-semibold text-ink">{listName(s)}</span>
+                            <span className="block text-[12px] text-muted">{s.code}</span>
+                          </span>
+                          {status !== 'activo' && <StatusBadge status={status} />}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )
+            })
+          )}
+        </div>
+      )}
+    </Modal>
   )
 }
 

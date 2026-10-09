@@ -31,6 +31,7 @@ final class BillingController extends Controller
         $r->add('POST', '/billing/students/{id}/apply-credit', [$c, 'applyCredit']);
         $r->add('POST', '/billing/charges', [$c, 'createCharge']);
         $r->add('POST', '/billing/charges/{id}/void', [$c, 'voidCharge']);
+        $r->add('POST', '/billing/charges/{id}/due', [$c, 'changeDue']);
         $r->add('POST', '/billing/charges/{id}/adjustments', [$c, 'addAdjustment']);
         $r->add('DELETE', '/billing/adjustments/{id}', [$c, 'deleteAdjustment']);
         $r->add('POST', '/billing/charges/{id}/late-fee', [$c, 'lateFee']);
@@ -354,6 +355,21 @@ final class BillingController extends Controller
         }
         $this->audit()->log($actor, 'billing.settings', 'settings', 'billing', ['lateFee' => $lf, 'months' => $months, 'year' => $year]);
         return $this->settingsShow($req) + ['movedEnrollmentCharges' => $moved, 'extraEnrollmentCharges' => $extra];
+    }
+
+    /** {dueOn}: new due date of a pending charge (e.g. a matrícula that fell due the day it was created). */
+    public function changeDue(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'pagos');
+        $id = $req->intParam('id');
+        $v = Validate::of($req);
+        $due = $v->date('dueOn', true);
+        $v->check();
+        $c = $this->db()->one('SELECT id, due_on, status FROM charges WHERE id = ?', [$id]) ?? throw HttpError::notFound();
+        if ($c['status'] !== 'abierto') throw new \Gabush\Domain\Shared\DomainError('closed', 'Solo se cambia la fecha de un cobro pendiente.');
+        $this->db()->update('charges', ['due_on' => $due], ['id' => $id]);
+        $this->audit()->log($actor, 'charge.due_date', 'charge', $id, ['from' => $c['due_on'], 'to' => $due]);
+        return ['dueOn' => $due];
     }
 
     private const BULK_CONCEPTS = ['UTILES', 'CLAUSURA'];
