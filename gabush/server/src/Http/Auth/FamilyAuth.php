@@ -84,6 +84,9 @@ final class FamilyAuth
             }
         }
         $f = self::$cache;
+        if ($f && !\Gabush\Application\Shared\AccessAudit::$who) {
+            \Gabush\Application\Shared\AccessAudit::$who = ['portal' => 'familia', 'id' => (string) $f['student'], 'name' => null, 'role' => 'familia'];
+        }
         return $f ? Actor::family((int) $f['student'], (string) $f['user']) : null;
     }
 

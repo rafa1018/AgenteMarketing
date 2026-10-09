@@ -29,6 +29,7 @@ final class GradesController extends Controller
         $r->add('POST', '/grades/publish', [$c, 'publishCourse']);
         $r->add('GET', '/students/{id}/boletin', [$c, 'boletin']);
         $r->add('GET', '/courses/{id}/boletines', [$c, 'courseBoletines']);
+        $r->add('POST', '/students/{id}/boletin/event', [$c, 'boletinEvent']);
         $r->add('GET', '/grades/notes', [$c, 'notes']);
         $r->add('PUT', '/grades/notes', [$c, 'saveNote']);
     }
@@ -122,8 +123,33 @@ final class GradesController extends Controller
                 $o['whatsapp'] = 'https://wa.me/57' . $phone . '?text=' . rawurlencode($text);
             }
         }
+        // audit: who opened it; the page reports downloads / shares / prints back to boletinEvent
+        $viewer = $isFamily ? ['familia', (string) $id, 'Familia (' . $family->name . ')'] : ['personal', $actor->id, $actor->name];
+        (new \Gabush\Application\Shared\AccessAudit($this->db()))->boletin($id, $year, (string) $period, $o['periodName'], $viewer[0], $viewer[1], $viewer[2], 'ver');
+        $o['track'] = '/api/v2/students/' . $id . '/boletin/event?' . http_build_query(['year' => $year, 'period' => $period]);
         $note = $this->notesFor([$id], $year, $period)[$id] ?? null;
         return Response::html(BoletinView::render([$card + ['general' => $this->general($card['reportCard'], $period), 'note' => $note]], $o));
+    }
+
+    /**
+     * ?year=&period= {action: descargar|compartir|imprimir} — sent by the report card page itself, so the
+     * school knows the family downloaded it. Only the family of that student or staff who can open it.
+     */
+    public function boletinEvent(Request $req): array
+    {
+        $id = $req->intParam('id');
+        $family = FamilyAuth::current();
+        $isFamily = $family && $family->studentId === $id;
+        $actor = $isFamily ? null : $this->staff($req, 'calificaciones', 'academico', 'estudiantes');
+        $action = (string) ($req->json()['action'] ?? '');
+        if (!in_array($action, ['descargar', 'compartir', 'imprimir'], true)) throw HttpError::validation(['action' => 'Acción no válida.']);
+        $year = $this->year($req);
+        $period = (string) $req->query('period', '');
+        $name = $period === 'final' ? 'Informe final' : $this->db()->value('SELECT name FROM periods WHERE id = ? AND year_id = ?', [(int) $period, $year]);
+        if ($name === null) throw HttpError::validation(['period' => 'Periodo no válido.']);
+        $viewer = $isFamily ? ['familia', (string) $id, 'Familia (' . $family->name . ')'] : ['personal', $actor->id, $actor->name];
+        (new \Gabush\Application\Shared\AccessAudit($this->db()))->boletin($id, $year, $period, (string) $name, $viewer[0], $viewer[1], $viewer[2], $action);
+        return [];
     }
 
     /** Every active student of a course, one page each. ?period=<id>|final */
@@ -255,6 +281,7 @@ final class GradesController extends Controller
         $period = (int) $req->query('period');
         if (!$course || !$subject || !$period) throw HttpError::validation(['course' => 'Elige curso, materia y periodo.']);
         $this->assertMyCourse($actor, $course);
+        $this->assertMySubject($actor, $course, $subject);
         $sheet = $this->grades()->sheet($course, $subject, $period) ?: throw HttpError::notFound();
         // which achievements this user may edit or delete: all for the rectora, her own for a teacher
         $ids = array_column($sheet['achievements'], 'id');
@@ -290,7 +317,10 @@ final class GradesController extends Controller
             'SELECT DISTINCT course_id FROM enrollments WHERE id IN (' . implode(',', array_fill(0, max(1, count($rows)), '?')) . ')',
             $rows ? array_map(static fn($r) => (int) ($r['enrollmentId'] ?? 0), $rows) : [0],
         ), 'course_id')));
-        foreach ($courses as $cid) $this->assertMyCourse($actor, $cid);
+        foreach ($courses as $cid) {
+            $this->assertMyCourse($actor, $cid);
+            $this->assertMySubject($actor, $cid, (int) $subject);
+        }
         $n = $this->grades()->saveSheet($subject, $period, $rows, $actor->label());
         // rows may carry the child's final observation of the period ("note"): saved for the whole report card
         foreach ($rows as $r) {

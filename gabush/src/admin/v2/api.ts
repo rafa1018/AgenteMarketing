@@ -19,8 +19,11 @@ export interface Level { id: Id; name: string; min: string; max: string }
 export interface Concept { id: Id; code: string; name: string; frequency: 'mensual' | 'anual' | 'eventual'; onEnrollment: number; lateFee: number; online: number; active: number }
 export interface DocumentType { id: Id; name: string; description: string | null; required: number; appliesTo: 'nuevos' | 'todos'; familyUpload: number; sort: number; active: number }
 export interface Setup {
-  /** the signed-in user: their staff record and, for a teacher, the courses she directs this year (null = all) */
-  me: { staffId: Id | null; staffName: string | null; courses: Id[] | null }
+  /**
+   * the signed-in user: their staff record and, for a teacher, the courses she directs or teaches this year and
+   * the subjects assigned to her in each one (null = all, the rectora)
+   */
+  me: { staffId: Id | null; staffName: string | null; courses: Id[] | null; subjects: Record<string, Id[]> | null }
   activeYear: number
   year: number
   years: YearInfo[]

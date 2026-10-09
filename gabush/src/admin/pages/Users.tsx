@@ -143,7 +143,7 @@ function UserEditor({ draft, people, onClose, onSaved }: { draft: Draft | null; 
             </select>
             <p className="mt-1 text-xs text-muted">
               {d.role === 'docente'
-                ? 'Una docente solo ve en Calificaciones los cursos donde esta persona es director(a) de grupo. Sin ficha no verá ningún curso.'
+                ? 'En Calificaciones solo verá los cursos donde esta persona es director(a) de grupo o tiene materias, y solo califica las materias asignadas a ella. Sin ficha no verá ningún curso.'
                 : 'Opcional para este rol. La rectora ve todos los cursos.'}
             </p>
           </div>

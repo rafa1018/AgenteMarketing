@@ -48,13 +48,16 @@ final class BoletinView
             . 'jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},pagebreak:{mode:["css","legacy"],avoid:[".subject",".keep"]}}).from(document.getElementById("doc")).outputPdf("blob")'
             . '.then(function(b){document.body.classList.remove("pdf");return b})}'
             . 'function busy(btn,on,label){btn.disabled=on;btn.textContent=on?"Generando PDF…":label}'
+            // audit: tell the school it was downloaded / shared / printed (one report card page only)
+            . 'var track=' . json_encode($o['track'] ?? null) . ',sent={};function log(a){if(!track||sent[a])return;sent[a]=1;try{fetch(track,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:a}),keepalive:true})}catch(e){}}'
+            . 'window.addEventListener("beforeprint",function(){if(!document.body.classList.contains("pdf"))log("imprimir")});'
             // download
             . 'document.getElementById("pdf").addEventListener("click",function(){var b=this;if(!window.html2pdf){window.print();return}busy(b,true);'
-            . 'make().then(function(blob){var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},2000);busy(b,false,"Descargar PDF")})'
+            . 'log("descargar");make().then(function(blob){var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},2000);busy(b,false,"Descargar PDF")})'
             . '.catch(function(){busy(b,false,"Descargar PDF");window.print()})});'
             // share the PDF file itself (phones: WhatsApp, correo…)
             . 'var s=document.getElementById("share");try{if(navigator.canShare&&navigator.canShare({files:[new File(["x"],"x.pdf",{type:"application/pdf"})]}))s.hidden=false}catch(e){}'
-            . 's.addEventListener("click",function(){if(!window.html2pdf)return;busy(s,true);make().then(function(blob){busy(s,false,"Compartir");'
+            . 's.addEventListener("click",function(){if(!window.html2pdf)return;log("compartir");busy(s,true);make().then(function(blob){busy(s,false,"Compartir");'
             . 'return navigator.share({files:[new File([blob],name,{type:"application/pdf"})],title:title})}).catch(function(){busy(s,false,"Compartir")})});'
             . '})();</script>'
             . '</body></html>';

@@ -24,7 +24,7 @@ final class SetupController extends Controller
         $me = $db->one('SELECT id, full_name FROM staff WHERE user_id = ? AND active = 1', [$actor->id]);
         return [
             // who is working: their staff record and, for teachers, the courses they direct this year (null = all)
-            'me' => ['staffId' => $me ? (int) $me['id'] : null, 'staffName' => $me['full_name'] ?? null, 'courses' => $this->myCourses($actor, $year)],
+            'me' => ['staffId' => $me ? (int) $me['id'] : null, 'staffName' => $me['full_name'] ?? null, 'courses' => $this->myCourses($actor, $year), 'subjects' => ($s = $this->mySubjects($actor, $year)) === null ? null : (object) $s],
             'activeYear' => $this->settings()->activeYear(),
             'year' => $year,
             'years' => self::intsAll($db->all('SELECT id, name, starts_on AS startsOn, ends_on AS endsOn, status FROM academic_years ORDER BY id DESC'), 'id'),

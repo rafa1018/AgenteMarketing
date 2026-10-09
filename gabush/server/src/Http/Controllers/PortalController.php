@@ -75,13 +75,21 @@ final class PortalController extends Controller
         $pass = (string) ($req->json()['password'] ?? '');
         $v->check();
         usleep(random_int(150000, 350000)); // slows down guessing
-        $a = $this->accountsSvc()->authenticate((string) $user, $pass);
+        $audit = new \Gabush\Application\Shared\AccessAudit($this->db());
+        try {
+            $a = $this->accountsSvc()->authenticate((string) $user, $pass);
+        } catch (\Throwable $e) {
+            $audit->event('familia', mb_substr((string) $user, 0, 64), 'Usuario escrito: ' . $user, 'familia', 'fallido');
+            throw $e;
+        }
         $csrf = FamilyAuth::login($a['student_id'], $a['username']);
+        $audit->event('familia', (string) $a['student_id'], null, 'familia', 'ingreso');
         return ['csrf' => $csrf, 'mustChangePassword' => $a['must_change']] + $this->profile($a['student_id']);
     }
 
     public function logout(Request $req): array
     {
+        if ($f = FamilyAuth::current()) (new \Gabush\Application\Shared\AccessAudit($this->db()))->event('familia', (string) $f->studentId, null, 'familia', 'salida');
         FamilyAuth::logout();
         return [];
     }

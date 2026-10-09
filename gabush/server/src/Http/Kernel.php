@@ -30,6 +30,7 @@ final class Kernel
         Controllers\ReportsController::class,
         Controllers\BackupController::class,
         Controllers\StaffController::class,
+        Controllers\AuditController::class,
     ];
 
     public function __construct(private readonly App $app)
@@ -56,6 +57,14 @@ final class Kernel
             error_log('[gabush v2] ' . $e::class . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
             $debug = PHP_SAPI === 'cli-server';
             return Response::json(['ok' => false, 'error' => 'server'] + ($debug ? ['message' => $e->getMessage(), 'at' => basename($e->getFile()) . ':' . $e->getLine()] : []), 500);
+        } finally {
+            // last connection of whoever made the request (family portal or panel)
+            if (\Gabush\Application\Shared\AccessAudit::$who) {
+                try {
+                    (new \Gabush\Application\Shared\AccessAudit($this->app->db()))->touch();
+                } catch (\Throwable) {
+                }
+            }
         }
     }
 }

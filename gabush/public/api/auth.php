@@ -13,6 +13,19 @@ const LOGIN_WINDOW = 900; // 15 min
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+/** Access audit of the panel (MySQL phase): sign-ins, failures and sign-outs. Never breaks the login. */
+function auth_audit(string $userId, ?string $name, ?string $role, string $event): void
+{
+    global $CONFIG;
+    if (empty($CONFIG['db'])) return;
+    try {
+        require_once dirname(__DIR__, 2) . '/server/bootstrap.php';
+        (new Gabush\Application\Shared\AccessAudit(Gabush\App::boot()->db()))->event('panel', $userId, $name, $role, $event);
+    } catch (Throwable $e) {
+        error_log('[gabush audit] ' . $e->getMessage());
+    }
+}
+
 function auth_payload(array $me): array
 {
     return ['ok' => true, 'admin' => true, 'uid' => $me['id'], 'user' => $me['user'], 'name' => $me['name'], 'role' => $me['role'], 'perms' => $me['perms'], 'csrf' => $_SESSION['csrf']];
@@ -32,6 +45,7 @@ $action = $in['action'] ?? '';
 
 if ($action === 'logout') {
     rp_require_admin();
+    if ($me = rp_current_user()) auth_audit((string) $me['id'], (string) $me['name'], (string) $me['role'], 'salida');
     $_SESSION = [];
     $p = session_get_cookie_params();
     setcookie(session_name(), '', ['expires' => time() - 3600, 'path' => $p['path'], 'secure' => $p['secure'], 'httponly' => true, 'samesite' => 'Strict']);
@@ -84,6 +98,7 @@ if ($uid === null) {
         $data[$client][] = $now;
         return [$data, null];
     });
+    auth_audit($user !== '' ? $user : '(vacío)', 'Usuario escrito: ' . $user, null, 'fallido');
     usleep(400000); // slow down guessing a little more
     rp_json(401, ['ok' => false, 'error' => 'invalid']);
 }
@@ -103,4 +118,5 @@ if ($uid !== RP_ROOT) {
 }
 
 $me = rp_current_user();
+auth_audit((string) $me['id'], (string) $me['name'], (string) $me['role'], 'ingreso');
 rp_json(200, auth_payload($me));

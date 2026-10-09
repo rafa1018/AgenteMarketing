@@ -157,8 +157,12 @@ final class AcademicController extends Controller
         if (!$actor->can('academico')) {
             // a teacher: only for the grades of the courses she directs, and only her own achievements
             if ($id) $this->assertOwnAchievement($actor, $id);
-            $mine = $this->db()->value('SELECT 1 FROM courses c JOIN staff s ON s.id = c.director_staff_id WHERE s.user_id = ? AND c.grade_level_id = ? LIMIT 1', [$actor->id, $row['grade_level_id']]);
-            if (!$mine) throw new DomainError('not_your_course', 'Solo puedes crear logros para el grado de los cursos donde eres director(a) de grupo.');
+            $mine = $this->db()->value(
+                'SELECT 1 FROM course_subjects cs JOIN courses c ON c.id = cs.course_id JOIN staff s ON s.id = cs.teacher_staff_id
+                 WHERE s.user_id = ? AND c.grade_level_id = ? AND cs.subject_id = ? LIMIT 1',
+                [$actor->id, $row['grade_level_id'], $row['subject_id']],
+            );
+            if (!$mine) throw new DomainError('not_your_subject', 'Solo puedes crear logros de las materias que tienes asignadas en ese grado.');
         }
         if (!$id) {
             $row['created_by'] = $actor->label();

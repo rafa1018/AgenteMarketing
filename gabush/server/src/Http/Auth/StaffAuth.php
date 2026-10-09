@@ -23,6 +23,7 @@ final class StaffAuth
             $sent = $req->header('x-csrf-token');
             if (!hash_equals((string) ($_SESSION['csrf'] ?? ''), $sent)) throw new HttpError(403, 'csrf');
         }
+        \Gabush\Application\Shared\AccessAudit::$who = ['portal' => 'panel', 'id' => (string) $me['id'], 'name' => (string) $me['name'], 'role' => (string) ($me['role'] ?? '')];
         $perms = (array) ($me['perms'] ?? []);
         if ($anyOf && !array_intersect($anyOf, $perms)) {
             throw HttpError::forbidden();

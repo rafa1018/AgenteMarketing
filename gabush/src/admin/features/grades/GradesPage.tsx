@@ -114,11 +114,20 @@ function SheetEditor() {
   useEffect(() => {
     setRows(Object.fromEntries((data?.students ?? []).map((s) => [s.enrollmentId, toRow(s.entry, s.note)])))
   }, [data])
-  // a teacher only sees the courses she directs; with just one, it opens by itself
+  // a teacher only sees her courses (director or teacher) and, in each, the subjects assigned to her;
+  // with just one course / subject it is picked by itself
   const mine = setup?.me?.courses ?? null
+  const mySubjects = setup?.me?.subjects ?? null
+  const subjectOptions = (setup?.subjects ?? []).filter((s) => s.active && (!mySubjects || (course !== null && (mySubjects[course] ?? []).includes(s.id))))
   useEffect(() => {
     if (mine?.length === 1 && !course) setCourse(mine[0])
   }, [mine, course])
+  useEffect(() => {
+    if (!mySubjects || course === null) return
+    const own = mySubjects[course] ?? []
+    if (subject && !own.includes(subject)) setSubject('')
+    else if (!subject && own.length === 1) setSubject(own[0])
+  }, [mySubjects, course, subject])
   const [ach, setAch] = useState<AchievementDraft | null>(null)
   const levelName = (id: number | null) => setup?.levels.find((l) => l.id === id)?.name ?? null
   const subjectName = setup?.subjects.find((s) => s.id === subject)?.name ?? ''
@@ -173,7 +182,7 @@ function SheetEditor() {
         <CourseSelect value={course} onChange={setCourse} allowAll={false} only={mine} />
         <select value={subject} onChange={(e) => setSubject(e.target.value ? Number(e.target.value) : '')} className={sel} aria-label="Materia">
           <option value="">Elige la materia…</option>
-          {setup.subjects.filter((s) => s.active).map((s) => (
+          {subjectOptions.map((s) => (
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
@@ -187,9 +196,11 @@ function SheetEditor() {
         </select>
       </div>
       {mine && !mine.length ? (
-        <Empty title={`No eres director(a) de grupo en ${year}`}>
-          Pídele a la rectora que te asigne como director(a) de grupo de tu curso (Gestión académica → Cursos) y que tu usuario esté vinculado a tu ficha de personal (Usuarios).
+        <Empty title={`No tienes cursos asignados en ${year}`}>
+          Pídele a la rectora que te asigne como director(a) de grupo o como docente de alguna materia (Gestión académica → Cursos) y que tu usuario esté vinculado a tu ficha de personal (Usuarios).
         </Empty>
+      ) : mySubjects && course !== null && !subjectOptions.length ? (
+        <Empty title="No tienes materias asignadas en este curso">Puedes ver los boletines del curso, pero para calificar la rectora debe asignarte materias (Gestión académica → Cursos → Materias del curso y docente).</Empty>
       ) : !ready ? (
         <Empty title={course && period ? 'Elige la materia para calificar' : 'Elige curso, materia y periodo'}>
           {course && period ? (

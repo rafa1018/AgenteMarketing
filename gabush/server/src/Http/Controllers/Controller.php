@@ -41,17 +41,35 @@ abstract class Controller
 
     /**
      * Courses of the year a staff user works on in Calificaciones: everything for the rectora (permission
-     * "academico"); otherwise only the courses whose group director is the person linked to that user
-     * (Usuarios → Ficha de personal). No link or no course → none.
+     * "academico"); otherwise the courses where the person linked to that user (Usuarios → Ficha de personal)
+     * is group director or teaches a subject. No link or nothing assigned → none.
      * @return list<int>|null null = every course
      */
     protected function myCourses(Actor $a, int $year): ?array
     {
         if ($a->can('academico')) return null;
         return array_map('intval', array_column($this->db()->all(
-            'SELECT c.id FROM courses c JOIN staff s ON s.id = c.director_staff_id WHERE s.user_id = ? AND s.active = 1 AND c.year_id = ?',
+            'SELECT c.id FROM courses c JOIN staff s ON s.user_id = ? AND s.active = 1
+             WHERE c.year_id = ? AND (c.director_staff_id = s.id OR EXISTS (SELECT 1 FROM course_subjects cs WHERE cs.course_id = c.id AND cs.teacher_staff_id = s.id))
+             ORDER BY c.name',
             [$a->id, $year],
         ), 'id'));
+    }
+
+    /**
+     * Subjects a teacher grades in each of her courses: the ones assigned to her in the course (Gestión académica →
+     * Cursos → Materias del curso y docente). @return array<int,list<int>>|null courseId → subject ids; null = all
+     */
+    protected function mySubjects(Actor $a, int $year): ?array
+    {
+        if ($a->can('academico')) return null;
+        $out = [];
+        foreach ($this->db()->all(
+            'SELECT cs.course_id, cs.subject_id FROM course_subjects cs JOIN courses c ON c.id = cs.course_id JOIN staff s ON s.id = cs.teacher_staff_id
+             WHERE s.user_id = ? AND s.active = 1 AND c.year_id = ?',
+            [$a->id, $year],
+        ) as $r) $out[(int) $r['course_id']][] = (int) $r['subject_id'];
+        return $out;
     }
 
     /** 403 unless the course is one of the user's (see myCourses). */
@@ -60,7 +78,17 @@ abstract class Controller
         if ($a->can('academico')) return;
         $year = (int) $this->db()->value('SELECT year_id FROM courses WHERE id = ?', [$courseId]);
         if (!in_array($courseId, $this->myCourses($a, $year) ?? [], true)) {
-            throw new \Gabush\Domain\Shared\DomainError('not_your_course', 'Solo puedes ver los cursos donde eres director(a) de grupo.');
+            throw new \Gabush\Domain\Shared\DomainError('not_your_course', 'Solo puedes ver los cursos donde eres director(a) de grupo o tienes materias asignadas.');
+        }
+    }
+
+    /** 403 unless the subject is assigned to the user in that course (see mySubjects). */
+    protected function assertMySubject(Actor $a, int $courseId, int $subjectId): void
+    {
+        if ($a->can('academico')) return;
+        $year = (int) $this->db()->value('SELECT year_id FROM courses WHERE id = ?', [$courseId]);
+        if (!in_array($subjectId, $this->mySubjects($a, $year)[$courseId] ?? [], true)) {
+            throw new \Gabush\Domain\Shared\DomainError('not_your_subject', 'Esa materia no está asignada a ti en este curso. Pídele a la rectora que te la asigne (Gestión académica → Cursos).');
         }
     }
 
