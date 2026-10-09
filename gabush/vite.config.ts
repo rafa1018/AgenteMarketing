@@ -33,6 +33,12 @@ export default defineConfig({
         admin: fileURLToPath(new URL('./admin/index.html', import.meta.url)),
         familia: fileURLToPath(new URL('./familia/index.html', import.meta.url)),
       },
+      // "g2": new file names once, so no browser/CDN asks again for the 404s cached during the 8-Oct-2026 deploy
+      output: {
+        entryFileNames: 'assets/[name]-g2-[hash].js',
+        chunkFileNames: 'assets/[name]-g2-[hash].js',
+        assetFileNames: 'assets/[name]-g2-[hash][extname]',
+      },
     },
     assetsInlineLimit: 2048,
         chunkSizeWarningLimit: 600,

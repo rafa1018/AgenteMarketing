@@ -13,7 +13,7 @@
 //   when it does not exist yet.
 // - Nothing is deleted: the old WordPress is moved (not removed) to a dated backup folder outside the web.
 import { spawn } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 
 const CFG_FILE = '.deploy.local.json'
@@ -89,9 +89,15 @@ const hasConfig = await run('ssh', [...ssh, `test -f '${dir}/api/config.php'`]).
 
 const started = Date.now()
 console.log(`[deploy] subiendo dist/ → ${cfg.user}@${cfg.host}:${dir}${hasConfig ? ' (se conserva api/config.php del servidor)' : ' (primera vez: se sube api/config.php)'}`)
-const tarArgs = ['-C', 'dist', '-cf', '-', ...(hasConfig ? ['--exclude=./api/config.php'] : []), '.']
+// 1) everything except the HTML pages (new CSS/JS/images land first) · 2) then the HTML pages.
+// Uploading index.html before its assets let a visitor request /assets/x.css while it didn't exist yet, and
+// Hostinger's CDN cached that 404 — the site showed up without styles.
+const htmlPages = readdirSync('dist', { recursive: true }).map(String).filter((f) => f.endsWith('.html')).map((f) => './' + f.replaceAll('\\', '/'))
+const tarArgs = ['-C', 'dist', '-cf', '-', ...(hasConfig ? ['--exclude=./api/config.php'] : []), ...htmlPages.map((f) => `--exclude=${f}`), '.']
 const tar = spawn('tar', tarArgs, { stdio: ['ignore', 'pipe', 'inherit'] })
-await run('ssh', [...ssh, `mkdir -p '${dir}' && tar -xf - -C '${dir}' && find '${dir}/assets' -type f -mtime +7 -delete 2>/dev/null; echo "[deploy] archivos en el servidor: $(find '${dir}' -type f | wc -l)"`], tar)
+await run('ssh', [...ssh, `mkdir -p '${dir}' && tar -xf - -C '${dir}'`], tar)
+const tarHtml = spawn('tar', ['-C', 'dist', '-cf', '-', ...htmlPages], { stdio: ['ignore', 'pipe', 'inherit'] })
+await run('ssh', [...ssh, `tar -xf - -C '${dir}' && find '${dir}/assets' -type f -mtime +7 -delete 2>/dev/null; echo "[deploy] archivos en el servidor: $(find '${dir}' -type f | wc -l) (páginas HTML al final: ${htmlPages.length})"`], tarHtml)
 
 // Fase 2 backend: server/ lives next to public_html, outside the web (code only: config and data stay on the server)
 const site = dir.replace(/\/public_html$/, '')
