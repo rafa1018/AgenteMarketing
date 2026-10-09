@@ -4,6 +4,7 @@ import type { Perm } from '@/lib/calendar'
 import { cn } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
 import { api, toast } from '../store'
+import { api2 } from '../v2/api'
 import { ConfirmModal, PageHead, field, labelCls } from '../ui'
 import { PERMS, ROLES, roleColor, roleLabel, roleOf, type Role } from '../roles'
 
@@ -38,16 +39,21 @@ function suggestPassword() {
   return 'Gb-' + [...arr].map((n) => abc[n % abc.length]).join('')
 }
 
-function UserEditor({ draft, onClose, onSaved }: { draft: Draft | null; onClose: () => void; onSaved: (u: StaffUser) => void }) {
+/** A person of the Personal tab (teachers, staff) that a panel user can be linked to. */
+type Person = { id: number; name: string; position: string | null; userId: string | null; directs: string | null; active: number }
+
+function UserEditor({ draft, people, onClose, onSaved }: { draft: Draft | null; people: Person[]; onClose: () => void; onSaved: (u: StaffUser) => void }) {
   const [d, setD] = useState<Draft | null>(draft)
   const [errors, setErrors] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [show, setShow] = useState(false)
+  const [staffId, setStaffId] = useState<number | ''>('')
   useEffect(() => {
     setD(draft)
     setErrors([])
     setShow(false)
-  }, [draft])
+    setStaffId(people.find((p) => draft?.id && p.userId === draft.id)?.id ?? '')
+  }, [draft, people])
   if (!d) return null
   const up = (p: Partial<Draft>) => setD((x) => (x ? { ...x, ...p } : x))
 
@@ -64,6 +70,11 @@ function UserEditor({ draft, onClose, onSaved }: { draft: Draft | null; onClose:
     e.preventDefault()
     setBusy(true)
     const { status, data } = await api.post('users.php', { action: 'save', user: { ...d, name: d.name.trim(), user: d.user.trim().toLowerCase() } })
+    if (data?.ok) {
+      // link (or unlink) the person of the Personal tab: that is what limits a teacher to her courses
+      const was = people.find((p) => p.userId === data.user.id)?.id ?? ''
+      if (was !== staffId) await api2.post('/staff/link-user', { userId: data.user.id, staffId: staffId || null }).catch(() => toast('El usuario se guardó, pero no se pudo vincular a la ficha de personal.'))
+    }
     setBusy(false)
     if (data?.ok) {
       onSaved(data.user)
@@ -113,6 +124,28 @@ function UserEditor({ draft, onClose, onSaved }: { draft: Draft | null; onClose:
               </button>
             </div>
             <p className="mt-1 text-xs text-muted">Compártela con la persona por un medio privado. Después no se puede ver, solo cambiar.</p>
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="us-staff" className={labelCls}>
+              Ficha de personal {d.role === 'docente' && <span className="text-berry">*</span>}
+            </label>
+            <select id="us-staff" className={field} value={staffId} onChange={(e) => setStaffId(e.target.value ? Number(e.target.value) : '')}>
+              <option value="">— Sin vincular —</option>
+              {people
+                .filter((p) => p.active || p.id === staffId)
+                .map((p) => (
+                  <option key={p.id} value={p.id} disabled={Boolean(p.userId && p.userId !== d.id)}>
+                    {p.name}
+                    {p.directs ? ` · Directora de ${p.directs}` : ''}
+                    {p.userId && p.userId !== d.id ? ' (ya tiene usuario)' : ''}
+                  </option>
+                ))}
+            </select>
+            <p className="mt-1 text-xs text-muted">
+              {d.role === 'docente'
+                ? 'Una docente solo ve en Calificaciones los cursos donde esta persona es director(a) de grupo. Sin ficha no verá ningún curso.'
+                : 'Opcional para este rol. La rectora ve todos los cursos.'}
+            </p>
           </div>
         </div>
 
@@ -186,12 +219,19 @@ export function UsersPage() {
   const [me, setMe] = useState('')
   const [editing, setEditing] = useState<Draft | null>(null)
   const [deleting, setDeleting] = useState<StaffUser | null>(null)
+  const [people, setPeople] = useState<Person[]>([])
+  const loadPeople = () =>
+    api2
+      .get<{ staff: Person[] }>('/staff?status=todos')
+      .then((r) => setPeople(r.staff))
+      .catch(() => setPeople([]))
 
   useEffect(() => {
     api.get('users.php').then(({ data }) => {
       setUsers(data?.ok ? data.users : [])
       setMe(data?.me ?? '')
     })
+    loadPeople()
   }, [])
 
   const remove = async (u: StaffUser) => {
@@ -234,6 +274,11 @@ export function UsersPage() {
                     @{u.user} · <span style={{ color: roleColor(u.role) }} className="font-bold">{roleLabel(u.role)}</span>
                     {!u.active && ' · inactivo'}
                   </p>
+                  {(() => {
+                    const p = people.find((x) => x.userId === u.id)
+                    if (p) return <p className="truncate text-[13px] text-muted">Ficha: {p.name}{p.directs ? ` · Directora de ${p.directs}` : ''}</p>
+                    return u.role === 'docente' ? <p className="text-[13px] font-semibold text-berry">Sin ficha de personal: no verá cursos en Calificaciones</p> : null
+                  })()}
                 </div>
                 {u.owner ? (
                   <span title="Definido en el servidor (config.php); siempre tiene todos los permisos." className="grid size-9 place-items-center rounded-lg text-muted">
@@ -268,10 +313,12 @@ export function UsersPage() {
 
       <UserEditor
         draft={editing}
+        people={people}
         onClose={() => setEditing(null)}
         onSaved={(u) => {
           setUsers((xs) => (xs?.some((x) => x.id === u.id) ? xs.map((x) => (x.id === u.id ? u : x)) : [...(xs ?? []), u]))
           setEditing(null)
+          loadPeople()
         }}
       />
       <ConfirmModal

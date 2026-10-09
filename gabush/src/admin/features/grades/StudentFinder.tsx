@@ -6,7 +6,7 @@ import { StudentAvatar, inputCls } from '../../v2/kit'
 export type FoundRow = { id: number; enrollmentId: number | null; courseId: number | null; course: string | null; firstName: string; lastName: string; secondLastName: string | null; hasPhoto: number; status: string | null }
 
 /** Find a child of the working year by name, code or document → the sheet jumps to their course and row. */
-export function StudentFinder({ year, onPick }: { year: number | null; onPick: (s: FoundRow) => void }) {
+export function StudentFinder({ year, onPick, only }: { year: number | null; onPick: (s: FoundRow) => void; only?: number[] | null }) {
   const [q, setQ] = useState('')
   const [found, setFound] = useState<FoundRow[] | null>(null)
   const [busy, setBusy] = useState(false)
@@ -15,11 +15,12 @@ export function StudentFinder({ year, onPick }: { year: number | null; onPick: (
     const t = window.setTimeout(async () => {
       setBusy(true)
       const r = await api2.get<{ students: FoundRow[] }>('/students' + qs({ year, q: q.trim() })).catch(() => ({ students: [] }))
-      setFound(r.students.filter((s) => s.enrollmentId && s.courseId && s.status !== 'retirado').slice(0, 8))
+      // a teacher only finds the children of the courses she directs
+      setFound(r.students.filter((s) => s.enrollmentId && s.courseId && s.status !== 'retirado' && (!only || only.includes(s.courseId))).slice(0, 8))
       setBusy(false)
     }, 300)
     return () => window.clearTimeout(t)
-  }, [q, year])
+  }, [q, year, only])
   return (
     <div className="relative">
       <Search size={17} className="pointer-events-none absolute top-[23px] left-3.5 -translate-y-1/2 text-muted" />

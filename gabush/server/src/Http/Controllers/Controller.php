@@ -39,6 +39,31 @@ abstract class Controller
         return $this->app->service(Audit::class, static fn(App $a) => new Audit($a->db()));
     }
 
+    /**
+     * Courses of the year a staff user works on in Calificaciones: everything for the rectora (permission
+     * "academico"); otherwise only the courses whose group director is the person linked to that user
+     * (Usuarios → Ficha de personal). No link or no course → none.
+     * @return list<int>|null null = every course
+     */
+    protected function myCourses(Actor $a, int $year): ?array
+    {
+        if ($a->can('academico')) return null;
+        return array_map('intval', array_column($this->db()->all(
+            'SELECT c.id FROM courses c JOIN staff s ON s.id = c.director_staff_id WHERE s.user_id = ? AND s.active = 1 AND c.year_id = ?',
+            [$a->id, $year],
+        ), 'id'));
+    }
+
+    /** 403 unless the course is one of the user's (see myCourses). */
+    protected function assertMyCourse(Actor $a, int $courseId): void
+    {
+        if ($a->can('academico')) return;
+        $year = (int) $this->db()->value('SELECT year_id FROM courses WHERE id = ?', [$courseId]);
+        if (!in_array($courseId, $this->myCourses($a, $year) ?? [], true)) {
+            throw new \Gabush\Domain\Shared\DomainError('not_your_course', 'Solo puedes ver los cursos donde eres director(a) de grupo.');
+        }
+    }
+
     /** Staff with read access (any of the permissions). */
     protected function staff(Request $req, string ...$perms): Actor
     {

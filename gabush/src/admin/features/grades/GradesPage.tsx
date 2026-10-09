@@ -1,4 +1,4 @@
-import { ChevronDown, FileDown, Lock, Save, Send } from 'lucide-react'
+import { ChevronDown, FileDown, Lock, Pencil, Plus, Save, Send } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { can } from '@/lib/calendar'
 import { cn } from '@/lib/utils'
@@ -8,19 +8,22 @@ import { toast } from '../../store'
 import { PageHead } from '../../ui'
 import { api2, qs, useSetup } from '../../v2/api'
 import { CourseSelect, Empty, ErrorBox, Spinner, StudentAvatar, Tabs, YearPicker, useTab } from '../../v2/kit'
+import { AchievementEditor, type AchievementDraft } from './AchievementEditor'
 import { StudentFinder, type FoundRow } from './StudentFinder'
 import { StudentNotes } from './StudentNotes'
 
 type Sheet = {
   course: { id: number; name: string; gradeLevelId: number }
   period: { id: number; number: number; name: string; gradingOpen: boolean; published: boolean; publishedForAll: boolean }
-  achievements: { id: number; levelId: number | null; period: number | null; description: string }[]
-  students: { enrollmentId: number; id: number; code: string; name: string; hasPhoto: boolean; entry: Entry | null }[]
+  achievements: { id: number; levelId: number | null; period: number | null; description: string; editable?: boolean }[]
+  /** note: the child's final observation of the period (the same in every subject sheet) */
+  students: { enrollmentId: number; id: number; code: string; name: string; hasPhoto: boolean; entry: Entry | null; note: string }[]
 }
 type Entry = { score: number | null; levelId: number | null; levelManual?: boolean; absences: number | null; comments: string | null; achievements: number[]; achievementLevels?: Record<string, number | null> }
 /** achLevels: the level this child got in each marked achievement · level: subject level set by hand (null = automatic) */
-type RowState = { achievements: number[]; achLevels: Record<string, number | null>; level: number | null; score: string; absences: string; comments: string }
-const toRow = (e: Entry | null): RowState => ({
+type RowState = { achievements: number[]; achLevels: Record<string, number | null>; level: number | null; score: string; absences: string; comments: string; note: string }
+const toRow = (e: Entry | null, note = ''): RowState => ({
+  note,
   achievements: e?.achievements ?? [],
   achLevels: e?.achievementLevels ?? {},
   level: e?.levelManual ? e.levelId : null,
@@ -109,13 +112,20 @@ function SheetEditor() {
   }, [data, pending])
   const m = useMutation()
   useEffect(() => {
-    setRows(Object.fromEntries((data?.students ?? []).map((s) => [s.enrollmentId, toRow(s.entry)])))
+    setRows(Object.fromEntries((data?.students ?? []).map((s) => [s.enrollmentId, toRow(s.entry, s.note)])))
   }, [data])
+  // a teacher only sees the courses she directs; with just one, it opens by itself
+  const mine = setup?.me?.courses ?? null
+  useEffect(() => {
+    if (mine?.length === 1 && !course) setCourse(mine[0])
+  }, [mine, course])
+  const [ach, setAch] = useState<AchievementDraft | null>(null)
   const levelName = (id: number | null) => setup?.levels.find((l) => l.id === id)?.name ?? null
+  const subjectName = setup?.subjects.find((s) => s.id === subject)?.name ?? ''
   // levels a teacher can give (lowest first), without "No clasificado"
   const gradeLevels = (setup?.levels ?? []).filter((l) => Number(l.max) > 0).sort((a, b) => Number(a.min) - Number(b.min))
   const top = Math.max(10, ...gradeLevels.map((l) => Number(l.max))) // the school's scale: 0–100
-  const dirty = useMemo(() => JSON.stringify(rows) !== JSON.stringify(Object.fromEntries((data?.students ?? []).map((s) => [s.enrollmentId, toRow(s.entry)]))), [rows, data])
+  const dirty = useMemo(() => JSON.stringify(rows) !== JSON.stringify(Object.fromEntries((data?.students ?? []).map((s) => [s.enrollmentId, toRow(s.entry, s.note)]))), [rows, data])
   const save = async () => {
     const payload = Object.entries(rows).map(([eid, r]) => ({
       enrollmentId: Number(eid),
@@ -125,6 +135,7 @@ function SheetEditor() {
       score: r.score || null,
       absences: r.absences || null,
       comments: r.comments || null,
+      note: r.note,
     }))
     const r = await m.run(() => api2.put<{ saved: number }>('/grades/sheet', { subjectId: subject, periodId: period, rows: payload }))
     if (r) {
@@ -150,15 +161,16 @@ function SheetEditor() {
     <div className="space-y-4">
       <StudentFinder
         year={year}
+        only={mine}
         onPick={(s) => {
           setCourse(s.courseId)
           setPending(s.enrollmentId)
           setPicked(s)
         }}
       />
-      {picked && <StudentNotes key={picked.id} student={picked} year={year} periods={setup.periods} period={period} onPeriod={setPeriod} onClose={() => setPicked(null)} />}
+      {picked && <StudentNotes key={picked.id} student={picked} year={year} periods={setup.periods} period={period} onPeriod={setPeriod} onClose={() => setPicked(null)} onSaved={() => ready && reload()} />}
       <div className="grid gap-2 sm:grid-cols-3">
-        <CourseSelect value={course} onChange={setCourse} allowAll={false} />
+        <CourseSelect value={course} onChange={setCourse} allowAll={false} only={mine} />
         <select value={subject} onChange={(e) => setSubject(e.target.value ? Number(e.target.value) : '')} className={sel} aria-label="Materia">
           <option value="">Elige la materia…</option>
           {setup.subjects.filter((s) => s.active).map((s) => (
@@ -174,7 +186,11 @@ function SheetEditor() {
           ))}
         </select>
       </div>
-      {!ready ? (
+      {mine && !mine.length ? (
+        <Empty title={`No eres director(a) de grupo en ${year}`}>
+          Pídele a la rectora que te asigne como director(a) de grupo de tu curso (Gestión académica → Cursos) y que tu usuario esté vinculado a tu ficha de personal (Usuarios).
+        </Empty>
+      ) : !ready ? (
         <Empty title={course && period ? 'Elige la materia para calificar' : 'Elige curso, materia y periodo'}>
           {course && period ? (
             <a href={`/api/v2/courses/${course}/boletines?period=${period}`} target="_blank" rel="noopener" className="btn btn-ghost mt-3 !min-h-10 !text-sm">
@@ -211,22 +227,44 @@ function SheetEditor() {
               <FileDown size={16} /> Boletines del curso (PDF)
             </a>
           </div>
-          {!data.achievements.length ? (
-            <Empty title="No hay logros para este grado, materia y periodo">Agrégalos en Gestión académica → Banco de logros.</Empty>
-          ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="min-w-0 flex-1 text-[14px] text-muted">{data.achievements.length ? `${data.achievements.length} logros para esta materia y periodo.` : 'Aún no hay logros para este grado, materia y periodo.'}</p>
+            <button type="button" onClick={() => setAch({ description: '', levelId: null, period: data.period.number })} className="btn btn-primary !min-h-10 !text-sm">
+              <Plus size={16} /> Nuevo logro
+            </button>
+          </div>
+          {data.achievements.length > 0 && (
             <details className="card p-4">
-              <summary className="cursor-pointer font-semibold text-ink">Marcar un logro a todo el curso ({data.achievements.length} disponibles)</summary>
+              <summary className="cursor-pointer font-semibold text-ink">Logros de la materia: marcar a todo el curso o editar los tuyos</summary>
               <ul className="mt-3 space-y-1.5">
                 {data.achievements.map((a) => (
-                  <li key={a.id}>
-                    <button type="button" onClick={() => markAll(a.id)} className="flex w-full items-start gap-2 rounded-lg bg-paper px-3 py-2 text-left text-[14px] hover:ring-2 hover:ring-royal">
+                  <li key={a.id} className="flex items-start gap-1">
+                    <button type="button" onClick={() => markAll(a.id)} title="Marcar (o desmarcar) a todo el curso" className="flex min-w-0 flex-1 items-start gap-2 rounded-lg bg-paper px-3 py-2 text-left text-[14px] hover:ring-2 hover:ring-royal">
                       <LevelChip level={levelName(a.levelId)} /> <span>{a.description}</span>
                     </button>
+                    {a.editable && (
+                      <button type="button" aria-label="Editar logro" onClick={() => setAch({ id: a.id, description: a.description, levelId: a.levelId, period: a.period })} className="grid size-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-paper hover:text-ink">
+                        <Pencil size={15} />
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
+              <p className="mt-2 text-[12px] text-muted">Tocar un logro lo marca a todo el curso. Solo puedes editar o eliminar los logros que tú creaste.</p>
             </details>
           )}
+          <AchievementEditor
+            draft={ach}
+            gradeLevelId={data.course.gradeLevelId}
+            subjectId={Number(subject)}
+            periodNumber={data.period.number}
+            levels={gradeLevels}
+            onClose={() => setAch(null)}
+            onSaved={() => {
+              setAch(null)
+              reload()
+            }}
+          />
           <ul className="space-y-2">
             {data.students.map((s) => {
               const r = rows[s.enrollmentId] ?? toRow(null)
@@ -310,7 +348,7 @@ function SheetEditor() {
                           </div>
                           <p className="mt-1.5 text-[12px] text-muted">Automático: sale de la nota o, si no hay nota, del nivel que más se repite en los logros marcados.</p>
                         </div>
-                        <div className="grid gap-3 sm:grid-cols-[140px_120px_1fr]">
+                        <div className="grid gap-3 sm:grid-cols-[160px_120px]">
                           <label className="block">
                             <span className="mb-1 block text-[13px] font-semibold text-ink">Nota (0 a {top})</span>
                             <input value={r.score} onChange={(e) => set({ score: e.target.value, level: null })} inputMode="decimal" placeholder="Opcional" className={cn('w-full rounded-lg border px-3 py-2.5', Number(r.score.replace(',', '.')) > top ? 'border-berry' : 'border-line')} />
@@ -320,11 +358,16 @@ function SheetEditor() {
                             <span className="mb-1 block text-[13px] font-semibold text-ink">Fallas</span>
                             <input value={r.absences} onChange={(e) => set({ absences: e.target.value })} inputMode="numeric" placeholder="0" className="w-full rounded-lg border border-line px-3 py-2.5" />
                           </label>
-                          <label className="block">
-                            <span className="mb-1 block text-[13px] font-semibold text-ink">Comentario de esta materia</span>
-                            <textarea value={r.comments} onChange={(e) => set({ comments: e.target.value })} rows={2} placeholder="Opcional: sale debajo de la materia en el boletín" className="w-full resize-y rounded-lg border border-line px-3 py-2.5" />
-                          </label>
                         </div>
+                        <label className="block">
+                          <span className="mb-1 block text-[13px] font-semibold text-ink">Observación de la materia · {subjectName}</span>
+                          <textarea value={r.comments} onChange={(e) => set({ comments: e.target.value })} rows={2} placeholder="Opcional: cómo le fue en esta materia. Sale debajo de la materia en el boletín." className="w-full resize-y rounded-lg border border-line px-3 py-2.5" />
+                        </label>
+                      </section>
+                      <section className="space-y-2 rounded-2xl bg-white p-4 ring-1 ring-line">
+                        <h4 className="font-serif text-[1.05rem] font-semibold text-ink">Observación final del boletín · {data.period.name}</h4>
+                        <p className="text-[12px] text-muted">Una sola por niño y periodo (no por materia): sale en el recuadro «Observación final» al terminar el boletín. Si otra docente la escribió, aquí la ves y puedes completarla.</p>
+                        <textarea value={r.note} onChange={(e) => set({ note: e.target.value })} rows={3} maxLength={2000} placeholder="Ej.: Es un niño alegre y participativo; este periodo avanzó mucho en…" className="w-full resize-y rounded-lg border border-line px-3 py-2.5" />
                       </section>
                     </div>
                   )}

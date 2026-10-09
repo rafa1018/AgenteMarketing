@@ -31,6 +31,27 @@ final class StaffController extends Controller
         $r->add('POST', '/staff/{id}/activate', [$c, 'activate']);
         $r->add('POST', '/staff/{id}/signature', [$c, 'saveSignature']);
         $r->add('DELETE', '/staff/{id}/signature', [$c, 'deleteSignature']);
+        $r->add('POST', '/staff/link-user', [$c, 'linkUser']);
+    }
+
+    /**
+     * {userId, staffId|null}: the panel user that is this person (Usuarios → Ficha de personal). A teacher then
+     * sees in Calificaciones only the courses where that person is group director.
+     */
+    public function linkUser(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'usuarios');
+        $v = Validate::of($req);
+        $user = $v->str('userId', 64, true, 'El usuario');
+        $staff = $v->int('staffId', 1);
+        $v->check();
+        if ($staff) $this->db()->one('SELECT id FROM staff WHERE id = ?', [$staff]) ?? throw HttpError::notFound();
+        $this->db()->transaction(function () use ($user, $staff): void {
+            $this->db()->run('UPDATE staff SET user_id = NULL WHERE user_id = ?', [$user]);
+            if ($staff) $this->db()->update('staff', ['user_id' => $user], ['id' => $staff]);
+        });
+        $this->audit()->log($actor, 'staff.link_user', 'staff', $staff ?? 0, ['user' => $user]);
+        return ['linked' => (bool) $staff];
     }
 
     private function files(): PrivateFiles
@@ -69,8 +90,9 @@ final class StaffController extends Controller
     {
         $actor = $this->staffWrite($req, 'academico', 'usuarios');
         $v = Validate::of($req);
-        $row = ['full_name' => $v->str('name', 120, true, 'El nombre'), 'phone' => $v->str('phone', 40), 'email' => $v->email('email'), 'position' => $v->str('position', 60), 'user_id' => $v->str('userId', 64)];
+        $row = ['full_name' => $v->str('name', 120, true, 'El nombre'), 'phone' => $v->str('phone', 40), 'email' => $v->email('email'), 'position' => $v->str('position', 60)];
         $v->check();
+        // the panel user is linked from Usuarios (linkUser); editing the person keeps it
         $id = $this->persist('staff', $row, self::optionalId($req));
         $this->audit()->log($actor, 'staff.save', 'staff', $id, $row);
         return ['id' => $id];

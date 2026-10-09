@@ -12,7 +12,8 @@ type Notes = { enrollmentId: number; courseId: number | null; course: string | n
  * The child picked in the search box: their report card for the chosen period (no subject needed) and the
  * general observation that prints in the «Observaciones» box at the end of the boletín.
  */
-export function StudentNotes({ student, year, periods, period, onPeriod, onClose }: {
+export function StudentNotes({ student, year, periods, period, onPeriod, onClose, onSaved }: {
+  onSaved?: () => void
   student: FoundRow
   year: number | null
   periods: { id: number; name: string }[]
@@ -34,6 +35,7 @@ export function StudentNotes({ student, year, periods, period, onPeriod, onClose
     if (r) {
       toast(text.trim() ? 'Observación guardada: ya sale en el boletín' : 'Observación borrada')
       reload()
+      onSaved?.()
     }
   }
   const name = `${student.firstName} ${student.lastName} ${student.secondLastName ?? ''}`.trim()
@@ -71,9 +73,9 @@ export function StudentNotes({ student, year, periods, period, onPeriod, onClose
       </div>
       <div>
         <label htmlFor="obs-general" className="mb-1 flex items-center gap-2 text-[14px] font-semibold text-ink">
-          <MessageSquareText size={17} className="text-royal" /> Observaciones generales · {label}
+          <MessageSquareText size={17} className="text-royal" /> Observación final del boletín · {label}
         </label>
-        <p className="mb-2 text-[12px] text-muted">Sale en el recuadro «Observaciones» al final del boletín. El comentario de cada materia se escribe en la planilla de esa materia.</p>
+        <p className="mb-2 text-[12px] text-muted">Sale en el recuadro «Observación final» al terminar el boletín. La observación de cada materia se escribe en la planilla de esa materia.</p>
         {error ? (
           <ErrorBox message={error.message} onRetry={reload} />
         ) : (

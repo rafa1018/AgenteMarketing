@@ -136,7 +136,7 @@ final class BoletinView
                             . '<span>' . $e(rtrim(trim($x['description']), ' .')) . '.' . ($lvl ? ' <b class="lvl" style="color:' . $color . '">' . $e($lvl) . '</b>' : '') . '</span></li>';
                     }
                     if ($ach) $detail .= '<ul class="ach">' . $ach . '</ul>';
-                    if (!empty($pp['comments'])) $detail .= '<p class="comment">' . $e($pp['comments']) . '</p>';
+                    if (!empty($pp['comments'])) $detail .= '<p class="comment"><b>Observación de ' . $e($sub['name']) . ':</b> ' . $e($pp['comments']) . '</p>';
                     if (!empty($pp['absences'])) $detail .= '<p class="abs">Fallas en el periodo: <b>' . (int) $pp['absences'] . '</b></p>';
                 }
                 $rows .= '<tbody class="subject"><tr><td class="subj">' . $e($sub['name']) . (!empty($sub['teacher']) ? '<small class="prof">Prof. ' . $e($sub['teacher']) . '</small>' : '') . '</td>' . $cells . '</tr>'
@@ -154,8 +154,8 @@ final class BoletinView
         $html .= '<div class="scale keep"><b>Escala de valoración</b>' . $scale . '</div>';
         // the teacher's general observation (Calificaciones → buscar al niño); without one, lines to write by hand
         $html .= !empty($c['note'])
-            ? '<div class="obs keep"><b>Observaciones</b><p>' . nl2br($e($c['note'])) . '</p></div>'
-            : '<div class="obs keep"><b>Observaciones</b><i></i><i></i></div>';
+            ? '<div class="obs keep"><b>Observación final</b><p>' . nl2br($e($c['note'])) . '</p></div>'
+            : '<div class="obs keep"><b>Observación final</b><i></i><i></i></div>';
         return $html . self::footer($o, $s, $e) . '</section>';
     }
 
@@ -228,7 +228,8 @@ td.subj .prof{display:block;font-weight:600;font-size:10.5px;color:#8a88a8;margi
 .obs b{display:block;font:600 12.5px Fredoka,sans-serif;color:#23206b;margin-bottom:2px}.obs i{display:block;height:22px;border-bottom:1px dashed #c9cbe0}
 .obs p{margin:4px 0 0;font-size:12.5px;line-height:1.55;color:#2a2850}
 .res{margin:2px 0 0;font-size:10.5px;color:#8a88a8;font-style:italic}
-.comment{margin:6px 0 0;padding:6px 10px;border-radius:10px;background:#eef7ff;color:#185a8a;font-style:italic;font-size:11.5px}
+.comment{margin:8px 0 0;padding:7px 11px;border-radius:10px;background:#eef7ff;border-left:4px solid #1fa3dd;color:#185a8a;font-size:11.5px}
+.comment b{font-style:normal;font-weight:800;color:#145f8c}
 .abs{margin:4px 0 0;font-size:11px;color:#615f86}
 .scale{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-top:12px;padding:8px 12px;border-radius:12px;background:#f6f7fd;font-size:11px}
 .scale b{color:#23206b;font-weight:600;font-size:12.5px;margin-right:4px}

@@ -37,9 +37,10 @@ final class GradesController extends Controller
     /** ?student=&year= → the child's enrollment and their general observation per period ('final' = informe final). */
     public function notes(Request $req): array
     {
-        $this->staff($req, 'calificaciones', 'academico');
+        $actor = $this->staff($req, 'calificaciones', 'academico');
         $year = $this->year($req);
         $e = $this->db()->one('SELECT e.id, e.course_id, c.name AS course FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id WHERE e.student_id = ? AND e.year_id = ?', [(int) $req->query('student'), $year]) ?? throw HttpError::notFound();
+        $this->assertMyCourse($actor, (int) $e['course_id']);
         $notes = [];
         foreach ($this->db()->all('SELECT period_id, body FROM report_card_notes WHERE enrollment_id = ?', [$e['id']]) as $n) {
             $notes[(int) $n['period_id'] === 0 ? 'final' : (string) $n['period_id']] = $n['body'];
@@ -56,7 +57,9 @@ final class GradesController extends Controller
         $body = trim((string) $v->str('body', 2000));
         $v->check();
         $raw = (string) ($req->input('periodId') ?? '');
-        $year = (int) ($this->db()->value('SELECT year_id FROM enrollments WHERE id = ?', [$enrollment]) ?? throw HttpError::notFound());
+        $en = $this->db()->one('SELECT year_id, course_id FROM enrollments WHERE id = ?', [$enrollment]) ?? throw HttpError::notFound();
+        $this->assertMyCourse($actor, (int) $en['course_id']);
+        $year = (int) $en['year_id'];
         if ($raw === 'final') {
             $period = 0;
         } else {
@@ -75,6 +78,13 @@ final class GradesController extends Controller
         }
         $this->audit()->log($actor, 'grades.note', 'enrollment', $enrollment, ['period' => $raw]);
         return ['saved' => true];
+    }
+
+    /** A teacher (no "academico" nor "estudiantes") only opens report cards of the children of her courses. */
+    private function assertMyStudent(\Gabush\Application\Shared\Actor $a, int $studentId, int $year): void
+    {
+        if ($a->can('academico') || $a->can('estudiantes')) return;
+        $this->assertMyCourse($a, (int) $this->db()->value('SELECT course_id FROM enrollments WHERE student_id = ? AND year_id = ?', [$studentId, $year]));
     }
 
     /** General observation of each student for the report card being printed. @return array<int,string> student id → text */
@@ -96,8 +106,9 @@ final class GradesController extends Controller
         $id = $req->intParam('id');
         $family = FamilyAuth::current();
         $isFamily = $family && $family->studentId === $id;
-        if (!$isFamily) $this->staff($req, 'calificaciones', 'academico', 'estudiantes');
+        $actor = $isFamily ? null : $this->staff($req, 'calificaciones', 'academico', 'estudiantes');
         $year = $this->year($req);
+        if ($actor) $this->assertMyStudent($actor, $id, $year);
         $card = $this->card($id, $year, $isFamily);
         $period = $this->pickPeriod($req, $card['reportCard']);
         $o = $this->boletinOptions($year, $period, $card['reportCard'], $card['student']['code']);
@@ -118,8 +129,9 @@ final class GradesController extends Controller
     /** Every active student of a course, one page each. ?period=<id>|final */
     public function courseBoletines(Request $req): Response
     {
-        $this->staff($req, 'calificaciones', 'academico');
+        $actor = $this->staff($req, 'calificaciones', 'academico');
         $course = $this->db()->one('SELECT id, name, year_id FROM courses WHERE id = ?', [$req->intParam('id')]) ?? throw HttpError::notFound();
+        $this->assertMyCourse($actor, (int) $course['id']);
         $year = (int) $course['year_id'];
         $ids = array_column($this->db()->all("SELECT e.student_id FROM enrollments e JOIN students s ON s.id = e.student_id WHERE e.course_id = ? AND e.status = 'activo' ORDER BY s.last_name, s.first_name", [$course['id']]), 'student_id');
         $cards = array_map(fn($sid) => $this->card((int) $sid, $year, false), $ids);
@@ -213,6 +225,7 @@ final class GradesController extends Controller
         $publish = $v->bool('published', true);
         $v->check();
         $c = $this->db()->one('SELECT c.id, c.name, c.year_id FROM courses c JOIN periods p ON p.year_id = c.year_id AND p.id = ? WHERE c.id = ?', [$period, $course]) ?? throw HttpError::notFound();
+        $this->assertMyCourse($actor, $course);
         $was = (bool) $this->db()->value('SELECT 1 FROM course_period_publications WHERE course_id = ? AND period_id = ?', [$course, $period]);
         if ($publish && !$was) {
             $this->db()->run('INSERT INTO course_period_publications (course_id, period_id, published_by) VALUES (?, ?, ?)', [$course, $period, $actor->label()]);
@@ -236,12 +249,30 @@ final class GradesController extends Controller
     /** ?course=&subject=&period= */
     public function sheet(Request $req): array
     {
-        $this->staff($req, 'calificaciones', 'academico');
+        $actor = $this->staff($req, 'calificaciones', 'academico');
         $course = (int) $req->query('course');
         $subject = (int) $req->query('subject');
         $period = (int) $req->query('period');
         if (!$course || !$subject || !$period) throw HttpError::validation(['course' => 'Elige curso, materia y periodo.']);
-        return $this->grades()->sheet($course, $subject, $period) ?: throw HttpError::notFound();
+        $this->assertMyCourse($actor, $course);
+        $sheet = $this->grades()->sheet($course, $subject, $period) ?: throw HttpError::notFound();
+        // which achievements this user may edit or delete: all for the rectora, her own for a teacher
+        $ids = array_column($sheet['achievements'], 'id');
+        $own = $ids ? array_map('intval', array_column($this->db()->all(
+            'SELECT id FROM achievements WHERE owner_user_id = ? AND id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')',
+            [$actor->id, ...$ids],
+        ), 'id')) : [];
+        foreach ($sheet['achievements'] as &$a) $a['editable'] = $actor->can('academico') || in_array((int) $a['id'], $own, true);
+        unset($a);
+        // the final observation of each child's report card for this period (same text in every subject sheet)
+        $eids = array_column($sheet['students'], 'enrollmentId');
+        $notes = $eids ? array_column($this->db()->all(
+            'SELECT enrollment_id, body FROM report_card_notes WHERE period_id = ? AND enrollment_id IN (' . implode(',', array_fill(0, count($eids), '?')) . ')',
+            [$period, ...$eids],
+        ), 'body', 'enrollment_id') : [];
+        foreach ($sheet['students'] as &$s) $s['note'] = $notes[$s['enrollmentId']] ?? '';
+        unset($s);
+        return $sheet;
     }
 
     public function saveSheet(Request $req): array
@@ -254,7 +285,26 @@ final class GradesController extends Controller
         $v->check();
         $open = $this->db()->value('SELECT grading_open FROM periods WHERE id = ?', [$period]);
         if (!$open && !$actor->can('academico')) throw new DomainError('closed', 'Este periodo está cerrado para calificar. Pídele a la rectora que lo abra.');
+        // every row must be a child of one of the user's courses
+        $courses = array_unique(array_map('intval', array_column($this->db()->all(
+            'SELECT DISTINCT course_id FROM enrollments WHERE id IN (' . implode(',', array_fill(0, max(1, count($rows)), '?')) . ')',
+            $rows ? array_map(static fn($r) => (int) ($r['enrollmentId'] ?? 0), $rows) : [0],
+        ), 'course_id')));
+        foreach ($courses as $cid) $this->assertMyCourse($actor, $cid);
         $n = $this->grades()->saveSheet($subject, $period, $rows, $actor->label());
+        // rows may carry the child's final observation of the period ("note"): saved for the whole report card
+        foreach ($rows as $r) {
+            if (!is_array($r) || !array_key_exists('note', $r) || empty($r['enrollmentId'])) continue;
+            $body = mb_substr(trim((string) $r['note']), 0, 2000);
+            if ($body === '') {
+                $this->db()->run('DELETE FROM report_card_notes WHERE enrollment_id = ? AND period_id = ?', [(int) $r['enrollmentId'], $period]);
+            } else {
+                $this->db()->run(
+                    'INSERT INTO report_card_notes (enrollment_id, period_id, body, updated_by) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE body = VALUES(body), updated_by = VALUES(updated_by)',
+                    [(int) $r['enrollmentId'], $period, $body, $actor->label()],
+                );
+            }
+        }
         $this->audit()->log($actor, 'grades.save', 'period', $period, ['subject' => $subject, 'rows' => $n]);
         return ['saved' => $n];
     }
@@ -278,7 +328,8 @@ final class GradesController extends Controller
 
     public function reportCard(Request $req): array
     {
-        $this->staff($req, 'calificaciones', 'academico', 'estudiantes');
+        $actor = $this->staff($req, 'calificaciones', 'academico', 'estudiantes');
+        $this->assertMyStudent($actor, $req->intParam('id'), $this->year($req));
         return ['reportCard' => $this->grades()->reportCard($req->intParam('id'), $this->year($req))];
     }
 

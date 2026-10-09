@@ -123,6 +123,8 @@ final class CourseController extends Controller
             'shift' => $v->oneOf('shift', ['manana', 'tarde', 'completa']),
             'active' => $v->bool('active', true),
         ];
+        // every course has a group director: she grades it and signs its report cards
+        if (!$row['director_staff_id']) $v->fail('directorId', 'Elige el director(a) de grupo.');
         $v->check();
         $id = $req->param('id') !== '' ? $req->intParam('id') : null;
         if ($this->db()->value('SELECT id FROM courses WHERE year_id = ? AND name = ? AND id <> ?', [$row['year_id'], $row['name'], $id ?? 0])) {

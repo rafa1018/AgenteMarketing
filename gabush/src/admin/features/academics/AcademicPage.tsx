@@ -1,4 +1,4 @@
-import { CheckCircle2, Lock, Pencil, Plus, Send, Unlock } from 'lucide-react'
+import { CheckCircle2, Lock, Pencil, Plus, Send, Trash2, Unlock } from 'lucide-react'
 import { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { useMutation, useQuery } from '@/shared/useQuery'
@@ -150,7 +150,11 @@ function CoursesTab() {
                     <p className="text-[13px] text-muted">
                       {setup.gradeLevels.find((g) => g.id === c.gradeLevelId)?.name} · {setup.classrooms.find((r) => r.id === c.classroomId)?.name ?? 'Sin salón'}
                     </p>
-                    <p className="text-[13px] text-muted">Directora: {setup.staff.find((s) => s.id === c.directorId)?.name ?? '—'}</p>
+                    {c.directorId ? (
+                      <p className="text-[13px] text-muted">Director(a): {setup.staff.find((s) => s.id === c.directorId)?.name ?? '—'}</p>
+                    ) : (
+                      <p className="text-[13px] font-semibold text-berry">Sin director(a) de grupo: asígnalo</p>
+                    )}
                   </div>
                   <button type="button" aria-label="Editar" onClick={() => setEditing(c)} className="grid size-9 place-items-center rounded-lg text-muted hover:bg-paper hover:text-ink">
                     <Pencil size={16} />
@@ -244,9 +248,9 @@ function CourseForm({ course, onDone }: { course: Partial<CourseInfo>; onDone: (
         <Field label="Capacidad (cupos)" error={m.fields.capacity}>
           <input type="number" min={1} max={99} value={v.capacity} onChange={(e) => setV({ ...v, capacity: Number(e.target.value) })} className={inputCls(m.fields.capacity)} />
         </Field>
-        <Field label="Director(a) de grupo" hint="Solo personal activo. Se gestiona en la pestaña Personal.">
-          <select value={v.directorId} onChange={(e) => setV({ ...v, directorId: e.target.value ? Number(e.target.value) : '' })} className={inputCls()}>
-            <option value="">—</option>
+        <Field label="Director(a) de grupo *" error={m.fields.directorId} hint="Obligatorio: es quien califica el curso en Calificaciones. Solo personal activo (pestaña Personal).">
+          <select value={v.directorId} onChange={(e) => setV({ ...v, directorId: e.target.value ? Number(e.target.value) : '' })} className={inputCls(m.fields.directorId)}>
+            <option value="">Elige…</option>
             {staff.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -325,6 +329,154 @@ function RoomForm({ room, onDone }: { room: Partial<Classroom>; onDone: () => vo
   )
 }
 
+/* ───────── dimensions of development (areas) ───────── */
+function AreasCard() {
+  const { setup, reload } = useSetup()
+  const [area, setArea] = useState<{ id?: number; name: string; position: number } | null>(null)
+  const m = useMutation()
+  if (!setup) return null
+  const used = (id: number) => setup.subjects.filter((s) => s.areaId === id).length
+  const save = async () => {
+    if (!area) return
+    if (await m.run(() => (area.id ? api2.put(`/areas/${area.id}`, area) : api2.post('/areas', area)))) {
+      toast('Dimensión guardada')
+      setArea(null)
+      reload()
+    }
+  }
+  const remove = async (id: number) => {
+    if (await m.run(() => api2.del(`/areas/${id}`))) {
+      toast('Dimensión eliminada')
+      setArea(null)
+      reload()
+    }
+  }
+  return (
+    <div className="card p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-lg">Dimensiones del desarrollo</h3>
+        <button type="button" onClick={() => setArea({ name: '', position: Math.max(0, ...setup.areas.map((a) => a.position)) + 1 })} className="btn btn-ghost !min-h-9 !px-3 !text-[13px]">
+          <Plus size={15} /> Dimensión
+        </button>
+      </div>
+      <p className="text-[13px] text-muted">El número es el orden en que salen en el boletín.</p>
+      <ol className="mt-2 space-y-1">
+        {setup.areas.map((a) => (
+          <li key={a.id} className="flex items-center gap-2 rounded-lg bg-paper px-3 py-2">
+            <span className="flex-1 font-semibold text-ink">
+              {a.position}. {a.name}
+            </span>
+            <span className="text-[12px] text-muted">{used(a.id)} materias</span>
+            <button type="button" aria-label={`Editar ${a.name}`} onClick={() => setArea({ id: a.id, name: a.name, position: a.position })} className="text-muted hover:text-ink">
+              <Pencil size={15} />
+            </button>
+          </li>
+        ))}
+      </ol>
+      <Modal open={Boolean(area)} onClose={() => setArea(null)} label="Dimensión" closeLabel="Cerrar" className="sm:!max-w-md">
+        {area && (
+          <div className="space-y-4 p-6">
+            <h2 className="text-[1.4rem]">{area.id ? 'Editar dimensión' : 'Nueva dimensión'}</h2>
+            <Field label="Nombre" error={m.fields.name}>
+              <input value={area.name} onChange={(e) => setArea({ ...area, name: e.target.value })} placeholder="Dimensión Cognitiva" className={inputCls(m.fields.name)} />
+            </Field>
+            <Field label="Orden en el boletín" hint="1 sale primero.">
+              <input type="number" min={0} max={99} value={area.position} onChange={(e) => setArea({ ...area, position: Number(e.target.value) })} className={inputCls()} />
+            </Field>
+            {m.message && <ErrorBox message={m.message} />}
+            <button type="button" disabled={m.busy} onClick={save} className="btn btn-primary w-full">
+              Guardar
+            </button>
+            {area.id && (
+              <button type="button" disabled={m.busy} onClick={() => remove(area.id!)} className="btn btn-ghost w-full text-berry">
+                <Trash2 size={16} /> Eliminar dimensión
+              </button>
+            )}
+            {area.id && used(area.id) > 0 && <p className="text-[12px] text-muted">Para eliminarla, primero pasa sus {used(area.id)} materias a otra dimensión.</p>}
+          </div>
+        )}
+      </Modal>
+    </div>
+  )
+}
+
+/* ───────── performance levels ───────── */
+type LevelRow = { id?: number; name: string; min: string; max: string }
+
+function LevelsCard() {
+  const { setup, reload } = useSetup()
+  const [rows, setRows] = useState<LevelRow[] | null>(null)
+  const m = useMutation()
+  if (!setup) return null
+  const num = (v: string) => String(Number(v))
+  const start = () => setRows(setup.levels.map((l) => ({ id: l.id, name: l.name, min: num(l.min), max: num(l.max) })))
+  const set = (i: number, p: Partial<LevelRow>) => setRows((rs) => rs!.map((r, j) => (j === i ? { ...r, ...p } : r)))
+  const save = async () => {
+    if (!rows) return
+    if (await m.run(() => api2.put('/levels', { levels: rows }))) {
+      toast('Niveles de desempeño guardados')
+      setRows(null)
+      reload()
+    }
+  }
+  return (
+    <div className="card p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-lg">Niveles de desempeño</h3>
+        {!rows && (
+          <button type="button" onClick={start} className="btn btn-ghost !min-h-9 !px-3 !text-[13px]">
+            <Pencil size={14} /> Editar
+          </button>
+        )}
+      </div>
+      {!rows ? (
+        <ul className="mt-2 space-y-1">
+          {setup.levels.map((l) => (
+            <li key={l.id} className="flex justify-between rounded-lg bg-paper px-3 py-2">
+              <span className="font-semibold text-ink">{l.name}</span>
+              <span className="text-sm text-muted tabular-nums">
+                {num(l.min)} – {num(l.max)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="mt-3 space-y-2">
+          <div className="grid grid-cols-[1fr_72px_72px_32px] gap-2 px-1 text-[12px] font-bold tracking-wide text-muted uppercase">
+            <span>Nombre</span>
+            <span>Desde</span>
+            <span>Hasta</span>
+            <span />
+          </div>
+          {rows.map((r, i) => (
+            <div key={r.id ?? `n${i}`} className="grid grid-cols-[1fr_72px_72px_32px] items-center gap-2">
+              <input value={r.name} onChange={(e) => set(i, { name: e.target.value })} maxLength={40} aria-label="Nombre del nivel" className="min-w-0 rounded-lg border border-line px-2.5 py-2" />
+              <input value={r.min} onChange={(e) => set(i, { min: e.target.value })} inputMode="decimal" aria-label="Desde" className="min-w-0 rounded-lg border border-line px-2 py-2 tabular-nums" />
+              <input value={r.max} onChange={(e) => set(i, { max: e.target.value })} inputMode="decimal" aria-label="Hasta" className="min-w-0 rounded-lg border border-line px-2 py-2 tabular-nums" />
+              <button type="button" aria-label={`Quitar ${r.name}`} onClick={() => setRows(rows.filter((_, j) => j !== i))} className="grid size-8 place-items-center rounded-lg text-muted hover:bg-[#fdf0ef] hover:text-berry">
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+          <button type="button" onClick={() => setRows([...rows, { name: '', min: '', max: '' }])} className="btn btn-ghost !min-h-9 !px-3 !text-[13px]">
+            <Plus size={15} /> Nivel
+          </button>
+          <p className="text-[12px] text-muted">Escala de 0 a 100, sin rangos que se crucen. Un nivel que ya está en notas o logros no se puede quitar, pero sí renombrar o cambiar su rango. Los colores del boletín van con los nombres Insuficiente, Aceptable, Bueno y Excelente.</p>
+          {m.message && <ErrorBox message={m.message} />}
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setRows(null)} className="btn btn-ghost flex-1">
+              Cancelar
+            </button>
+            <button type="button" disabled={m.busy} onClick={save} className="btn btn-primary flex-1">
+              Guardar niveles
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ───────── subjects, areas, levels ───────── */
 function SubjectsTab() {
   const { setup, reload } = useSetup()
@@ -354,30 +506,8 @@ function SubjectsTab() {
         </ul>
       </section>
       <section className="space-y-5">
-        <div className="card p-4 sm:p-5">
-          <h3 className="text-lg">Dimensiones del desarrollo</h3>
-          <p className="text-[13px] text-muted">El orden en que salen en el boletín.</p>
-          <ol className="mt-2 space-y-1">
-            {setup.areas.map((a) => (
-              <li key={a.id} className="rounded-lg bg-paper px-3 py-2 font-semibold text-ink">
-                {a.position}. {a.name}
-              </li>
-            ))}
-          </ol>
-        </div>
-        <div className="card p-4 sm:p-5">
-          <h3 className="text-lg">Niveles de desempeño</h3>
-          <ul className="mt-2 space-y-1">
-            {setup.levels.map((l) => (
-              <li key={l.id} className="flex justify-between rounded-lg bg-paper px-3 py-2">
-                <span className="font-semibold text-ink">{l.name}</span>
-                <span className="text-sm text-muted tabular-nums">
-                  {Number(l.min).toFixed(1)} – {Number(l.max).toFixed(1)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <AreasCard />
+        <LevelsCard />
       </section>
       <Modal open={Boolean(subject)} onClose={() => setSubject(null)} label="Materia" closeLabel="Cerrar" className="sm:!max-w-md">
         {subject && (
