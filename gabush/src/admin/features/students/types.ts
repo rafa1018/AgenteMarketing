@@ -79,6 +79,8 @@ export interface Enrollment {
   plan: string | null
   monthlyDiscount: number | null
   monthlyDiscountReason: string | null
+  /** 1 when it has no payments nor grades (it can be deleted if it was a mistake) */
+  deletable: number
 }
 
 export interface StudentDetail {

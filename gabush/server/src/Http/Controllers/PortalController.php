@@ -246,7 +246,10 @@ final class PortalController extends Controller
     public function grades(Request $req): array
     {
         $f = $this->family($req);
-        return ['reportCard' => GradesService::from($this->app)->reportCard((int) $f->studentId, $this->year($req), true)];
+        // overdue payments and the school chose to hold the grades: nothing of the report card is sent
+        $locked = BillingService::from($this->app)->gradesLock((int) $f->studentId);
+        if ($locked) return ['reportCard' => null, 'locked' => ['overdue' => $locked]];
+        return ['reportCard' => GradesService::from($this->app)->reportCard((int) $f->studentId, $this->year($req), true), 'locked' => null];
     }
 
     public function observations(Request $req): array

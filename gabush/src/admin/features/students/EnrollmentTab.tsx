@@ -70,6 +70,7 @@ export function EnrollmentTab({ detail, onChanged }: { detail: StudentDetail; on
               </Field>
             </div>
             {can('pagos') && <PlanFields key={e.id} enrollment={e} onSave={(body, ok) => update(body, ok)} defaultReason={reasonFor(detail.enrollments)} />}
+            {can('pagos') && e.status === 'prematricula' && <EnrollmentPrices key={`p${e.id}:${e.courseId}:${e.planId}`} enrollmentId={e.id} />}
             <div className="flex flex-wrap gap-2">
               {e.status === 'prematricula' && (
                 <button type="button" onClick={() => setActivate(true)} disabled={m.busy} className="btn btn-primary !text-sm">
@@ -86,7 +87,7 @@ export function EnrollmentTab({ detail, onChanged }: { detail: StudentDetail; on
                   <RotateCcw size={17} /> Reintegrar
                 </button>
               )}
-              {can('matriculas') && (
+              {can('matriculas') && e.deletable > 0 && (
                 <button type="button" onClick={() => setRemoving(true)} disabled={m.busy} className="btn btn-ghost !text-sm text-muted hover:text-berry">
                   <Trash2 size={17} /> Eliminar matrícula {year}
                 </button>
@@ -121,6 +122,8 @@ export function EnrollmentTab({ detail, onChanged }: { detail: StudentDetail; on
           if (r) {
             toast(`Matrícula ${year} eliminada${r.deletedCharges ? ` junto con ${r.deletedCharges} cobros sin pagar` : ''}. Ya puedes prematricular de nuevo.`)
             onChanged()
+            // the lists behind the file (matrículas, cartera, cursos) keep their old numbers: reload the page
+            setTimeout(() => window.location.reload(), 1500)
           }
         }}
         onClose={() => setRemoving(false)}
@@ -249,8 +252,77 @@ function PlanFields({ enrollment: e, onSave, defaultReason }: { enrollment: Enro
   )
 }
 
+/**
+ * Prematrícula: what the student will be charged when activated (matrícula and the other "cobrar al matricular"
+ * concepts) at the price of the grade or plan, with the option of a different value only for this student.
+ */
+function EnrollmentPrices({ enrollmentId }: { enrollmentId: number }) {
+  const { data, reload } = useQuery(`activation:${enrollmentId}`, () => api2.get<Activation>(`/enrollments/${enrollmentId}/activation`))
+  const [edit, setEdit] = useState<number | null>(null)
+  const [value, setValue] = useState('')
+  const [reason, setReason] = useState('')
+  const m = useMutation()
+  if (!data?.items.length) return null
+  const save = async (conceptId: number, amount: number | null) => {
+    if (await m.run(() => api2.put('/billing/student-prices', { enrollmentId, conceptId, amount, reason: amount === null ? null : reason.trim() || 'Valor acordado' }))) {
+      toast(amount === null ? 'Vuelve al valor de la lista de precios' : 'Valor guardado: se cobrará así al matricular')
+      setEdit(null)
+      reload()
+    }
+  }
+  return (
+    <div className="space-y-2 rounded-xl bg-paper p-3.5">
+      <p className="text-[14px] font-semibold text-ink">Al matricular se cobrará</p>
+      <ul className="divide-y divide-line rounded-xl bg-white ring-1 ring-line">
+        {data.items.map((i) => (
+          <li key={i.conceptId} className="space-y-2 px-3 py-2.5 text-[14px]">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="min-w-0">
+                <span className="font-semibold text-ink">{i.name} {data.year}</span>
+                <span className="block text-[12px] text-muted">
+                  {i.special ? `Valor especial para este estudiante${i.gradeAmount !== null ? ` (la lista dice ${money(i.gradeAmount)})` : ''}` : 'Según la lista de precios del grado o plan'}
+                </span>
+              </span>
+              <span className="flex items-center gap-2">
+                <b className="tabular-nums">{money(i.amount)}</b>
+                {edit !== i.conceptId && (
+                  <button type="button" onClick={() => { setEdit(i.conceptId); setValue(String(i.amount)); setReason('') }} className="btn btn-ghost !min-h-9 !px-3 !text-[13px]">
+                    Cambiar
+                  </button>
+                )}
+                {i.special && edit !== i.conceptId && (
+                  <button type="button" disabled={m.busy} onClick={() => save(i.conceptId, null)} className="btn btn-ghost !min-h-9 !px-3 !text-[13px] text-muted">
+                    Quitar
+                  </button>
+                )}
+              </span>
+            </div>
+            {edit === i.conceptId && (
+              <div className="flex flex-wrap items-end gap-2">
+                <Field label="Nuevo valor">
+                  <input value={value} onChange={(ev) => setValue(ev.target.value)} inputMode="numeric" autoFocus className={inputCls() + ' w-36'} />
+                </Field>
+                <Field label="Motivo">
+                  <input value={reason} onChange={(ev) => setReason(ev.target.value)} placeholder="Hermanos, convenio…" className={inputCls() + ' min-w-0'} />
+                </Field>
+                <button type="button" disabled={m.busy || value.trim() === ''} onClick={() => save(i.conceptId, parseMoney(value))} className="btn btn-primary !min-h-[46px] !text-sm">
+                  Guardar
+                </button>
+                <button type="button" onClick={() => setEdit(null)} className="btn btn-ghost !min-h-[46px] !text-sm">
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+      {m.message && <ErrorBox message={m.message} />}
+    </div>
+  )
+}
+
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
-type Activation = { year: number; items: { name: string; amount: number }[]; dueOn: string; yearDeadline: string | null; lateFee: number; lateFeeNow: boolean; pensionMonths: number[]; pensionDueDay: number }
+type Activation = { year: number; items: { conceptId: number; code: string; name: string; amount: number; gradeAmount: number | null; special: boolean }[]; dueOn: string; yearDeadline: string | null; lateFee: number; lateFeeNow: boolean; pensionMonths: number[]; pensionDueDay: number }
 
 /**
  * "Matricular (activar)": shows what will be charged, lets the staff choose when the matrícula is due (and save

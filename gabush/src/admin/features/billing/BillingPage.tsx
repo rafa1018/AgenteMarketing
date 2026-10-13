@@ -1,9 +1,9 @@
-import { CalendarPlus, Download, Loader2, MessageCircle, Plus, Printer, Save, Wallet } from 'lucide-react'
+import { CalendarPlus, Download, Loader2, MessageCircle, Pencil, Plus, Printer, Save, Trash2, Wallet } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@/shared/useQuery'
 import { date, MONTH_NAMES, money, monthLabel, parseMoney, todayISO } from '@/shared/format'
 import { toast } from '../../store'
-import { PageHead } from '../../ui'
+import { ConfirmModal, PageHead } from '../../ui'
 import { api2, qs, useSetup } from '../../v2/api'
 import { Badge, Empty, ErrorBox, Field, SearchBox, Spinner, Stat, StatusBadge, Tabs, YearPicker, inputCls, useTab } from '../../v2/kit'
 import { openStudent } from '../students/openStudent'
@@ -279,13 +279,51 @@ function ConceptsManager() {
       reload()
     }
   }
+  const [renaming, setRenaming] = useState<{ id: number; name: string } | null>(null)
+  const [removing, setRemoving] = useState<{ id: number; name: string } | null>(null)
+  const rename = async () => {
+    if (!renaming) return
+    if (await m.run(() => api2.put(`/billing/concepts/${renaming.id}`, { name: renaming.name.trim() }))) {
+      toast('Nombre guardado')
+      setRenaming(null)
+      reload()
+    }
+  }
+  const remove = async () => {
+    if (!removing) return
+    const r = await m.run(() => api2.del<{ hidden: boolean; charges: number }>(`/billing/concepts/${removing.id}`))
+    if (r) {
+      toast(r.hidden ? `«${removing.name}» ya se había cobrado ${r.charges} ${r.charges === 1 ? 'vez' : 'veces'}: se quitó de la tabla, los cobros hechos se conservan` : `«${removing.name}» eliminado`)
+      reload()
+    }
+  }
   return (
     <details open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)} className="rounded-2xl bg-paper p-4">
       <summary className="cursor-pointer font-semibold text-ink">Conceptos de cobro (agregar App, Seguro escolar, Fotos u otros)</summary>
       <ul className="mt-3 divide-y divide-line rounded-xl bg-white ring-1 ring-line">
         {editable.map((c) => (
           <li key={c.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5 text-[14px]">
-            <span className="min-w-0 flex-1 font-semibold text-ink">{c.name}</span>
+            {renaming?.id === c.id ? (
+              <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <input value={renaming.name} onChange={(e) => setRenaming({ id: c.id, name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && rename()} maxLength={80} autoFocus className={inputCls() + ' !min-h-9 min-w-0 flex-1'} />
+                <button type="button" disabled={m.busy || renaming.name.trim().length < 2} onClick={rename} className="btn btn-primary !min-h-9 !px-3 !text-[13px]">
+                  Guardar
+                </button>
+                <button type="button" onClick={() => setRenaming(null)} className="btn btn-ghost !min-h-9 !px-3 !text-[13px]">
+                  Cancelar
+                </button>
+              </span>
+            ) : (
+              <span className="flex min-w-0 flex-1 items-center gap-1">
+                <span className="font-semibold text-ink">{c.name}</span>
+                <button type="button" title="Cambiar el nombre" onClick={() => setRenaming({ id: c.id, name: c.name })} className="grid size-8 place-items-center rounded-lg text-muted hover:bg-paper hover:text-ink">
+                  <Pencil size={14} />
+                </button>
+                <button type="button" title="Eliminar concepto" onClick={() => setRemoving({ id: c.id, name: c.name })} className="grid size-8 place-items-center rounded-lg text-muted hover:bg-[#fdf0ef] hover:text-berry">
+                  <Trash2 size={14} />
+                </button>
+              </span>
+            )}
             <label className="flex items-center gap-1.5 text-muted">
               <input type="checkbox" checked={Boolean(c.inPriceTable)} disabled={m.busy} onChange={(e) => update(c.id, { inPriceTable: e.target.checked })} className="size-4 accent-[#3a36a8]" /> En la tabla
             </label>
@@ -302,6 +340,9 @@ function ConceptsManager() {
         </button>
       </div>
       {m.message && <ErrorBox message={m.message} />}
+      <ConfirmModal open={Boolean(removing)} title={`¿Eliminar «${removing?.name ?? ''}»?`} confirmLabel="Sí, eliminar" tone="danger" icon={<Trash2 size={24} />} onConfirm={remove} onClose={() => setRemoving(null)}>
+        Se quita de la tabla de precios con sus valores. Si ya se le cobró a alguien, esos cobros y sus pagos se conservan y el concepto solo se oculta.
+      </ConfirmModal>
     </details>
   )
 }
@@ -350,7 +391,7 @@ type LateFee = { enabled: boolean; amountPerDay: number; dueDay: number; graceDa
 
 function BillingConfig() {
   const { setup, year } = useSetup()
-  const settings = useQuery(year ? `billing-settings:${year}` : null, () => api2.get<{ lateFee: LateFee; pensionMonths: number[]; enrollmentDueDays: number; enrollmentDueOn: string | null; enrollmentLateFee: number; earlyDiscountPct: number; earlyDiscountUntil: string | null }>('/billing/settings' + qs({ year })))
+  const settings = useQuery(year ? `billing-settings:${year}` : null, () => api2.get<{ lateFee: LateFee; pensionMonths: number[]; enrollmentDueDays: number; enrollmentDueOn: string | null; enrollmentLateFee: number; earlyDiscountPct: number; earlyDiscountUntil: string | null; gradesLock: boolean }>('/billing/settings' + qs({ year })))
   const [dueDays, setDueDays] = useState(0)
   const [dueOn, setDueOn] = useState('')
   const [extra, setExtra] = useState('')
@@ -471,6 +512,29 @@ function BillingConfig() {
             </div>
           </div>
         )}
+      </section>
+
+      <section className="card space-y-2 p-4 sm:p-6">
+        <h3 className="text-lg">Notas en el app de familias</h3>
+        <label className="flex items-start gap-2 text-[15px] font-semibold text-ink">
+          <input
+            type="checkbox"
+            checked={Boolean(settings.data?.gradesLock)}
+            disabled={m.busy}
+            onChange={async (e) => {
+              const on = e.target.checked
+              if (await m.run(() => api2.put('/billing/settings' + qs({ year }), { gradesLock: on }))) {
+                toast(on ? 'Las familias con pagos vencidos verán las notas y el boletín bloqueados' : 'Notas y boletín visibles para todas las familias')
+                settings.reload()
+              }
+            }}
+            className="mt-0.5 size-5 accent-[#3a36a8]"
+          />
+          <span>
+            Bloquear notas y boletín a familias con pagos vencidos
+            <span className="block text-[13px] font-normal text-muted">En el app ven las notas borrosas con la marca «Pago pendiente» y el valor vencido. Se desbloquea solo al ponerse al día. Los cobros que aún no vencen no bloquean. Aquí en el panel siempre puedes ver e imprimir el boletín.</span>
+          </span>
+        </label>
       </section>
 
       <section className="card space-y-4 p-4 sm:p-6">

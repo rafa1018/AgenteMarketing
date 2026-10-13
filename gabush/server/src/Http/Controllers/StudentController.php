@@ -129,7 +129,10 @@ final class StudentController extends Controller
         $enrollments = $db->all(
             'SELECT e.id, e.year_id AS year, e.status, e.order_number AS orderNumber, e.contract_signed AS contractSigned, e.enrolled_on AS enrolledOn,
                     e.withdrawn_on AS withdrawnOn, e.withdraw_reason AS withdrawReason, e.is_new AS isNew, c.id AS courseId, c.name AS course,
-                    e.plan_id AS planId, pl.name AS plan, e.monthly_discount AS monthlyDiscount, e.monthly_discount_reason AS monthlyDiscountReason
+                    e.plan_id AS planId, pl.name AS plan, e.monthly_discount AS monthlyDiscount, e.monthly_discount_reason AS monthlyDiscountReason,
+                    -- can it be deleted (enrolled by mistake)? only without payments nor grades
+                    (SELECT COUNT(*) FROM payment_allocations pa JOIN charges ch ON ch.id = pa.charge_id WHERE ch.enrollment_id = e.id) = 0
+                      AND NOT EXISTS (SELECT 1 FROM grade_entries ge WHERE ge.enrollment_id = e.id) AS deletable
              FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id LEFT JOIN plans pl ON pl.id = e.plan_id WHERE e.student_id = ? ORDER BY e.year_id DESC',
             [$id],
         );
@@ -147,7 +150,7 @@ final class StudentController extends Controller
             'family' => $family ? self::ints($family, 'id') : null,
             'guardians' => self::intsAll($guardians, 'id', 'isPrimary', 'isBilling'),
             'siblings' => self::intsAll($siblings, 'id'),
-            'enrollments' => self::intsAll($enrollments, 'id', 'year', 'orderNumber', 'contractSigned', 'isNew', 'courseId'),
+            'enrollments' => self::intsAll($enrollments, 'id', 'year', 'orderNumber', 'contractSigned', 'isNew', 'courseId', 'deletable'),
             'portal' => $portal ? self::ints($portal, 'active', 'mustChange') : null,
         ];
     }

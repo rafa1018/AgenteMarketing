@@ -41,6 +41,7 @@ final class BillingController extends Controller
         $r->add('GET', '/billing/students/{id}/paz-y-salvo', [$c, 'clearance']);
         $r->add('POST', '/billing/concepts', [$c, 'createConcept']);
         $r->add('PUT', '/billing/concepts/{id}', [$c, 'updateConcept']);
+        $r->add('DELETE', '/billing/concepts/{id}', [$c, 'deleteConcept']);
         $r->add('GET', '/billing/concept-charges', [$c, 'conceptChargesPending']);
         $r->add('POST', '/billing/concept-charges', [$c, 'chargeConceptToEnrolled']);
         $r->add('GET', '/billing/signature', [$c, 'signature']);
@@ -55,12 +56,10 @@ final class BillingController extends Controller
         $r->add('GET', '/billing/prices', [$c, 'prices']);
         $r->add('PUT', '/billing/prices', [$c, 'savePrices']);
         $r->add('PUT', '/billing/student-prices', [$c, 'saveStudentPrice']);
-        $r->add('POST', '/billing/concepts', [$c, 'saveConcept']);
         $r->add('GET', '/billing/plans', [$c, 'plans']);
         $r->add('POST', '/billing/plans', [$c, 'savePlan']);
         $r->add('PUT', '/billing/plans/{id}', [$c, 'savePlan']);
         $r->add('POST', '/billing/days', [$c, 'chargeDays']);
-        $r->add('PUT', '/billing/concepts/{id}', [$c, 'saveConcept']);
     }
 
     private function billing(): BillingService
@@ -312,6 +311,7 @@ final class BillingController extends Controller
             'lateFee' => $this->billing()->lateFeePolicy()->toArray(),
             'pensionMonths' => $this->billing()->pensionMonthsFor($year), // of the chosen year
             'enrollmentDueDays' => $this->billing()->enrollmentDueDays(),
+            'gradesLock' => $this->billing()->gradesLockEnabled(),
             'enrollmentDueOn' => $y['enrollment_due_on'] ?? null,
             'enrollmentLateFee' => isset($y['enrollment_late_fee']) ? (int) $y['enrollment_late_fee'] : 0,
             'earlyDiscountPct' => isset($y['early_discount_pct']) ? (float) $y['early_discount_pct'] : 0,
@@ -335,6 +335,7 @@ final class BillingController extends Controller
             $this->settings()->set('late_fee', $policy->toArray());
         }
         if ($v->has('enrollmentDueDays')) $this->settings()->patch('billing', ['enrollmentDueDays' => max(0, min(120, (int) $req->json()['enrollmentDueDays']))]);
+        if ($v->has('gradesLock')) $this->settings()->patch('billing', ['gradesLock' => (bool) $req->json()['gradesLock']]);
         // dates of the chosen year: pension months and the matrícula deadline
         $year = $this->year($req);
         $moved = 0;
@@ -511,24 +512,28 @@ final class BillingController extends Controller
         return [];
     }
 
-    public function saveConcept(Request $req): array
+    /**
+     * Removes a concept of the price table. If it was already charged to someone it is only hidden (its charges
+     * and payments are kept); otherwise it is deleted with its prices. The base concepts can't be removed.
+     */
+    public function deleteConcept(Request $req): array
     {
         $actor = $this->staffWrite($req, 'ajustes', 'pagos');
-        $v = Validate::of($req);
-        $row = [
-            'code' => strtoupper((string) ($v->str('code', 24, true, 'El código') ?? '')),
-            'name' => $v->str('name', 80, true, 'El nombre'),
-            'frequency' => $v->oneOf('frequency', ['mensual', 'anual', 'eventual'], 'eventual'),
-            'apply_on_enrollment' => $v->bool('onEnrollment'),
-            'late_fee_applies' => $v->bool('lateFee'),
-            'online_payable' => $v->bool('online', true),
-            'active' => $v->bool('active', true),
-        ];
-        if (!preg_match('/^[A-Z0-9_]{2,24}$/', $row['code'])) $v->fail('code', 'Solo letras, números y _ (ej. TRANSPORTE).');
-        $v->check();
-        $id = $this->persist('billing_concepts', $row, self::optionalId($req));
-        $this->audit()->log($actor, 'concept.save', 'billing_concept', $id, $row);
-        return ['id' => $id];
+        $id = $req->intParam('id');
+        $c = $this->db()->one('SELECT id, code, name FROM billing_concepts WHERE id = ?', [$id]) ?? throw HttpError::notFound();
+        if (in_array($c['code'], ['PENSION', 'MATRICULA', 'DIAS', 'SALDO_ANTERIOR', 'NOTA_DEBITO', 'OTRO'], true)) throw new DomainError('fixed', 'Este concepto es parte del sistema y no se puede eliminar.');
+        $used = (int) $this->db()->value('SELECT COUNT(*) FROM charges WHERE concept_id = ?', [$id]);
+        if ($used) {
+            $this->db()->update('billing_concepts', ['active' => 0, 'in_price_table' => 0, 'apply_on_enrollment' => 0], ['id' => $id]);
+        } else {
+            $this->db()->transaction(function ($db) use ($id): void {
+                $db->run('DELETE FROM prices WHERE concept_id = ?', [$id]);
+                $db->run('DELETE FROM student_prices WHERE concept_id = ?', [$id]);
+                $db->run('DELETE FROM billing_concepts WHERE id = ?', [$id]);
+            });
+        }
+        $this->audit()->log($actor, $used ? 'concept.hide' : 'concept.delete', 'billing_concept', $id, ['code' => $c['code'], 'name' => $c['name'], 'charges' => $used]);
+        return ['hidden' => (bool) $used, 'charges' => $used];
     }
 
     // ───────────────────────── plans ─────────────────────────

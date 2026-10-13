@@ -19,6 +19,25 @@ final class BoletinView
         'Insuficiente' => ['#fde4e3', '#b42318', '#d92d20'],
     ];
 
+    /** What the family sees instead of the report card while it has overdue payments (and the school holds it). */
+    public static function locked(int $overdue): string
+    {
+        $amount = '$' . number_format($overdue, 0, ',', '.');
+        $rows = str_repeat('<div class="ln"></div><div class="ln s"></div><div class="ln"></div>', 6);
+        return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Boletín bloqueado</title>'
+            . '<style>body{margin:0;background:#e9eef8;font-family:Nunito,"Segoe UI",system-ui,sans-serif;color:#2a2850}'
+            . '.page{position:relative;max-width:720px;margin:24px auto;background:#fff;border-radius:18px;padding:32px;overflow:hidden;min-height:70vh}'
+            . '.ln{height:12px;border-radius:6px;background:#e4e8f3;margin:14px 0;filter:blur(1.5px)}.ln.s{width:60%}'
+            . '.wm{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}'
+            . '.wm span{transform:rotate(-28deg);font-size:clamp(34px,8vw,64px);font-weight:800;color:rgba(229,25,126,.16);white-space:nowrap;letter-spacing:.04em}'
+            . '.box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(88%,420px);background:#fff;border-radius:16px;box-shadow:0 10px 40px rgba(35,32,107,.18);padding:24px;text-align:center}'
+            . '.box h1{margin:0 0 8px;font-size:22px;color:#23206b}.box p{margin:0 0 16px;color:#5d5b80;line-height:1.5}'
+            . '.box a{display:inline-block;background:#3a36a8;color:#fff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px}</style></head><body>'
+            . '<div class="page">' . $rows . '<div class="wm"><span>PAGO PENDIENTE</span></div>'
+            . '<div class="box"><h1>Boletín bloqueado</h1><p>Hay pagos vencidos por <b>' . $amount . '</b>. Al ponerse al día, el boletín y las notas quedan disponibles de inmediato.</p>'
+            . '<a href="/familia/#/pagos">Ver mis pagos</a></div></div></body></html>';
+    }
+
     /**
      * @param list<array<string,mixed>> $cards one per student: ['student' => …, 'reportCard' => …, 'general' => ?string]
      * @param array<string,mixed> $o period (int|'final'), periodName, year, school, levels, signature, fileName

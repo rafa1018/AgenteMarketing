@@ -54,6 +54,20 @@ final class BillingService
         return max(0, min(120, (int) (((array) $this->settings->get('billing', []))['enrollmentDueDays'] ?? 0)));
     }
 
+    /** "Bloquear notas y boletín a familias con pagos vencidos" (Cartera → Precios y mora). */
+    public function gradesLockEnabled(): bool
+    {
+        return !empty(((array) $this->settings->get('billing', []))['gradesLock']);
+    }
+
+    /** When the option is on and the student owes overdue charges: the overdue amount (the app hides the grades). */
+    public function gradesLock(int $studentId): ?int
+    {
+        if (!$this->gradesLockEnabled()) return null;
+        $overdue = (int) $this->summary($studentId)['overdue'];
+        return $overdue > 0 ? $overdue : null;
+    }
+
     /** Default pension months (configuration; February–November). @return list<int> */
     public function pensionMonths(): array
     {
@@ -189,6 +203,19 @@ final class BillingService
     }
 
     // ───────────────────────── automatic charges ─────────────────────────
+    /** The price list value of a concept for the enrollment's grade (or for every grade), without special prices. */
+    public function gradePriceFor(int $enrollmentId, int $conceptId): ?int
+    {
+        $v = $this->db->value(
+            'SELECT COALESCE(
+                 (SELECT p.amount FROM prices p WHERE p.year_id = e.year_id AND p.concept_id = ? AND p.grade_level_id = c.grade_level_id),
+                 (SELECT p.amount FROM prices p WHERE p.year_id = e.year_id AND p.concept_id = ? AND p.grade_level_id IS NULL))
+             FROM enrollments e LEFT JOIN courses c ON c.id = e.course_id WHERE e.id = ?',
+            [$conceptId, $conceptId, $enrollmentId],
+        );
+        return $v !== null ? (int) $v : null;
+    }
+
     /**
      * Price of a concept for an enrollment: student's special price, else (pension) the price of the student's
      * monthly plan, else the year/grade price, else the year default.
@@ -438,9 +465,11 @@ final class BillingService
         if (!$e) return [];
         $year = (int) $e['year_id'];
         $items = [];
-        foreach ($this->db->all('SELECT code, name FROM billing_concepts WHERE active = 1 AND apply_on_enrollment = 1') as $c) {
+        foreach ($this->db->all('SELECT id, code, name FROM billing_concepts WHERE active = 1 AND apply_on_enrollment = 1 ORDER BY sort, id') as $c) {
             $amount = $this->priceFor($enrollmentId, $c['code']);
-            if ($amount) $items[] = ['name' => $c['name'], 'amount' => $amount];
+            $special = $this->db->value('SELECT amount FROM student_prices WHERE enrollment_id = ? AND concept_id = ?', [$enrollmentId, $c['id']]);
+            $grade = $this->gradePriceFor($enrollmentId, (int) $c['id']);
+            if ($amount || $grade) $items[] = ['conceptId' => (int) $c['id'], 'code' => $c['code'], 'name' => $c['name'], 'amount' => (int) $amount, 'gradeAmount' => $grade, 'special' => $special !== null];
         }
         $months = $this->pensionMonthsFor($year);
         $y = $this->db->one('SELECT enrollment_due_on, enrollment_late_fee FROM academic_years WHERE id = ?', [$year]);

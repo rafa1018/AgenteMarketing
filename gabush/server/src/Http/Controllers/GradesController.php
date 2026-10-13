@@ -110,6 +110,9 @@ final class GradesController extends Controller
         $actor = $isFamily ? null : $this->staff($req, 'calificaciones', 'academico', 'estudiantes');
         $year = $this->year($req);
         if ($actor) $this->assertMyStudent($actor, $id, $year);
+        if ($isFamily && ($owed = \Gabush\Application\Billing\BillingService::from($this->app)->gradesLock($id))) {
+            return Response::html(BoletinView::locked($owed));
+        }
         $card = $this->card($id, $year, $isFamily);
         $period = $this->pickPeriod($req, $card['reportCard']);
         $o = $this->boletinOptions($year, $period, $card['reportCard'], $card['student']['code']);
