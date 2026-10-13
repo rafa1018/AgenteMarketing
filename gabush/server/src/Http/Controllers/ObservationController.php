@@ -27,10 +27,16 @@ final class ObservationController extends Controller
     public function index(Request $req): array
     {
         $this->staff($req, 'observador', 'estudiantes');
-        $rows = $this->db()->all('SELECT id, year_id AS year, observed_on AS date, category, body, visible_to_family AS visible, created_by AS createdBy, created_at AS createdAt FROM observations WHERE student_id = ? ORDER BY observed_on DESC, id DESC', [$req->intParam('id')]);
-        return ['observations' => self::intsAll($rows, 'id', 'year', 'visible')];
+        $rows = $this->db()->all(
+            'SELECT o.id, o.year_id AS year, o.period_id AS periodId, p.name AS period, o.observed_on AS date, o.category, o.body,
+                    o.improvement_actions AS actions, o.recommendations, o.visible_to_family AS visible, o.created_by AS createdBy, o.created_at AS createdAt
+             FROM observations o LEFT JOIN periods p ON p.id = o.period_id WHERE o.student_id = ? ORDER BY o.observed_on DESC, o.id DESC',
+            [$req->intParam('id')],
+        );
+        return ['observations' => self::intsAll($rows, 'id', 'year', 'periodId', 'visible')];
     }
 
+    /** {date, category, periodId, body, actions (acciones de mejora), recommendations, visible} */
     public function save(Request $req): array
     {
         $actor = $this->staffWrite($req, 'observador');
@@ -39,9 +45,19 @@ final class ObservationController extends Controller
             'observed_on' => $v->date('date') ?? date('Y-m-d'),
             'category' => $v->oneOf('category', self::CATEGORIES, 'general'),
             'body' => $v->text('body', 4000, true),
+            'improvement_actions' => $v->text('actions', 4000) ?: null,
+            'recommendations' => $v->text('recommendations', 4000) ?: null,
             'visible_to_family' => $v->bool('visible'),
         ];
+        $periodId = $v->int('periodId', 1);
         $v->check();
+        // the note belongs to the chosen period (and to its year)
+        $periodYear = null;
+        if ($periodId) {
+            $periodYear = $this->db()->value('SELECT year_id FROM periods WHERE id = ?', [$periodId]) ?? throw HttpError::validation(['periodId' => 'Ese periodo no existe.']);
+            $row['period_id'] = $periodId;
+            $row['year_id'] = (int) $periodYear;
+        }
         $isNew = str_contains($req->path, '/students/');
         if ($isNew) {
             $sid = $req->intParam('id');

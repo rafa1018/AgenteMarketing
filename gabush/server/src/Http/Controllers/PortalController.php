@@ -252,7 +252,11 @@ final class PortalController extends Controller
     public function observations(Request $req): array
     {
         $f = $this->family($req);
-        return ['observations' => self::intsAll($this->db()->all('SELECT id, observed_on AS date, category, body, created_by AS createdBy FROM observations WHERE student_id = ? AND visible_to_family = 1 ORDER BY observed_on DESC', [$f->studentId]), 'id')];
+        return ['observations' => self::intsAll($this->db()->all(
+            'SELECT o.id, o.observed_on AS date, o.category, o.body, o.improvement_actions AS actions, o.recommendations, o.year_id AS year, p.name AS period, o.created_by AS createdBy
+             FROM observations o LEFT JOIN periods p ON p.id = o.period_id WHERE o.student_id = ? AND o.visible_to_family = 1 ORDER BY o.observed_on DESC',
+            [$f->studentId],
+        ), 'id', 'year')];
     }
 
     /** Pending and paid charges, payments with receipts. ?year= limits to one academic year. */
