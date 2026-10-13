@@ -282,6 +282,8 @@ final class PortalController extends Controller
     {
         $f = $this->family($req, true);
         $ids = Validate::of($req)->ids('chargeIds');
+        // a "pronto pago" discount whose date passed no longer applies to what the family pays now
+        BillingService::from($this->app)->expireConditionalDiscounts(Actor::system('pronto-pago'), (int) $f->studentId);
         return CheckoutService::from($this->app)->start((int) $f->studentId, $ids, $f);
     }
 

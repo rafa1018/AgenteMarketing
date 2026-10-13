@@ -47,7 +47,7 @@ final class SetupController extends Controller
             'areas' => self::intsAll($db->all('SELECT id, name, report_position AS position FROM areas ORDER BY report_position, name'), 'id', 'position'),
             'subjects' => self::intsAll($db->all('SELECT id, name, area_id AS areaId, active FROM subjects ORDER BY name'), 'id', 'areaId', 'active'),
             'levels' => self::intsAll($db->all('SELECT id, name, min_score AS min, max_score AS max FROM performance_levels ORDER BY sort'), 'id'),
-            'concepts' => self::intsAll($db->all('SELECT id, code, name, frequency, apply_on_enrollment AS onEnrollment, late_fee_applies AS lateFee, online_payable AS online, active FROM billing_concepts ORDER BY id'), 'id', 'onEnrollment', 'lateFee', 'online', 'active'),
+            'concepts' => self::intsAll($db->all('SELECT id, code, name, frequency, apply_on_enrollment AS onEnrollment, late_fee_applies AS lateFee, online_payable AS online, in_price_table AS inPriceTable, sort, active FROM billing_concepts ORDER BY sort, id'), 'id', 'onEnrollment', 'lateFee', 'online', 'inPriceTable', 'sort', 'active'),
             'documentTypes' => self::intsAll($db->all('SELECT id, name, description, required, applies_to AS appliesTo, family_can_upload AS familyUpload, sort, active FROM document_types ORDER BY sort, name'), 'id', 'required', 'familyUpload', 'sort', 'active'),
             'school' => $this->settings()->get('school', ['name' => 'Jardín Infantil Gabush', 'nit' => '', 'address' => 'Manzana E 19-12A, Urbanización Colombia, Valledupar', 'phone' => '+57 322 834 7109', 'email' => 'gabushjardin@gmail.com']),
         ];

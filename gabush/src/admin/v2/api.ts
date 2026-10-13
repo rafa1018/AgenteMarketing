@@ -16,7 +16,7 @@ export interface StaffInfo { id: Id; name: string; position: string | null; phon
 export interface Area { id: Id; name: string; position: number }
 export interface Subject { id: Id; name: string; areaId: Id | null; active: number }
 export interface Level { id: Id; name: string; min: string; max: string }
-export interface Concept { id: Id; code: string; name: string; frequency: 'mensual' | 'anual' | 'eventual'; onEnrollment: number; lateFee: number; online: number; active: number }
+export interface Concept { id: Id; code: string; name: string; frequency: 'mensual' | 'anual' | 'eventual'; onEnrollment: number; lateFee: number; online: number; inPriceTable: number; sort: number; active: number }
 export interface DocumentType { id: Id; name: string; description: string | null; required: number; appliesTo: 'nuevos' | 'todos'; familyUpload: number; sort: number; active: number }
 export interface Setup {
   /**

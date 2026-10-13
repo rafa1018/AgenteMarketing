@@ -190,6 +190,7 @@ export function StatementView({ studentId }: { studentId: number }) {
                               <span className={cn('flex-1', a.waived && 'text-muted line-through')}>
                                 {a.reason || '—'} · {money(a.amount)}
                                 {a.waived && ' (perdonada)'}
+                                {a.validUntil && c.status === 'abierto' && <span className="ml-1 text-[12px] font-semibold text-[#8a5716]">· vale si paga hasta el {date(a.validUntil)}</span>}
                               </span>
                               {a.kind !== 'mora' && a.kind !== 'traslado' && c.status !== 'anulado' && (
                                 <button type="button" title="Quitar" onClick={() => removeAdj(a.id)} className="text-muted hover:text-berry">

@@ -39,6 +39,8 @@ final class BillingController extends Controller
         $r->add('POST', '/billing/payments/{id}/void', [$c, 'voidPayment']);
         $r->add('GET', '/billing/payments/{id}/receipt', [$c, 'receipt']);
         $r->add('GET', '/billing/students/{id}/paz-y-salvo', [$c, 'clearance']);
+        $r->add('POST', '/billing/concepts', [$c, 'createConcept']);
+        $r->add('PUT', '/billing/concepts/{id}', [$c, 'updateConcept']);
         $r->add('GET', '/billing/concept-charges', [$c, 'conceptChargesPending']);
         $r->add('POST', '/billing/concept-charges', [$c, 'chargeConceptToEnrolled']);
         $r->add('GET', '/billing/signature', [$c, 'signature']);
@@ -147,8 +149,9 @@ final class BillingController extends Controller
         $kind = $v->oneOf('kind', ['descuento', 'recargo'], null, true);
         $amount = $v->money('amount', true);
         $reason = $v->str('reason', 200, true, 'El motivo');
+        $validUntil = $v->date('validUntil');
         $v->check();
-        $this->billing()->addAdjustment($req->intParam('id'), $kind, $amount, $reason, $actor);
+        $this->billing()->addAdjustment($req->intParam('id'), $kind, $amount, $reason, $actor, $validUntil);
         return [];
     }
 
@@ -303,7 +306,7 @@ final class BillingController extends Controller
     {
         $this->staff($req, 'pagos', 'ajustes');
         $year = $this->year($req);
-        $y = $this->db()->one('SELECT starts_on, ends_on, enrollment_due_on, enrollment_late_fee FROM academic_years WHERE id = ?', [$year]);
+        $y = $this->db()->one('SELECT starts_on, ends_on, enrollment_due_on, enrollment_late_fee, early_discount_pct, early_discount_until FROM academic_years WHERE id = ?', [$year]);
         return [
             'year' => $year,
             'lateFee' => $this->billing()->lateFeePolicy()->toArray(),
@@ -311,6 +314,8 @@ final class BillingController extends Controller
             'enrollmentDueDays' => $this->billing()->enrollmentDueDays(),
             'enrollmentDueOn' => $y['enrollment_due_on'] ?? null,
             'enrollmentLateFee' => isset($y['enrollment_late_fee']) ? (int) $y['enrollment_late_fee'] : 0,
+            'earlyDiscountPct' => isset($y['early_discount_pct']) ? (float) $y['early_discount_pct'] : 0,
+            'earlyDiscountUntil' => $y['early_discount_until'] ?? null,
             'startsOn' => $y['starts_on'] ?? null,
             'endsOn' => $y['ends_on'] ?? null,
         ];
@@ -334,6 +339,7 @@ final class BillingController extends Controller
         $year = $this->year($req);
         $moved = 0;
         $extra = 0;
+        $early = 0;
         if ($this->db()->value('SELECT 1 FROM academic_years WHERE id = ?', [$year])) {
             if ($months) {
                 sort($months);
@@ -348,13 +354,21 @@ final class BillingController extends Controller
                 $fee = max(0, min(100_000_000, (int) ($req->json()['enrollmentLateFee'] ?? 0)));
                 $this->db()->update('academic_years', ['enrollment_late_fee' => $fee ?: null], ['id' => $year]);
             }
+            if ($v->has('earlyDiscountPct')) {
+                $pct = max(0, min(100, round((float) str_replace(',', '.', (string) ($req->json()['earlyDiscountPct'] ?? 0)), 2)));
+                $until = (string) ($req->json()['earlyDiscountUntil'] ?? '');
+                $until = preg_match('/^\d{4}-\d{2}-\d{2}$/', $until) ? $until : null;
+                if ($pct > 0 && !$until) throw HttpError::validation(['earlyDiscountUntil' => 'Pon hasta qué fecha vale el pronto pago.']);
+                $this->db()->update('academic_years', ['early_discount_pct' => $pct ?: null, 'early_discount_until' => $pct ? $until : null], ['id' => $year]);
+            }
             // a deadline already past with an extra value: the unpaid matrículas get it now
             $extra = $this->billing()->applyEnrollmentLateFees($actor, $year);
+            $early = $this->billing()->applyEarlyDiscounts($actor, $year);
         } elseif ($months) {
             $this->settings()->patch('billing', ['pensionMonths' => $months]);
         }
         $this->audit()->log($actor, 'billing.settings', 'settings', 'billing', ['lateFee' => $lf, 'months' => $months, 'year' => $year]);
-        return $this->settingsShow($req) + ['movedEnrollmentCharges' => $moved, 'extraEnrollmentCharges' => $extra];
+        return $this->settingsShow($req) + ['movedEnrollmentCharges' => $moved, 'extraEnrollmentCharges' => $extra, 'earlyDiscountCharges' => $early];
     }
 
     /** {dueOn}: new due date of a pending charge (e.g. a matrícula that fell due the day it was created). */
@@ -372,15 +386,19 @@ final class BillingController extends Controller
         return ['dueOn' => $due];
     }
 
-    private const BULK_CONCEPTS = ['UTILES', 'CLAUSURA'];
+    /** Concepts that can be charged to every enrolled student at once: the yearly ones of the price table. */
+    private function bulkConcept(string $code): string
+    {
+        $ok = $this->db()->value("SELECT 1 FROM billing_concepts WHERE code = ? AND active = 1 AND in_price_table = 1 AND code NOT IN ('PENSION','MATRICULA','DIAS')", [$code]);
+        if (!$ok) throw HttpError::validation(['concept' => 'Ese concepto no se puede cobrar de forma masiva.']);
+        return $code;
+    }
 
-    /** ?year=&concept=UTILES|CLAUSURA → how many active students of the year don't have that charge yet. */
+    /** ?year=&concept=CODE → how many active students of the year don't have that charge yet. */
     public function conceptChargesPending(Request $req): array
     {
         $this->staff($req, 'pagos');
-        $code = (string) $req->query('concept', '');
-        if (!in_array($code, self::BULK_CONCEPTS, true)) throw HttpError::validation(['concept' => 'Concepto no válido.']);
-        return $this->billing()->conceptChargesPending($this->year($req), $code);
+        return $this->billing()->conceptChargesPending($this->year($req), $this->bulkConcept((string) $req->query('concept', '')));
     }
 
     /** {year, concept, dueOn}: charges it to every active student of the year that doesn't have it yet. */
@@ -389,10 +407,49 @@ final class BillingController extends Controller
         $actor = $this->staffWrite($req, 'pagos');
         $v = Validate::of($req);
         $year = $v->int('year', 2000, 2100, true);
-        $code = $v->oneOf('concept', self::BULK_CONCEPTS, null, true);
+        $code = $v->str('concept', 24, true);
         $dueOn = $v->date('dueOn', true);
         $v->check();
-        return ['created' => $this->billing()->chargeConceptToEnrolled($year, $code, $dueOn, $actor)];
+        return ['created' => $this->billing()->chargeConceptToEnrolled($year, $this->bulkConcept((string) $code), $dueOn, $actor)];
+    }
+
+    /**
+     * {name, onEnrollment}: a new yearly concept of the price table (e.g. "Agenda", "Uniforme"). onEnrollment =
+     * charged by itself when the student is enrolled; otherwise it is charged with "Cobrar a los matriculados".
+     */
+    public function createConcept(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'ajustes', 'pagos');
+        $v = Validate::of($req);
+        $name = $v->str('name', 80, true, 'El nombre');
+        $onEnrollment = $v->bool('onEnrollment', false);
+        $v->check();
+        $base = strtoupper(preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', (string) $name) ?: 'COBRO'));
+        $base = substr(trim($base, '_') ?: 'COBRO', 0, 18);
+        $code = $base;
+        for ($i = 2; $this->db()->value('SELECT 1 FROM billing_concepts WHERE code = ?', [$code]); $i++) $code = substr($base, 0, 16) . "_$i";
+        $sort = (int) $this->db()->value('SELECT COALESCE(MAX(sort), 0) + 1 FROM billing_concepts WHERE in_price_table = 1 AND sort < 9');
+        $id = $this->db()->insert('billing_concepts', ['code' => $code, 'name' => $name, 'frequency' => 'anual', 'apply_on_enrollment' => $onEnrollment ? 1 : 0, 'late_fee_applies' => 0, 'online_payable' => 1, 'in_price_table' => 1, 'sort' => min(8, $sort), 'active' => 1]);
+        $this->audit()->log($actor, 'concept.create', 'billing_concept', $id, compact('name', 'code', 'onEnrollment'));
+        return ['id' => (int) $id, 'code' => $code];
+    }
+
+    /** {name?, onEnrollment?, inPriceTable?}: the pension and the matrícula keep how they are charged. */
+    public function updateConcept(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'ajustes', 'pagos');
+        $id = $req->intParam('id');
+        $c = $this->db()->one('SELECT id, code FROM billing_concepts WHERE id = ?', [$id]) ?? throw HttpError::notFound();
+        $v = Validate::of($req);
+        $row = [];
+        if ($v->has('name')) $row['name'] = $v->str('name', 80, true, 'El nombre');
+        $fixed = in_array($c['code'], ['PENSION', 'MATRICULA', 'DIAS', 'SALDO_ANTERIOR', 'NOTA_DEBITO', 'OTRO'], true);
+        if (!$fixed && $v->has('onEnrollment')) $row['apply_on_enrollment'] = $v->bool('onEnrollment') ? 1 : 0;
+        if (!$fixed && $v->has('inPriceTable')) $row['in_price_table'] = $v->bool('inPriceTable') ? 1 : 0;
+        $v->check();
+        if ($row) $this->db()->update('billing_concepts', $row, ['id' => $id]);
+        $this->audit()->log($actor, 'concept.update', 'billing_concept', $id, $row);
+        return [];
     }
 
     /** Price table of a year: concept × grade level. */

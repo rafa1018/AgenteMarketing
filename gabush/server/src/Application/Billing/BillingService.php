@@ -116,8 +116,8 @@ final class BillingService
         if (!$rows) return [];
         $ids = implode(',', array_map(static fn($r) => (int) $r['id'], $rows));
         $adj = [];
-        foreach ($this->db->all("SELECT id, charge_id, kind, amount, reason, days_late AS daysLate, waived, created_by AS createdBy, created_at AS createdAt FROM charge_adjustments WHERE charge_id IN ($ids) ORDER BY id") as $a) {
-            $adj[(int) $a['charge_id']][] = ['id' => (int) $a['id'], 'kind' => $a['kind'], 'amount' => (int) $a['amount'], 'reason' => $a['reason'], 'daysLate' => $a['daysLate'] !== null ? (int) $a['daysLate'] : null, 'waived' => (bool) $a['waived'], 'createdBy' => $a['createdBy'], 'createdAt' => $a['createdAt']];
+        foreach ($this->db->all("SELECT id, charge_id, kind, amount, reason, valid_until AS validUntil, days_late AS daysLate, waived, created_by AS createdBy, created_at AS createdAt FROM charge_adjustments WHERE charge_id IN ($ids) ORDER BY id") as $a) {
+            $adj[(int) $a['charge_id']][] = ['id' => (int) $a['id'], 'kind' => $a['kind'], 'amount' => (int) $a['amount'], 'reason' => $a['reason'], 'validUntil' => $a['validUntil'], 'daysLate' => $a['daysLate'] !== null ? (int) $a['daysLate'] : null, 'waived' => (bool) $a['waived'], 'createdBy' => $a['createdBy'], 'createdAt' => $a['createdAt']];
         }
         $paid = [];
         foreach ($this->db->all("SELECT pa.charge_id, SUM(pa.amount) AS paid FROM payment_allocations pa JOIN payments p ON p.id = pa.payment_id WHERE p.status = 'aprobado' AND pa.charge_id IN ($ids) GROUP BY pa.charge_id") as $p) {
@@ -548,15 +548,78 @@ final class BillingService
     }
 
     /** Discount or surcharge on a charge. */
-    public function addAdjustment(int $chargeId, string $kind, int $amount, string $reason, Actor $actor): void
+    /** $validUntil (discounts only): it counts only if the charge is fully paid by that date ("pronto pago"). */
+    public function addAdjustment(int $chargeId, string $kind, int $amount, string $reason, Actor $actor, ?string $validUntil = null): void
     {
         if (!in_array($kind, ['descuento', 'recargo'], true)) throw new DomainError('kind', 'Tipo de ajuste inválido.');
         if ($amount <= 0) throw new DomainError('amount', 'El valor debe ser mayor que cero.');
-        $this->db->transaction(function () use ($chargeId, $kind, $amount, $reason, $actor): void {
-            $this->db->insert('charge_adjustments', ['charge_id' => $chargeId, 'kind' => $kind, 'amount' => $amount, 'reason' => $reason, 'created_by' => $actor->label()]);
+        if ($validUntil !== null && $kind !== 'descuento') $validUntil = null;
+        if ($validUntil !== null && $validUntil < $this->today->format('Y-m-d')) throw new DomainError('valid_until', 'La fecha límite del descuento ya pasó.');
+        $this->db->transaction(function () use ($chargeId, $kind, $amount, $reason, $actor, $validUntil): void {
+            $this->db->insert('charge_adjustments', ['charge_id' => $chargeId, 'kind' => $kind, 'amount' => $amount, 'reason' => $reason, 'valid_until' => $validUntil, 'created_by' => $actor->label()]);
             $this->refreshStatus($chargeId);
         });
-        $this->audit->log($actor, "charge.$kind", 'charge', $chargeId, compact('amount', 'reason'));
+        $this->audit->log($actor, "charge.$kind", 'charge', $chargeId, compact('amount', 'reason', 'validUntil'));
+    }
+
+    /**
+     * Pronto pago of a year's matrícula: "X % off if paid by <date>". While the date has not passed, every
+     * matrícula of that year still unpaid gets the discount (once; legacy_ref "pronto:<charge>", valid_until =
+     * the date). @return int matrículas discounted
+     */
+    public function applyEarlyDiscounts(Actor $actor, ?int $year = null): int
+    {
+        $today = $this->today->format('Y-m-d');
+        $years = $this->db->all(
+            'SELECT id, early_discount_pct, early_discount_until FROM academic_years WHERE early_discount_pct > 0 AND early_discount_until >= ?' . ($year ? ' AND id = ?' : ''),
+            $year ? [$today, $year] : [$today],
+        );
+        $done = 0;
+        foreach ($years as $y) {
+            $pct = (float) $y['early_discount_pct'];
+            $until = (string) $y['early_discount_until'];
+            $label = rtrim(rtrim(number_format($pct, 2, ',', ''), '0'), ',');
+            $date = (new DateTimeImmutable($until))->format('d/m/Y');
+            foreach ($this->db->all(
+                "SELECT c.id, c.amount FROM charges c JOIN billing_concepts bc ON bc.id = c.concept_id AND bc.code = 'MATRICULA'
+                 WHERE c.year_id = ? AND c.status = 'abierto' AND NOT EXISTS (SELECT 1 FROM charge_adjustments a WHERE a.legacy_ref = CONCAT('pronto:', c.id))",
+                [$y['id']],
+            ) as $c) {
+                $amount = (int) round((int) $c['amount'] * $pct / 100);
+                if ($amount <= 0) continue;
+                $this->db->transaction(function () use ($c, $amount, $label, $date, $until, $actor): void {
+                    $this->db->insert('charge_adjustments', [
+                        'charge_id' => $c['id'], 'kind' => 'descuento', 'amount' => $amount, 'valid_until' => $until,
+                        'reason' => "Pronto pago $label% (si paga hasta el $date)", 'created_by' => $actor->label(), 'legacy_ref' => 'pronto:' . $c['id'],
+                    ]);
+                    $this->refreshStatus((int) $c['id']);
+                });
+                $done++;
+            }
+        }
+        if ($done) $this->audit->log($actor, 'charges.early_discount', 'academic_year', $year, ['charges' => $done]);
+        return $done;
+    }
+
+    /**
+     * Conditional discounts whose date passed while the charge is still unpaid are removed (the family pays the
+     * full value). Charges already paid keep them. @return int discounts removed
+     */
+    public function expireConditionalDiscounts(Actor $actor, ?int $studentId = null, ?string $asOf = null): int
+    {
+        $rows = $this->db->all(
+            "SELECT a.id, a.charge_id, a.amount, a.reason FROM charge_adjustments a JOIN charges c ON c.id = a.charge_id
+             WHERE a.kind = 'descuento' AND a.valid_until IS NOT NULL AND a.valid_until < ? AND c.status = 'abierto'" . ($studentId ? ' AND c.student_id = ?' : ''),
+            $studentId ? [$asOf ?? $this->today->format('Y-m-d'), $studentId] : [$asOf ?? $this->today->format('Y-m-d')],
+        );
+        foreach ($rows as $r) {
+            $this->db->transaction(function () use ($r): void {
+                $this->db->run('DELETE FROM charge_adjustments WHERE id = ?', [$r['id']]);
+                $this->refreshStatus((int) $r['charge_id']);
+            });
+            $this->audit->log($actor, 'charge.discount_expired', 'charge', (int) $r['charge_id'], ['amount' => (int) $r['amount'], 'reason' => $r['reason']]);
+        }
+        return count($rows);
     }
 
     public function deleteAdjustment(int $adjustmentId, Actor $actor): void
@@ -588,6 +651,8 @@ final class BillingService
      */
     public function registerPayment(int $studentId, int $amount, string $paidOn, string $method, ?string $reference, ?string $notes, ?array $chargeIds, Actor $actor, string $source = 'manual', ?int $checkoutId = null): int
     {
+        // "pronto pago" discounts whose date had passed on the payment day don't apply (the daily job may not have run)
+        $this->expireConditionalDiscounts(Actor::system('pronto-pago'), $studentId, $paidOn);
         $id = $this->db->transaction(function () use ($studentId, $amount, $paidOn, $method, $reference, $notes, $chargeIds, $actor, $source, $checkoutId): int {
             $this->db->run('SELECT id FROM students WHERE id = ? FOR UPDATE', [$studentId]); // one payment at a time per student
             $open = array_map(static fn($c) => ['id' => $c['id'], 'balance' => $c['balance'], 'due_on' => $c['dueOn']], $this->charges($studentId, null, true));

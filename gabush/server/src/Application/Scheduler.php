@@ -44,6 +44,8 @@ final class Scheduler
         if (($state['lateFeesDay'] ?? '') !== $now->format('Y-m-d')) {
             $done['lateFees'] = $billing->applyLateFees($system);
             $done['enrollmentExtra'] = $billing->applyEnrollmentLateFees($system);
+            $done['discountsExpired'] = $billing->expireConditionalDiscounts($system);
+            $done['earlyDiscounts'] = $billing->applyEarlyDiscounts($system);
             $state['lateFeesDay'] = $now->format('Y-m-d');
         }
 

@@ -2,7 +2,7 @@ import { Ban, FilePlus2, HandCoins, Loader2, Percent, Printer } from 'lucide-rea
 import { useEffect, useMemo, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { useMutation } from '@/shared/useQuery'
-import { money, parseMoney, todayISO } from '@/shared/format'
+import { date, money, parseMoney, todayISO } from '@/shared/format'
 import { toast } from '../../store'
 import { api2, useSetup } from '../../v2/api'
 import { ErrorBox, Field, inputCls } from '../../v2/kit'
@@ -176,11 +176,17 @@ export function ChargeFormModal({ studentId, open, onClose, onDone }: { studentI
 
 export function AdjustModal({ charge, onClose, onDone, defaultReason = '' }: { charge: Charge | null; onClose: () => void; onDone: () => void; defaultReason?: string }) {
   const [kind, setKind] = useState<'descuento' | 'recargo'>('descuento')
+  const [mode, setMode] = useState<'valor' | 'porcentaje'>('valor')
   const [amount, setAmount] = useState('')
+  const [pct, setPct] = useState('')
+  const [until, setUntil] = useState('')
   const [reason, setReason] = useState('')
   const m = useMutation()
   useEffect(() => {
     setAmount('')
+    setPct('')
+    setUntil('')
+    setMode('valor')
     setReason(defaultReason) // discounts start with "Estudiante antiguo (ingresó en …)", editable
     setKind('descuento')
   }, [charge, defaultReason])
@@ -188,8 +194,12 @@ export function AdjustModal({ charge, onClose, onDone, defaultReason = '' }: { c
   useEffect(() => {
     setReason((r) => (kind === 'recargo' && r === defaultReason ? '' : kind === 'descuento' && r === '' ? defaultReason : r))
   }, [kind, defaultReason])
+  // % of the charge's value (before other discounts / surcharges)
+  const base = charge?.amount ?? 0
+  const pctNum = Math.max(0, Math.min(100, Number(pct.replace(',', '.')) || 0))
+  const value = mode === 'porcentaje' ? Math.round((base * pctNum) / 100) : parseMoney(amount)
   const save = async () => {
-    const r = await m.run(() => api2.post(`/billing/charges/${charge!.id}/adjustments`, { kind, amount: parseMoney(amount), reason }))
+    const r = await m.run(() => api2.post(`/billing/charges/${charge!.id}/adjustments`, { kind, amount: value, reason, validUntil: kind === 'descuento' && until ? until : null }))
     if (r) {
       toast(kind === 'descuento' ? 'Descuento aplicado' : 'Recargo aplicado')
       onDone()
@@ -209,9 +219,35 @@ export function AdjustModal({ charge, onClose, onDone, defaultReason = '' }: { c
             </button>
           ))}
         </div>
-        <Field label="Valor" error={m.fields.amount}>
-          <input value={amount ? Number(parseMoney(amount)).toLocaleString('es-CO') : ''} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" className={inputCls(m.fields.amount)} />
-        </Field>
+        <div className="flex gap-1 rounded-xl bg-paper p-1">
+          {([['valor', 'Valor en $'], ['porcentaje', 'Porcentaje %']] as const).map(([k, l]) => (
+            <button key={k} type="button" onClick={() => setMode(k)} className={`flex-1 rounded-lg py-1.5 text-[13px] font-semibold ${mode === k ? 'bg-white text-ink shadow-sm' : 'text-muted'}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+        {mode === 'valor' ? (
+          <Field label="Valor" error={m.fields.amount}>
+            <input value={amount ? Number(parseMoney(amount)).toLocaleString('es-CO') : ''} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" className={inputCls(m.fields.amount)} />
+          </Field>
+        ) : (
+          <Field label="Porcentaje" error={m.fields.amount} hint={`Del valor del cobro (${money(base)}): ${kind === 'descuento' ? '−' : '+'} ${money(value)}`}>
+            <div className="relative">
+              <input value={pct} onChange={(e) => setPct(e.target.value)} inputMode="decimal" placeholder="10" className={inputCls(m.fields.amount) + ' pr-9'} />
+              <span className="absolute inset-y-0 right-3 grid place-items-center font-semibold text-muted">%</span>
+            </div>
+          </Field>
+        )}
+        {kind === 'descuento' && (
+          <Field label="Solo si paga hasta (opcional)" hint={until ? `Pronto pago: vale si el cobro queda pagado a más tardar el ${date(until)}. Después de esa fecha, si sigue pendiente, el descuento se quita solo.` : 'Vacío = el descuento vale siempre.'}>
+            <input type="date" value={until} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setUntil(e.target.value)} className={inputCls()} />
+          </Field>
+        )}
+        {value > 0 && (
+          <p className="rounded-xl bg-paper px-4 py-2.5 text-[14px] text-ink">
+            {kind === 'descuento' ? 'Descuento' : 'Recargo'}: <b>{money(value)}</b> · el cobro queda en <b>{money(Math.max(0, (charge?.net ?? base) + (kind === 'descuento' ? -value : value)))}</b>
+          </p>
+        )}
         <Field label="Motivo" error={m.fields.reason}>
           <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={kind === 'descuento' ? 'Hermanos, pronto pago…' : 'Cheque devuelto…'} className={inputCls(m.fields.reason)} />
         </Field>

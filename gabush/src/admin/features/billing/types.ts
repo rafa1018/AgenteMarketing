@@ -1,4 +1,5 @@
-export interface Adjustment { id: number; kind: 'descuento' | 'recargo' | 'mora' | 'traslado'; amount: number; reason: string | null; daysLate: number | null; waived: boolean; createdBy: string | null; createdAt: string }
+/** validUntil: a discount that counts only if the charge is paid by that date ("pronto pago") */
+export interface Adjustment { id: number; kind: 'descuento' | 'recargo' | 'mora' | 'traslado'; amount: number; reason: string | null; validUntil?: string | null; daysLate: number | null; waived: boolean; createdBy: string | null; createdAt: string }
 export interface Charge {
   id: number
   description: string

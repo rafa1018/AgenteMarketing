@@ -1,4 +1,4 @@
-import { CalendarPlus, Download, Loader2, MessageCircle, Printer, Save, Wallet } from 'lucide-react'
+import { CalendarPlus, Download, Loader2, MessageCircle, Plus, Printer, Save, Wallet } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@/shared/useQuery'
 import { date, MONTH_NAMES, money, monthLabel, parseMoney, todayISO } from '@/shared/format'
@@ -259,7 +259,54 @@ function PaymentsReport() {
  * Charge a yearly concept (útiles, clausura) to every active student of the year that doesn't have it yet,
  * at the price of their grade, with the chosen due date.
  */
-function ConceptCharger({ year, code, label, defaultDue, hint }: { year: number; code: 'UTILES' | 'CLAUSURA'; label: string; defaultDue: string; hint: string }) {
+/**
+ * The concepts of the price table: which ones are charged by themselves when enrolling, which ones show in the
+ * table, and new ones (App, Seguro escolar, Fotos, Uniforme…). The matrícula and the pension are fixed.
+ */
+function ConceptsManager() {
+  const { setup, reload } = useSetup()
+  const [name, setName] = useState('')
+  const [open, setOpen] = useState(false)
+  const m = useMutation()
+  const editable = (setup?.concepts ?? []).filter((c) => c.active && !['PENSION', 'MATRICULA', 'DIAS', 'SALDO_ANTERIOR', 'NOTA_DEBITO', 'OTRO'].includes(c.code))
+  const update = async (id: number, body: Record<string, unknown>) => {
+    if (await m.run(() => api2.put(`/billing/concepts/${id}`, body))) reload()
+  }
+  const create = async () => {
+    if (await m.run(() => api2.post('/billing/concepts', { name: name.trim(), onEnrollment: false }))) {
+      toast(`«${name.trim()}» agregado a la tabla de precios`)
+      setName('')
+      reload()
+    }
+  }
+  return (
+    <details open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)} className="rounded-2xl bg-paper p-4">
+      <summary className="cursor-pointer font-semibold text-ink">Conceptos de cobro (agregar App, Seguro escolar, Fotos u otros)</summary>
+      <ul className="mt-3 divide-y divide-line rounded-xl bg-white ring-1 ring-line">
+        {editable.map((c) => (
+          <li key={c.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5 text-[14px]">
+            <span className="min-w-0 flex-1 font-semibold text-ink">{c.name}</span>
+            <label className="flex items-center gap-1.5 text-muted">
+              <input type="checkbox" checked={Boolean(c.inPriceTable)} disabled={m.busy} onChange={(e) => update(c.id, { inPriceTable: e.target.checked })} className="size-4 accent-[#3a36a8]" /> En la tabla
+            </label>
+            <label className="flex items-center gap-1.5 text-muted" title="Se genera solo al tocar «Matricular (activar)», con la fecha límite de la matrícula">
+              <input type="checkbox" checked={Boolean(c.onEnrollment)} disabled={m.busy} onChange={(e) => update(c.id, { onEnrollment: e.target.checked })} className="size-4 accent-[#3a36a8]" /> Cobrar al matricular
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="Nuevo concepto (ej. Uniforme, Agenda…)" className={inputCls() + ' min-w-0 flex-1'} />
+        <button type="button" disabled={m.busy || name.trim().length < 2} onClick={create} className="btn btn-primary !min-h-[46px] !text-sm disabled:opacity-50">
+          <Plus size={16} /> Agregar
+        </button>
+      </div>
+      {m.message && <ErrorBox message={m.message} />}
+    </details>
+  )
+}
+
+function ConceptCharger({ year, code, label, defaultDue, hint }: { year: number; code: string; label: string; defaultDue: string; hint: string }) {
   const { data, reload } = useQuery(`concept-pending:${year}:${code}`, () => api2.get<{ missing: number; withoutPrice: number; concept: string | null }>('/billing/concept-charges' + qs({ year, concept: code })))
   const [due, setDue] = useState(defaultDue)
   const m = useMutation()
@@ -303,10 +350,12 @@ type LateFee = { enabled: boolean; amountPerDay: number; dueDay: number; graceDa
 
 function BillingConfig() {
   const { setup, year } = useSetup()
-  const settings = useQuery(year ? `billing-settings:${year}` : null, () => api2.get<{ lateFee: LateFee; pensionMonths: number[]; enrollmentDueDays: number; enrollmentDueOn: string | null; enrollmentLateFee: number }>('/billing/settings' + qs({ year })))
+  const settings = useQuery(year ? `billing-settings:${year}` : null, () => api2.get<{ lateFee: LateFee; pensionMonths: number[]; enrollmentDueDays: number; enrollmentDueOn: string | null; enrollmentLateFee: number; earlyDiscountPct: number; earlyDiscountUntil: string | null }>('/billing/settings' + qs({ year })))
   const [dueDays, setDueDays] = useState(0)
   const [dueOn, setDueOn] = useState('')
   const [extra, setExtra] = useState('')
+  const [earlyPct, setEarlyPct] = useState('')
+  const [earlyUntil, setEarlyUntil] = useState('')
   const prices = useQuery(year ? `prices:${year}` : null, () => api2.get<{ prices: { conceptId: number; gradeLevelId: number | null; amount: number }[] }>('/billing/prices' + qs({ year })))
   const [lf, setLf] = useState<LateFee | null>(null)
   const [months, setMonths] = useState<number[]>([])
@@ -320,20 +369,36 @@ function BillingConfig() {
       setDueDays(settings.data.enrollmentDueDays ?? 0)
       setDueOn(settings.data.enrollmentDueOn ?? '')
       setExtra(settings.data.enrollmentLateFee ? String(settings.data.enrollmentLateFee) : '')
+      setEarlyPct(settings.data.earlyDiscountPct ? String(settings.data.earlyDiscountPct).replace('.', ',') : '')
+      setEarlyUntil(settings.data.earlyDiscountUntil ?? '')
     }
   }, [settings.data])
   useEffect(() => {
     setGrid(Object.fromEntries((prices.data?.prices ?? []).map((p) => [`${p.conceptId}:${p.gradeLevelId ?? ''}`, String(p.amount)])))
   }, [prices.data])
-  const concepts = (setup?.concepts ?? []).filter((c) => c.active && ['MATRICULA', 'UTILES', 'PENSION', 'CLAUSURA'].includes(c.code)).sort((a, b) => ['MATRICULA', 'UTILES', 'PENSION', 'CLAUSURA'].indexOf(a.code) - ['MATRICULA', 'UTILES', 'PENSION', 'CLAUSURA'].indexOf(b.code))
+  // columns of the price table: the concepts marked "in the price table", in their order
+  const concepts = (setup?.concepts ?? []).filter((c) => c.active && c.inPriceTable).sort((a, b) => a.sort - b.sort || a.id - b.id)
+  // the yearly ones that can be charged to every enrolled student at once (not the matrícula nor the pension)
+  const bulk = concepts.filter((c) => !['MATRICULA', 'PENSION'].includes(c.code))
   const grades = setup?.gradeLevels.filter((g) => g.active) ?? []
 
   const saveSettings = async () => {
-    const r = await m.run(() => api2.put<{ movedEnrollmentCharges?: number; extraEnrollmentCharges?: number }>('/billing/settings' + qs({ year }), { lateFee: lf, pensionMonths: months, enrollmentDueDays: dueDays, enrollmentDueOn: dueOn || null, enrollmentLateFee: extra ? parseMoney(extra) : 0 }))
+    const r = await m.run(() =>
+      api2.put<{ movedEnrollmentCharges?: number; extraEnrollmentCharges?: number; earlyDiscountCharges?: number }>('/billing/settings' + qs({ year }), {
+        lateFee: lf,
+        pensionMonths: months,
+        enrollmentDueDays: dueDays,
+        enrollmentDueOn: dueOn || null,
+        enrollmentLateFee: extra ? parseMoney(extra) : 0,
+        earlyDiscountPct: earlyPct ? Number(earlyPct.replace(',', '.')) || 0 : 0,
+        earlyDiscountUntil: earlyUntil || null,
+      }),
+    )
     if (r) {
       const parts = ['Configuración guardada']
       if (r.movedEnrollmentCharges) parts.push(`${r.movedEnrollmentCharges} matrículas pendientes ahora vencen el ${date(dueOn)}`)
       if (r.extraEnrollmentCharges) parts.push(`${r.extraEnrollmentCharges} matrículas sin pagar recibieron la matrícula extraordinaria`)
+      if (r.earlyDiscountCharges) parts.push(`${r.earlyDiscountCharges} matrículas recibieron el descuento de pronto pago`)
       toast(parts.join(' · '))
     }
   }
@@ -383,15 +448,27 @@ function BillingConfig() {
           </table>
         </div>
         <p className="text-[13px] text-muted">
-          <b>Matrícula</b> y <b>útiles escolares</b> se cobran solos al tocar «Matricular (activar)», con la misma fecha límite. La <b>pensión</b> se genera cada mes. La <b>clausura</b> se cobra cuando tú decidas, con el botón de abajo.
+          La <b>matrícula</b> y los cobros marcados «al matricular» se generan solos al tocar «Matricular (activar)», con la misma fecha límite. La <b>pensión</b> se genera cada mes. Los demás se cobran a todos los matriculados con los botones de abajo (uno por concepto), sin tener que hacerlo estudiante por estudiante.
         </p>
         <button type="button" disabled={m.busy} onClick={savePrices} className="btn btn-primary !text-sm">
           <Save size={17} /> Guardar precios
         </button>
-        {year && (
-          <div className="grid gap-3 border-t border-line pt-4 lg:grid-cols-2">
-            <ConceptCharger year={year} code="UTILES" label="Útiles escolares" defaultDue={settings.data?.enrollmentDueOn ?? ''} hint="Para los que ya estaban matriculados antes de poner el precio de los útiles." />
-            <ConceptCharger year={year} code="CLAUSURA" label="Clausura" defaultDue="" hint="Cuando tengas el valor de la clausura, ponlo en la tabla, guarda y cóbralo aquí a todos los matriculados." />
+        <ConceptsManager />
+        {year && bulk.length > 0 && (
+          <div className="space-y-2 border-t border-line pt-4">
+            <p className="font-semibold text-ink">Cobrar a los ya matriculados de {year}</p>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {bulk.map((c) => (
+                <ConceptCharger
+                  key={c.id}
+                  year={year}
+                  code={c.code}
+                  label={c.name}
+                  defaultDue={c.onEnrollment ? settings.data?.enrollmentDueOn ?? '' : ''}
+                  hint={c.onEnrollment ? 'Se cobra solo al matricular; esto es para los que se matricularon antes de poner su precio.' : 'Pon el valor en la tabla, guarda y cóbralo aquí a todos los matriculados de una vez.'}
+                />
+              ))}
+            </div>
           </div>
         )}
       </section>
@@ -462,6 +539,22 @@ function BillingConfig() {
           <Field label="Plazo si se matricula después de esa fecha (días)" hint={dueDays ? `Vence ${dueDays} días después de matricular.` : 'Con 0, vence el mismo día en que se matricula.'}>
             <input type="number" min={0} max={120} value={dueDays} onChange={(e) => setDueDays(Math.max(0, Number(e.target.value) || 0))} className={inputCls()} />
           </Field>
+        </div>
+        <div className="grid gap-3 rounded-2xl bg-[#e9f4ee] p-4 sm:grid-cols-[160px_220px_1fr]">
+          <Field label="Pronto pago (%)">
+            <div className="relative">
+              <input value={earlyPct} onChange={(e) => setEarlyPct(e.target.value)} inputMode="decimal" placeholder="Ej. 10" className={inputCls() + ' pr-9'} />
+              <span className="absolute inset-y-0 right-3 grid place-items-center font-semibold text-muted">%</span>
+            </div>
+          </Field>
+          <Field label="Si paga la matrícula hasta">
+            <input type="date" value={earlyUntil} onChange={(e) => setEarlyUntil(e.target.value)} className={inputCls()} />
+          </Field>
+          <p className="self-center text-[13px] text-leaf">
+            {earlyPct && earlyUntil
+              ? `Toda matrícula ${year} sin pagar recibe ${earlyPct}% de descuento si se paga completa hasta el ${date(earlyUntil)}. Si a esa fecha sigue pendiente, el descuento se quita solo y queda el valor completo.`
+              : 'Descuento por pagar la matrícula antes de una fecha. Vacío = sin pronto pago.'}
+          </p>
         </div>
         <div className="rounded-xl bg-[#eaf3fa] px-4 py-3 text-[14px] text-[#185a8a]">
           <p className="font-semibold">Así se cobra en {year}:</p>
