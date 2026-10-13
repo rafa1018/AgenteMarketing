@@ -36,6 +36,7 @@ const must = [
   'images/opt/logo-480.webp',
   'images/opt/leon-asomado-400.webp',
   'images/opt/phone-17.webp',
+  'images/opt/leon-cumple-email.png',
   'images/feed/01-480.webp',
   'api/contact.php',
   'api/visits.php',

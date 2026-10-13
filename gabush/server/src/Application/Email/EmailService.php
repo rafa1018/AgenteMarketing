@@ -25,6 +25,7 @@ final class EmailService
         'password_reset' => ['Recuperar contraseña', 'Cambia tu contraseña del portal · {{jardin}}', '<p>Hola,</p><p>Pediste cambiar la contraseña del portal de <b>{{estudiante}}</b>. Este enlace sirve por 1 hora:</p><p>{{boton}}</p><p>Si no lo pediste, ignora este mensaje.</p>'],
         'staff_online_payment' => ['Aviso al jardín: pago en línea', 'Pago en línea recibido: {{estudiante}} · {{valor}}', '<p>Entró un pago en línea:</p><p><b>{{estudiante}}</b> ({{codigo}}) pagó <b>{{valor}}</b> el {{fecha}} con {{pasarela}}.</p><p>Se aplicó a:</p>{{detalle}}<p>Comprobante No. <b>{{comprobante}}</b>. Ya quedó registrado en la cartera; no tienes que hacer nada.</p><p>{{boton}}</p>'],
         'document_rejected' => ['Documento por corregir', 'Hay un documento por corregir de {{estudiante}}', '<p>Hola {{acudiente}},</p><p>El documento <b>{{documento}}</b> de {{estudiante}} necesita corrección:</p><p><i>{{nota}}</i></p><p>Puedes subirlo de nuevo desde el portal:</p><p>{{boton}}</p>'],
+        'birthday' => ['Feliz cumpleaños', '🎂 ¡Feliz cumpleaños, {{nombre}}! · {{jardin}}', '<div style="text-align:center">{{leon}}<p style="margin:10px 0 4px;font-size:28px;font-weight:bold;color:#e5197e">¡Feliz cumpleaños, {{nombre}}! 🎉</p><p style="margin:0 0 18px;font-size:17px;color:#23206b">Hoy cumple <b>{{edad}}</b> y en Gabush lo celebramos contigo.</p></div><p>Querida familia de {{estudiante}}:</p><p>Que este nuevo año esté lleno de juegos, colores, canciones y muchas sonrisas. Gracias por dejarnos ser parte de su crecimiento: ¡es un regalo verle aprender y crecer cada día!</p><p style="text-align:center;font-size:26px;margin:16px 0">🎈 🎂 🎁 🎈</p><p>Con mucho cariño,<br><b>Todo el equipo de {{jardin}}</b> y el León Gabush 🦁</p>'],
     ];
 
     public function __construct(private readonly Database $db, private readonly Settings $settings, private readonly string $baseUrl)
@@ -101,7 +102,12 @@ final class EmailService
         if (!$t || !$t['active']) return null;
         $school = (array) $this->settings->get('school', []);
         $vars += ['jardin' => $school['name'] ?? 'Jardín Infantil Gabush'];
-        $raw = ['detalle' => (string) ($vars['detalle_html'] ?? ''), 'boton' => isset($vars['enlace']) ? self::button((string) $vars['enlace'], (string) ($vars['boton_texto'] ?? 'Abrir el portal')) : ''];
+        $raw = [
+            'detalle' => (string) ($vars['detalle_html'] ?? ''),
+            'boton' => isset($vars['enlace']) ? self::button((string) $vars['enlace'], (string) ($vars['boton_texto'] ?? 'Abrir el portal')) : '',
+            // the Gabush lion celebrating (PNG: every mail app shows it)
+            'leon' => '<img src="' . htmlspecialchars($this->baseUrl . '/images/opt/leon-cumple-email.png', ENT_QUOTES) . '" width="200" alt="El León Gabush celebrando" style="display:block;margin:0 auto;max-width:200px;height:auto">',
+        ];
         $fill = static function (string $text, bool $html) use ($vars, $raw): string {
             return preg_replace_callback('/\{\{\s*(\w+)\s*\}\}/u', static function ($m) use ($vars, $raw, $html) {
                 $k = $m[1];

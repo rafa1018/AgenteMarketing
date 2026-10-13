@@ -19,6 +19,49 @@ interface Home {
   documentsPending: number
 }
 
+/** Days since this year's birthday (0 = today); 29 Feb counts on 28 Feb in other years. null = not this week. */
+function birthdayDaysAgo(birthDate: string | null): { daysAgo: number; age: number } | null {
+  if (!birthDate) return null
+  const [by, bm, bd] = birthDate.slice(0, 10).split('-').map(Number)
+  if (!by || !bm || !bd) return null
+  const now = new Date()
+  const y = now.getFullYear()
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+  const day = bm === 2 && bd === 29 && !leap ? 28 : bd
+  const today = new Date(y, now.getMonth(), now.getDate())
+  const daysAgo = Math.round((today.getTime() - new Date(y, bm - 1, day).getTime()) / 86_400_000)
+  // the birthday card stays the day itself and the next 2 days (for a weekend birthday)
+  return daysAgo >= 0 && daysAgo <= 2 && y - by >= 1 ? { daysAgo, age: y - by } : null
+}
+
+/** Happy-birthday card with the jumping lion and confetti, on the child's birthday (and the next 2 days). */
+function BirthdayCard({ firstName, birthDate }: { firstName: string; birthDate: string | null }) {
+  const b = birthdayDaysAgo(birthDate)
+  if (!b) return null
+  const name = firstName.trim().split(/\s+/)[0]
+  const colors = ['#e5197e', '#f8c21c', '#1fa3dd', '#5cb531', '#f26b1d', '#8e44c9']
+  return (
+    <div className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,#fff0f7_0%,#fff8e1_55%,#e6f6ff_100%)] p-5 shadow-[0_14px_34px_-22px_rgba(229,25,126,0.7)] ring-2 ring-pink/30">
+      {/* confetti */}
+      <span aria-hidden className="pointer-events-none absolute inset-0">
+        {Array.from({ length: 18 }, (_, i) => (
+          <i key={i} className="absolute block animate-float rounded-sm" style={{ left: `${(i * 53) % 100}%`, top: `${(i * 37) % 90}%`, width: 6 + (i % 3) * 2, height: 10 + (i % 2) * 4, background: colors[i % colors.length], transform: `rotate(${i * 29}deg)`, opacity: 0.75, animationDelay: `${-i * 0.4}s` }} />
+        ))}
+      </span>
+      <div className="relative flex items-center gap-4">
+        <img src="/images/characters/leon-saltando-240.webp" alt="" width={240} height={240} className="h-28 w-auto shrink-0 drop-shadow-[0_10px_14px_rgba(35,32,107,0.25)]" />
+        <div>
+          <p className="text-[12px] font-extrabold tracking-[0.14em] text-pink uppercase">{b.daysAgo === 0 ? 'Hoy es un día especial' : 'Seguimos celebrando'}</p>
+          <p className="font-serif text-[1.55rem] leading-tight font-semibold text-ink">¡Feliz cumpleaños, {name}! 🎂</p>
+          <p className="mt-1 text-[15px] text-text">
+            {b.daysAgo === 0 ? 'Hoy cumple' : 'Cumplió'} <b>{b.age} {b.age === 1 ? 'año' : 'años'}</b>. Toda la familia Gabush le desea un año lleno de juegos, abrazos y alegría. 🎉
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function HomePage() {
   const { me } = useSession()
   const q = useQuery('home', () => api.get<Home>('/portal/home'))
@@ -30,6 +73,8 @@ export function HomePage() {
   return (
     <div className="space-y-4">
       <h1 className="text-[1.7rem] leading-tight">¡Hola, familia de {me?.student.firstName}! 👋</h1>
+
+      {me && <BirthdayCard firstName={me.student.firstName} birthDate={me.student.birthDate} />}
 
       <a href="#/pagos" className="card block p-5">
         <div className="flex items-start justify-between gap-3">

@@ -164,4 +164,16 @@ final class Notifier
     {
         $this->toStudent($studentId, 'notas', "Boletín del $period disponible", 'Ya puedes ver los logros y el desempeño en el portal.', '/familia/#/notas');
     }
+
+    /** Birthday greeting: novedad + push to the family's phones, and the "Feliz cumpleaños" e-mail. */
+    public function birthday(int $studentId, int $age): void
+    {
+        $s = $this->db->one('SELECT first_name FROM students WHERE id = ?', [$studentId]);
+        if (!$s) return;
+        $first = trim(explode(' ', trim((string) $s['first_name']))[0]);
+        $years = $age . ' año' . ($age === 1 ? '' : 's');
+        $this->toStudent($studentId, 'cumpleanos', "🎂 ¡Feliz cumpleaños, $first!", "Hoy cumple $years. Toda la familia Gabush le desea un día lleno de juegos, abrazos y alegría. 🎉", '/familia/#/inicio');
+        $c = $this->contact($studentId);
+        if ($c) $this->email->queue('birthday', $c['email'], $c['name'], ['acudiente' => $c['name'], 'estudiante' => $c['student'], 'nombre' => $first, 'edad' => $years]);
+    }
 }

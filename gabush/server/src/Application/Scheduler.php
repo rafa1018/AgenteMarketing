@@ -17,6 +17,7 @@ use Gabush\Application\Shared\Settings;
  *   - monthly pensions of the current month (one per student and month)
  *   - late fees, once a day
  *   - payment reminders to families with overdue / soon-due charges, once a day after 8:00
+ *   - birthday greetings to the families (app + push + e-mail), once a day after 7:00
  *   - e-mail queue
  *   - abandoned online checkouts → expirado (after 3 h)
  *   - backup of the database + private files, once a day (weekly on Sundays)
@@ -52,6 +53,13 @@ final class Scheduler
             $state['remindersDay'] = $now->format('Y-m-d');
         }
 
+        // birthday greetings, once a day from 7:00 (before the e-mail queue is sent)
+        $bday = (array) $settings->get('birthdays', ['enabled' => true, 'hour' => 7]);
+        if (($bday['enabled'] ?? true) && (int) $now->format('G') >= (int) ($bday['hour'] ?? 7) && ($state['birthdaysDay'] ?? '') !== $now->format('Y-m-d')) {
+            $done['birthdays'] = $this->birthdays();
+            $state['birthdaysDay'] = $now->format('Y-m-d');
+        }
+
         $done['email'] = EmailService::from($this->app)->flush(40);
         $done['expiredCheckouts'] = CheckoutService::from($this->app)->expireAbandoned();
 
@@ -67,6 +75,31 @@ final class Scheduler
         }
         $settings->set('scheduler', $state + ['lastRun' => $now->format('c')]);
         return $done;
+    }
+
+    /**
+     * Students (active or pre-enrolled this year) whose birthday is today — 29 Feb ones on 28 Feb in other
+     * years — and were not greeted yet this year: novedad + push + "Feliz cumpleaños" e-mail. @return int greeted
+     */
+    private function birthdays(): int
+    {
+        $db = $this->app->db();
+        $today = $this->app->today();
+        $year = $this->app->service(Settings::class, static fn(App $a) => new Settings($a->db()))->activeYear();
+        $md = $today->format('m-d');
+        $leapFallback = $md === '02-28' && $today->format('L') === '0';
+        $rows = $db->all(
+            "SELECT s.id, s.birth_date FROM students s JOIN enrollments e ON e.student_id = s.id AND e.year_id = ? AND e.status IN ('activo','prematricula')
+             WHERE s.birth_date IS NOT NULL AND (DATE_FORMAT(s.birth_date, '%m-%d') = ?" . ($leapFallback ? " OR DATE_FORMAT(s.birth_date, '%m-%d') = '02-29'" : '') . ')
+               AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.student_id = s.id AND n.kind = \'cumpleanos\' AND YEAR(n.created_at) = ?)',
+            [$year, $md, (int) $today->format('Y')],
+        );
+        $n = Notifier::from($this->app);
+        foreach ($rows as $r) {
+            $age = (int) $today->format('Y') - (int) substr((string) $r['birth_date'], 0, 4);
+            if ($age >= 1) $n->birthday((int) $r['id'], $age);
+        }
+        return count($rows);
     }
 
     /** Families with overdue charges, or charges due within $daysBefore days. */
