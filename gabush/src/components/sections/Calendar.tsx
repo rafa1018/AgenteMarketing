@@ -100,7 +100,7 @@ function MonthGrid({ y, m, events, schedule, today, selected, admin, onSelect }:
                       // private events: diagonal stripes so they are told apart at a glance
                       const barStyle = { background: e.visibility === 'privado' ? `repeating-linear-gradient(135deg, ${e.color} 0 6px, ${tint(e.color, 0.7)} 6px 12px)` : e.color }
                       // admin: clicking the bar opens the editor for that event
-                      return admin ? (
+                      return admin && !e.readonly ? (
                         <button
                           key={e.id}
                           type="button"

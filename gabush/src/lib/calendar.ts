@@ -13,6 +13,10 @@ export interface CalEvent {
   color: string // '#rrggbb'
   start: string // 'YYYY-MM-DD'
   end: string
+  /** automatic events (students' birthdays): shown to the staff, not editable here */
+  readonly?: boolean
+  source?: string
+  studentId?: number
 }
 export type EventDraft = Omit<CalEvent, 'id'> & { id?: string }
 

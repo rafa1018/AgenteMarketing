@@ -36,7 +36,9 @@ export function EventItem({ e, admin = false, current = false }: { e: CalEvent; 
         </p>
         {e.description && <p className="mt-1 text-[15px] leading-snug break-words text-text/85">{e.description}</p>}
 
+        {admin && e.readonly && <p className="mt-1 text-[12px] text-muted">{t({ es: 'Automático: sale de la fecha de nacimiento en la ficha del estudiante.', en: "Automatic: from the student's birth date." })}</p>}
         {admin &&
+          !e.readonly &&
           (confirming ? (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
               <span className="font-medium text-berry">{t(ui.admin.confirmDelete)}</span>

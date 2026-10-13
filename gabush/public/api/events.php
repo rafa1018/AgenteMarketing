@@ -67,12 +67,63 @@ function colombia_holidays(int $y): array
     return array_map(fn($h) => ['date' => $h[0]->format('Y-m-d'), 'title' => $h[1]], $list);
 }
 
+/**
+ * Students' birthdays as private, read-only events (staff only): built on the fly from each active or
+ * pre-enrolled student's birth date, so they are always in sync (new students, corrected dates, withdrawals).
+ * Last year, this year and next year, so the calendar can be browsed around.
+ */
+function birthday_events(): array
+{
+    global $CONFIG;
+    if (empty($CONFIG['db'])) return [];
+    try {
+        require_once dirname(__DIR__, 2) . '/server/bootstrap.php';
+        $app = Gabush\App::boot();
+        $db = $app->db();
+        $year = (new Gabush\Application\Shared\Settings($db))->activeYear();
+        $rows = $db->all(
+            "SELECT s.id, s.first_name, s.last_name, s.birth_date, c.name AS course
+             FROM students s JOIN enrollments e ON e.student_id = s.id AND e.year_id = ? AND e.status IN ('activo','prematricula')
+             LEFT JOIN courses c ON c.id = e.course_id
+             WHERE s.birth_date IS NOT NULL",
+            [$year],
+        );
+    } catch (Throwable $e) {
+        error_log('[gabush birthdays] ' . $e->getMessage());
+        return [];
+    }
+    $out = [];
+    $now = (int) date('Y');
+    foreach ($rows as $r) {
+        [$by, $bm, $bd] = array_map('intval', explode('-', substr((string) $r['birth_date'], 0, 10)));
+        if (!$by || !$bm || !$bd) continue;
+        foreach ([$now - 1, $now, $now + 1] as $y) {
+            $age = $y - $by;
+            if ($age < 1) continue;
+            $d = checkdate($bm, $bd, $y) ? $bd : 28; // 29 Feb in a non-leap year → 28 Feb
+            $date = sprintf('%04d-%02d-%02d', $y, $bm, $d);
+            $name = trim($r['first_name'] . ' ' . $r['last_name']);
+            $out[] = [
+                'id' => "cumple-{$r['id']}-$y", 'title' => "🎂 $name", 'type' => 'evento', 'visibility' => 'privado',
+                'description' => 'Cumple ' . $age . ' año' . ($age === 1 ? '' : 's') . ($r['course'] ? ' · ' . $r['course'] : ''),
+                'color' => '#e5197e', 'start' => $date, 'end' => $date, 'source' => 'cumpleanos', 'readonly' => true, 'studentId' => (int) $r['id'],
+            ];
+        }
+    }
+    return $out;
+}
+
 if ($method === 'GET') {
     $data = is_file($file) ? (json_decode((string) file_get_contents($file), true) ?: []) : [];
-    $events = sort_events($data['events'] ?? []);
-    // private events ("privado") are only sent to the logged-in admin
-    if (!rp_is_admin()) $events = array_values(array_filter($events, fn($e) => ($e['visibility'] ?? 'publico') !== 'privado'));
-    rp_json(200, ['ok' => true, 'events' => $events]);
+    $events = $data['events'] ?? [];
+    if (rp_is_admin()) {
+        // staff also see the students' birthdays (automatic, private)
+        $events = array_merge($events, birthday_events());
+    } else {
+        // private events ("privado") are only sent to the logged-in admin
+        $events = array_values(array_filter($events, fn($e) => ($e['visibility'] ?? 'publico') !== 'privado'));
+    }
+    rp_json(200, ['ok' => true, 'events' => sort_events($events)]);
 }
 if ($method !== 'POST') {
     rp_json(405, ['ok' => false, 'error' => 'method']);
