@@ -28,6 +28,7 @@ final class EnrollmentController extends Controller
         $r->add('PUT', '/enrollments/{id}', [$c, 'update']);
         $r->add('POST', '/enrollments/{id}/status', [$c, 'changeStatus']);
         $r->add('GET', '/enrollments/{id}/activation', [$c, 'activationPreview']);
+        $r->add('DELETE', '/enrollments/{id}', [$c, 'deleteEnrollment']);
         $r->add('POST', '/enrollments/promote', [$c, 'promote']);
         $r->add('GET', '/enrollments/{id}/documents', [$c, 'documents']);
         $r->add('POST', '/enrollments/{id}/documents/{type}', [$c, 'uploadDocument']);
@@ -183,6 +184,27 @@ final class EnrollmentController extends Controller
         if ($to === 'retirado') $this->billing()->onEnrollmentWithdrawn($id, $date, $actor);
         $this->audit()->log($actor, 'enrollment.status', 'enrollment', $id, ['from' => $e['status'], 'to' => $to, 'reason' => $reason, 'enrollmentDueOn' => $dueOn, 'applyToYear' => $applyToYear]);
         return [];
+    }
+
+    /**
+     * Removes an enrollment made by mistake (to enroll again): its unpaid charges go with it. Not possible when
+     * something was paid on it or it already has grades — then it is withdrawn instead (history is kept).
+     */
+    public function deleteEnrollment(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'matriculas');
+        $id = $req->intParam('id');
+        $e = $this->db()->one('SELECT id, student_id, year_id, status FROM enrollments WHERE id = ?', [$id]) ?? throw HttpError::notFound();
+        $paid = (int) $this->db()->value('SELECT COUNT(*) FROM payment_allocations pa JOIN charges c ON c.id = pa.charge_id WHERE c.enrollment_id = ?', [$id]);
+        if ($paid) throw new \Gabush\Domain\Shared\DomainError('has_payments', 'Esta matrícula ya tiene pagos registrados: no se puede eliminar. Si el niño no sigue, usa «Retirar».');
+        if ($this->db()->value('SELECT 1 FROM grade_entries WHERE enrollment_id = ? LIMIT 1', [$id])) throw new \Gabush\Domain\Shared\DomainError('has_grades', 'Esta matrícula ya tiene calificaciones: no se puede eliminar. Si el niño no sigue, usa «Retirar».');
+        $charges = $this->db()->all('SELECT id, description, amount FROM charges WHERE enrollment_id = ?', [$id]);
+        $this->db()->transaction(function ($db) use ($id): void {
+            $db->run('DELETE FROM charges WHERE enrollment_id = ?', [$id]); // adjustments go with them
+            $db->run('DELETE FROM enrollments WHERE id = ?', [$id]);         // documents, prices, notes go with it
+        });
+        $this->audit()->log($actor, 'enrollment.delete', 'enrollment', $id, ['student' => (int) $e['student_id'], 'year' => (int) $e['year_id'], 'status' => $e['status'], 'charges' => $charges]);
+        return ['deletedCharges' => count($charges)];
     }
 
     /** What activating this enrollment will charge, its due date and when the pensions start. */

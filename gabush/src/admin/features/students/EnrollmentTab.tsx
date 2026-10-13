@@ -1,10 +1,11 @@
-import { CheckCircle2, Copy, Download, FileUp, KeyRound, Loader2, LogOut, RotateCcw, ShieldCheck, Upload, XCircle } from 'lucide-react'
+import { CheckCircle2, Copy, Download, FileUp, KeyRound, Loader2, LogOut, RotateCcw, ShieldCheck, Trash2, Upload, XCircle } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { useMutation, useQuery } from '@/shared/useQuery'
 import { can } from '@/lib/calendar'
 import { date, dateTime, discountReason, money, parseMoney } from '@/shared/format'
 import { toast } from '../../store'
+import { ConfirmModal } from '../../ui'
 import { api2, useSetup } from '../../v2/api'
 import { Badge, CourseSelect, ErrorBox, Field, Spinner, StatusBadge, inputCls } from '../../v2/kit'
 import type { DocumentItem, Enrollment, StudentDetail } from './types'
@@ -16,6 +17,7 @@ export function EnrollmentTab({ detail, onChanged }: { detail: StudentDetail; on
   const m = useMutation()
   const [withdraw, setWithdraw] = useState(false)
   const [activate, setActivate] = useState(false)
+  const [removing, setRemoving] = useState(false)
 
   const update = async (body: Record<string, unknown>, ok: string) => {
     if (!e) return
@@ -84,6 +86,11 @@ export function EnrollmentTab({ detail, onChanged }: { detail: StudentDetail; on
                   <RotateCcw size={17} /> Reintegrar
                 </button>
               )}
+              {can('matriculas') && (
+                <button type="button" onClick={() => setRemoving(true)} disabled={m.busy} className="btn btn-ghost !text-sm text-muted hover:text-berry">
+                  <Trash2 size={17} /> Eliminar matrícula {year}
+                </button>
+              )}
             </div>
             {e.status === 'retirado' && (
               <p className="text-sm text-muted">
@@ -102,6 +109,24 @@ export function EnrollmentTab({ detail, onChanged }: { detail: StudentDetail; on
       <Trajectory enrollments={detail.enrollments} />
 
       <WithdrawModal open={withdraw} onClose={() => setWithdraw(false)} onConfirm={(reason, d) => status('retirado', { reason, date: d }, 'Estudiante retirado')} />
+      <ConfirmModal
+        open={removing}
+        title={`¿Eliminar la matrícula ${year} de ${detail.student.firstName}?`}
+        confirmLabel="Sí, eliminar"
+        tone="danger"
+        icon={<Trash2 size={24} />}
+        onConfirm={async () => {
+          if (!e) return
+          const r = await m.run(() => api2.del<{ deletedCharges: number }>(`/enrollments/${e.id}`))
+          if (r) {
+            toast(`Matrícula ${year} eliminada${r.deletedCharges ? ` junto con ${r.deletedCharges} cobros sin pagar` : ''}. Ya puedes prematricular de nuevo.`)
+            onChanged()
+          }
+        }}
+        onClose={() => setRemoving(false)}
+      >
+        Se borra la matrícula de {year} con sus cobros sin pagar (matrícula, útiles…) y sus documentos, para volver a prematricular y matricular. Solo se puede si no tiene pagos ni calificaciones; en ese caso usa «Retirar».
+      </ConfirmModal>
       {e && (
         <ActivateModal
           open={activate}
