@@ -29,6 +29,7 @@ final class BillingController extends Controller
         $r->add('GET', '/billing/overview', [$c, 'overview']);
         $r->add('GET', '/billing/students/{id}', [$c, 'statement']);
         $r->add('POST', '/billing/students/{id}/apply-credit', [$c, 'applyCredit']);
+        $r->add('PUT', '/billing/students/{id}/grades-unlock', [$c, 'gradesUnlock']);
         $r->add('POST', '/billing/charges', [$c, 'createCharge']);
         $r->add('POST', '/billing/charges/{id}/void', [$c, 'voidCharge']);
         $r->add('POST', '/billing/charges/{id}/due', [$c, 'changeDue']);
@@ -106,7 +107,23 @@ final class BillingController extends Controller
             // reason of a discount ("Estudiante antiguo (ingresó en febrero de 2022)")
             'since' => $this->db()->value("SELECT COALESCE(MIN(enrolled_on), CONCAT(MIN(year_id), '-02-01')) FROM enrollments WHERE student_id = ? AND status <> 'prematricula'", [$id]),
             'years' => (int) $this->db()->value("SELECT COUNT(*) FROM enrollments WHERE student_id = ? AND status <> 'prematricula'", [$id]),
+            'gradesLock' => $b->gradesLockStatus($id),
         ];
+    }
+
+    /** {until: 'YYYY-MM-DD'|null, reason}: payment agreement — the family sees grades and boletín until that date. */
+    public function gradesUnlock(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'pagos');
+        $id = $req->intParam('id');
+        $this->db()->value('SELECT 1 FROM students WHERE id = ?', [$id]) ?? throw HttpError::notFound();
+        $v = Validate::of($req);
+        $until = $v->date('until');
+        $reason = $v->str('reason', 200);
+        if ($until !== null && $until < date('Y-m-d')) $v->fail('until', 'La fecha ya pasó.');
+        $v->check();
+        $this->billing()->setGradesUnlock($id, $until, $reason, $actor);
+        return ['gradesLock' => $this->billing()->gradesLockStatus($id)];
     }
 
     public function applyCredit(Request $req): array

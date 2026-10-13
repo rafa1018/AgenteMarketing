@@ -63,9 +63,32 @@ final class BillingService
     /** When the option is on and the student owes overdue charges: the overdue amount (the app hides the grades). */
     public function gradesLock(int $studentId): ?int
     {
-        if (!$this->gradesLockEnabled()) return null;
-        $overdue = (int) $this->summary($studentId)['overdue'];
-        return $overdue > 0 ? $overdue : null;
+        $s = $this->gradesLockStatus($studentId);
+        return $s['locked'] ? $s['overdue'] : null;
+    }
+
+    /**
+     * The grades lock of one student: whether the option is on, what is overdue and the payment-agreement
+     * exception (visible until a date) — the exception ends by itself after that date.
+     * @return array{enabled:bool,locked:bool,overdue:int,until:?string,reason:?string,by:?string}
+     */
+    public function gradesLockStatus(int $studentId): array
+    {
+        $enabled = $this->gradesLockEnabled();
+        $x = $this->db->one('SELECT grades_unlock_until AS until, grades_unlock_reason AS reason, grades_unlock_by AS `by` FROM students WHERE id = ?', [$studentId]) ?? [];
+        $until = ($x['until'] ?? null) && $x['until'] >= $this->today->format('Y-m-d') ? $x['until'] : null;
+        $overdue = $enabled ? (int) $this->summary($studentId)['overdue'] : 0;
+        return [
+            'enabled' => $enabled, 'locked' => $enabled && $overdue > 0 && !$until, 'overdue' => $overdue,
+            'until' => $until, 'reason' => $until ? $x['reason'] : null, 'by' => $until ? $x['by'] : null,
+        ];
+    }
+
+    /** Payment agreement: the family sees the grades until $until (null removes the exception). */
+    public function setGradesUnlock(int $studentId, ?string $until, ?string $reason, Actor $actor): void
+    {
+        $this->db->update('students', ['grades_unlock_until' => $until, 'grades_unlock_reason' => $until ? $reason : null, 'grades_unlock_by' => $until ? $actor->name : null], ['id' => $studentId]);
+        $this->audit->log($actor, $until ? 'grades.unlock' : 'grades.unlock_remove', 'student', $studentId, ['until' => $until, 'reason' => $reason]);
     }
 
     /** Default pension months (configuration; February–November). @return list<int> */

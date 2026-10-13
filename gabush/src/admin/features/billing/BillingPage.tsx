@@ -532,7 +532,7 @@ function BillingConfig() {
           />
           <span>
             Bloquear notas y boletín a familias con pagos vencidos
-            <span className="block text-[13px] font-normal text-muted">En el app ven las notas borrosas con la marca «Pago pendiente» y el valor vencido. Se desbloquea solo al ponerse al día. Los cobros que aún no vencen no bloquean. Aquí en el panel siempre puedes ver e imprimir el boletín.</span>
+            <span className="block text-[13px] font-normal text-muted">En el app ven las notas borrosas con la marca «Pago pendiente» y el valor vencido. Se desbloquea solo al ponerse al día. Los cobros que aún no vencen no bloquean. Para un acuerdo de pago, en la Cartera del estudiante usa «Acuerdo de pago» y elige hasta qué fecha puede verlas. Aquí en el panel siempre puedes ver e imprimir el boletín.</span>
           </span>
         </label>
       </section>

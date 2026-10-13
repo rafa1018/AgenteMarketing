@@ -1,4 +1,4 @@
-import { Ban, CalendarClock, ChevronDown, FilePlus2, HandCoins, Percent, Printer, Receipt, ShieldCheck, ShieldOff, Trash2, Undo2 } from 'lucide-react'
+import { Ban, CalendarClock, ChevronDown, FilePlus2, HandCoins, Lock, Percent, Printer, Receipt, ShieldCheck, ShieldOff, Trash2, Undo2, Unlock } from 'lucide-react'
 import { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { cn } from '@/lib/utils'
@@ -8,7 +8,7 @@ import { toast } from '../../store'
 import { api2, qs, useSetup } from '../../v2/api'
 import { Badge, ErrorBox, Field, Spinner, Stat, StatusBadge, inputCls } from '../../v2/kit'
 import { AdjustModal, ChargeFormModal, PaymentModal, VoidModal } from './BillingModals'
-import { methodLabel, type Charge, type Statement } from './types'
+import { methodLabel, type Charge, type GradesLock, type Statement } from './types'
 
 /** New due date of a pending charge. */
 function DueDateModal({ charge, onClose, onDone }: { charge: Charge | null; onClose: () => void; onDone: () => void }) {
@@ -52,6 +52,74 @@ function DueDateModal({ charge, onClose, onDone }: { charge: Charge | null; onCl
 }
 
 /** Account of one student: what was charged, adjustments, what was paid, receipts. */
+/**
+ * Notes held in the family app for overdue payments: shows it, and lets the staff make an exception while there
+ * is a payment agreement (visible until a date; afterwards, if still owing, it locks again by itself).
+ */
+function GradesLockCard({ studentId, lock, onChanged }: { studentId: number; lock: GradesLock; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const inMonth = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)
+  const [until, setUntil] = useState(lock.until ?? inMonth)
+  const [reason, setReason] = useState(lock.reason ?? 'Acuerdo de pago')
+  const m = useMutation()
+  const save = async (u: string | null) => {
+    if (await m.run(() => api2.put(`/billing/students/${studentId}/grades-unlock`, { until: u, reason: reason.trim() || null }))) {
+      toast(u ? `Podrá ver notas y boletín hasta el ${date(u)}` : lock.overdue > 0 ? 'Excepción quitada: notas bloqueadas de nuevo' : 'Excepción quitada')
+      setEditing(false)
+      onChanged()
+    }
+  }
+  return (
+    <div className={cn('space-y-3 rounded-xl px-4 py-3 text-[14px]', lock.until ? 'bg-[#e9f4ee] text-[#2f6b45]' : 'bg-[#fdf0ef] text-berry')}>
+      <div className="flex flex-wrap items-center gap-2">
+        {lock.until ? <Unlock size={18} className="shrink-0" /> : <Lock size={18} className="shrink-0" />}
+        <span className="min-w-0 flex-1">
+          {lock.until ? (
+            <>
+              <b>Notas visibles por acuerdo de pago</b> hasta el {date(lock.until)}
+              {lock.reason ? ` · ${lock.reason}` : ''}
+              {lock.by ? <span className="block text-[12px] opacity-80">Lo autorizó {lock.by}. Pasada esa fecha, si sigue debiendo, se bloquean solas.</span> : null}
+            </>
+          ) : (
+            <>
+              <b>Notas y boletín bloqueados en el app</b> por {money(lock.overdue)} vencidos.
+            </>
+          )}
+        </span>
+        {!editing && (
+          <span className="flex gap-2">
+            <button type="button" onClick={() => setEditing(true)} className="btn btn-ghost !min-h-9 !bg-white !px-3 !text-[13px]">
+              {lock.until ? 'Cambiar' : 'Acuerdo de pago'}
+            </button>
+            {lock.until && (
+              <button type="button" disabled={m.busy} onClick={() => save(null)} className="btn btn-ghost !min-h-9 !bg-white !px-3 !text-[13px]">
+                Quitar
+              </button>
+            )}
+          </span>
+        )}
+      </div>
+      {editing && (
+        <div className="flex flex-wrap items-end gap-2 text-ink">
+          <Field label="Ver notas hasta">
+            <input type="date" value={until} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setUntil(e.target.value)} className={inputCls()} />
+          </Field>
+          <Field label="Motivo">
+            <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="Acuerdo de pago, abono…" className={inputCls() + ' min-w-0'} />
+          </Field>
+          <button type="button" disabled={m.busy || !until} onClick={() => save(until)} className="btn btn-primary !min-h-[46px] !text-sm">
+            Guardar
+          </button>
+          <button type="button" onClick={() => setEditing(false)} className="btn btn-ghost !min-h-[46px] !bg-white !text-sm">
+            Cancelar
+          </button>
+        </div>
+      )}
+      {m.message && <ErrorBox message={m.message} />}
+    </div>
+  )
+}
+
 export function StatementView({ studentId }: { studentId: number }) {
   const { year } = useSetup()
   const [scope, setScope] = useState<'year' | 'all'>('year')
@@ -120,6 +188,7 @@ export function StatementView({ studentId }: { studentId: number }) {
           ))}
         </p>
       )}
+      {data.gradesLock?.enabled && (data.gradesLock.overdue > 0 || data.gradesLock.until) && <GradesLockCard studentId={studentId} lock={data.gradesLock} onChanged={reload} />}
       {(s.upcoming ?? 0) > 0 && (
         <p className="rounded-xl bg-[#eaf3fa] px-4 py-3 text-[14px] text-[#185a8a]">
           <b>Próximo año:</b> {money(s.upcoming!)} por cobros del año siguiente que aún no vencen (por ejemplo, la matrícula). No cuentan como deuda hoy ni impiden el paz y salvo; la familia los puede pagar por adelantado.

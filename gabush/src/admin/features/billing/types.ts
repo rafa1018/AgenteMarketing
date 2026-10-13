@@ -38,7 +38,10 @@ export interface Payment {
 }
 /** balance: what is owed today · upcoming: charges of a year that has not started and are not due yet */
 export interface Summary { balance: number; byYear?: { year: number | null; balance: number; overdue: number }[]; upcoming?: number; overdue: number; lateFees: number; credit: number; charged: number; paid: number }
-export interface Statement { summary: Summary; total: Summary; charges: Charge[]; payments: Payment[]; checkouts: { id: number; reference: string; provider: string; amount: number; status: string; paymentId: number | null; createdAt: string }[]; since?: string | null; years?: number }
+export interface Statement { summary: Summary; total: Summary; charges: Charge[]; payments: Payment[]; checkouts: { id: number; reference: string; provider: string; amount: number; status: string; paymentId: number | null; createdAt: string }[]; since?: string | null; years?: number; gradesLock?: GradesLock }
+
+/** Grades held in the family app for overdue payments, and the payment-agreement exception (visible until a date). */
+export interface GradesLock { enabled: boolean; locked: boolean; overdue: number; until: string | null; reason: string | null; by: string | null }
 
 export const METHODS: [string, string][] = [
   ['efectivo', 'Efectivo'],
