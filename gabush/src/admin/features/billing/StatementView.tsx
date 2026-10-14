@@ -1,9 +1,9 @@
-import { Ban, CalendarClock, ChevronDown, FilePlus2, HandCoins, Lock, Percent, Printer, Receipt, ShieldCheck, ShieldOff, Trash2, Undo2, Unlock } from 'lucide-react'
+import { Ban, CalendarClock, ChevronDown, FilePlus2, HandCoins, Lock, Pencil, Percent, Printer, Receipt, ShieldCheck, ShieldOff, Trash2, Undo2, Unlock } from 'lucide-react'
 import { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { cn } from '@/lib/utils'
 import { useMutation, useQuery } from '@/shared/useQuery'
-import { date, discountReason, money } from '@/shared/format'
+import { date, discountReason, money, parseMoney } from '@/shared/format'
 import { toast } from '../../store'
 import { api2, qs, useSetup } from '../../v2/api'
 import { Badge, ErrorBox, Field, Spinner, Stat, StatusBadge, inputCls } from '../../v2/kit'
@@ -45,6 +45,54 @@ function DueDateModal({ charge, onClose, onDone }: { charge: Charge | null; onCl
           >
             Guardar fecha
           </button>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+/** New value of a pending charge (the agreed price instead of the price list). */
+function AmountModal({ charge, onClose, onDone }: { charge: Charge | null; onClose: () => void; onDone: () => void }) {
+  const [value, setValue] = useState('')
+  const [reason, setReason] = useState('')
+  const [last, setLast] = useState<Charge | null>(null)
+  const m = useMutation()
+  if (charge !== last) {
+    setLast(charge)
+    setValue(charge ? String(charge.amount) : '')
+    setReason('')
+  }
+  const amount = parseMoney(value)
+  return (
+    <Modal open={Boolean(charge)} onClose={onClose} label="Cambiar valor" closeLabel="Cerrar" className="sm:!max-w-md">
+      {charge && (
+        <div className="space-y-4 p-6">
+          <h2 className="text-[1.4rem]">Cambiar valor</h2>
+          <p className="text-[14px] text-muted">
+            {charge.description} · hoy vale {money(charge.amount)}. Los descuentos y recargos que tenga se conservan.
+          </p>
+          <Field label="Nuevo valor">
+            <input value={value ? Number(amount).toLocaleString('es-CO') : ''} onChange={(e) => setValue(e.target.value)} inputMode="numeric" autoFocus className={inputCls()} />
+          </Field>
+          <Field label="Motivo">
+            <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="Valor acordado con la rectora, hermanos…" className={inputCls()} />
+          </Field>
+          {m.message && <ErrorBox message={m.message} />}
+          <button
+            type="button"
+            disabled={m.busy || amount <= 0 || amount === charge.amount}
+            onClick={async () => {
+              if (await m.run(() => api2.post(`/billing/charges/${charge.id}/amount`, { amount, reason: reason.trim() || null }))) {
+                toast(`${charge.description}: ahora vale ${money(amount)}`)
+                onClose()
+                onDone()
+              }
+            }}
+            className="btn btn-primary w-full disabled:opacity-50"
+          >
+            Guardar valor
+          </button>
+          <p className="text-center text-[12px] text-muted">Si no se debe cobrar, usa «Anular».</p>
         </div>
       )}
     </Modal>
@@ -129,6 +177,7 @@ export function StatementView({ studentId }: { studentId: number }) {
   const [adjusting, setAdjusting] = useState<Charge | null>(null)
   const [voiding, setVoiding] = useState<{ kind: 'charge' | 'payment'; id: number; label: string } | null>(null)
   const [redating, setRedating] = useState<Charge | null>(null)
+  const [repricing, setRepricing] = useState<Charge | null>(null)
   const [open, setOpen] = useState<number | null>(null)
 
   if (error) return <ErrorBox message={error.message} onRetry={reload} />
@@ -281,6 +330,11 @@ export function StatementView({ studentId }: { studentId: number }) {
                             <Percent size={15} /> Descuento / recargo
                           </button>
                           {c.status === 'abierto' && (
+                            <button type="button" onClick={() => setRepricing(c)} className="btn btn-ghost !min-h-9 !px-3 !text-[13px]">
+                              <Pencil size={15} /> Cambiar valor
+                            </button>
+                          )}
+                          {c.status === 'abierto' && (
                             <button type="button" onClick={() => setRedating(c)} className="btn btn-ghost !min-h-9 !px-3 !text-[13px]">
                               <CalendarClock size={15} /> Cambiar vencimiento
                             </button>
@@ -350,6 +404,7 @@ export function StatementView({ studentId }: { studentId: number }) {
       <AdjustModal charge={adjusting} onClose={() => setAdjusting(null)} onDone={reload} defaultReason={discountReason(data.since, data.years ?? 0)} />
       <VoidModal target={voiding} onClose={() => setVoiding(null)} onDone={reload} />
       <DueDateModal charge={redating} onClose={() => setRedating(null)} onDone={reload} />
+      <AmountModal charge={repricing} onClose={() => setRepricing(null)} onDone={reload} />
     </div>
   )
 }

@@ -770,6 +770,39 @@ final class BillingService
         });
     }
 
+    /**
+     * New value of a pending charge (e.g. a matrícula generated at the price list that was agreed lower). The
+     * discounts and surcharges stay; a pronto-pago % is recalculated on the new value. It can't go below what
+     * was already paid. When it is a charge of an enrollment, the value is also kept as that student's special
+     * price, so it is not generated again at the list price.
+     */
+    public function changeAmount(int $chargeId, int $amount, ?string $reason, Actor $actor): array
+    {
+        $c = $this->db->one('SELECT id, student_id, enrollment_id, concept_id, amount, status, year_id FROM charges WHERE id = ?', [$chargeId]) ?? throw new DomainError('not_found', 'El cobro no existe.');
+        if ($c['status'] !== 'abierto') throw new DomainError('closed', 'Solo se cambia el valor de un cobro pendiente.');
+        if ($amount < 0) throw new DomainError('amount', 'El valor no puede ser negativo.');
+        $old = (int) $c['amount'];
+        $this->db->transaction(function () use ($c, $chargeId, $amount, $reason, $actor): void {
+            $this->db->update('charges', ['amount' => $amount], ['id' => $chargeId]);
+            $pct = (float) $this->db->value('SELECT early_discount_pct FROM academic_years WHERE id = ?', [$c['year_id']]);
+            if ($pct > 0) $this->db->run('UPDATE charge_adjustments SET amount = ? WHERE legacy_ref = ?', [(int) round($amount * $pct / 100), 'pronto:' . $chargeId]);
+            if ($c['enrollment_id'] && $c['concept_id']) {
+                $this->db->run(
+                    'INSERT INTO student_prices (enrollment_id, concept_id, amount, reason) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE amount = VALUES(amount), reason = VALUES(reason)',
+                    [$c['enrollment_id'], $c['concept_id'], $amount, $reason ?: 'Valor acordado'],
+                );
+            }
+            // below what was already paid: the exception rolls everything back
+            $row = array_values(array_filter($this->charges((int) $c['student_id']), static fn($x) => $x['id'] === $chargeId))[0] ?? null;
+            if ($row && $row['net'] < $row['paid']) {
+                throw new DomainError('paid', 'Ya se pagaron $' . number_format((int) $row['paid'], 0, ',', '.') . ' de este cobro: el valor no puede quedar por debajo de eso.');
+            }
+            $this->refreshStatus($chargeId);
+        });
+        $this->audit->log($actor, 'charge.amount', 'charge', $chargeId, ['from' => $old, 'to' => $amount, 'reason' => $reason]);
+        return ['from' => $old, 'to' => $amount];
+    }
+
     /** Recomputes open / paid from the balance. */
     public function refreshStatus(int $chargeId): void
     {

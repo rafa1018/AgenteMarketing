@@ -33,6 +33,7 @@ final class BillingController extends Controller
         $r->add('POST', '/billing/charges', [$c, 'createCharge']);
         $r->add('POST', '/billing/charges/{id}/void', [$c, 'voidCharge']);
         $r->add('POST', '/billing/charges/{id}/due', [$c, 'changeDue']);
+        $r->add('POST', '/billing/charges/{id}/amount', [$c, 'changeAmount']);
         $r->add('POST', '/billing/charges/{id}/adjustments', [$c, 'addAdjustment']);
         $r->add('DELETE', '/billing/adjustments/{id}', [$c, 'deleteAdjustment']);
         $r->add('POST', '/billing/charges/{id}/late-fee', [$c, 'lateFee']);
@@ -402,6 +403,17 @@ final class BillingController extends Controller
         $this->db()->update('charges', ['due_on' => $due], ['id' => $id]);
         $this->audit()->log($actor, 'charge.due_date', 'charge', $id, ['from' => $c['due_on'], 'to' => $due]);
         return ['dueOn' => $due];
+    }
+
+    /** {amount, reason}: new value of a pending charge. */
+    public function changeAmount(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'pagos');
+        $v = Validate::of($req);
+        $amount = $v->money('amount', true);
+        $reason = $v->str('reason', 200);
+        $v->check();
+        return $this->billing()->changeAmount($req->intParam('id'), (int) $amount, $reason, $actor);
     }
 
     /** Concepts that can be charged to every enrolled student at once: the yearly ones of the price table. */
