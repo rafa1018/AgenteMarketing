@@ -136,7 +136,9 @@ type Sent = { id: number; audience: 'panel' | 'familia'; type: string; title: st
 const PUSH_TYPE: Record<string, string> = {
   inscripciones: 'Inscripciones', pagos: 'Pagos', asistencia: 'Asistencia', cumpleanos: 'Cumpleaños', eventos: 'Eventos', recordatorio: 'Recordatorio de pago',
   pago: 'Pago recibido', cobro: 'Nuevo cobro', mensaje: 'Mensaje', notas: 'Notas', observador: 'Observador', documento: 'Documento', 'pago-en-linea': 'Pago en línea',
+  activacion: 'Activación de notificaciones',
 }
+type StaffNoDevice = { id: string; name: string; role: string; lastLogin: string | null; lastTry: { error: string | null; at: string } | null }
 
 /** Who has notifications turned on (staff and families), what was sent and whether it reached a phone. */
 function PushTab() {
@@ -144,7 +146,7 @@ function PushTab() {
   return (
     <div className="space-y-4">
       <div className="flex gap-1 rounded-xl bg-white p-1 ring-1 ring-line sm:inline-flex">
-        {([['dispositivos', 'Dispositivos activos'], ['enviadas', 'Enviadas'], ['sin', 'Familias sin notificaciones']] as const).map(([id, label]) => (
+        {([['dispositivos', 'Dispositivos activos'], ['enviadas', 'Enviadas'], ['sin', 'Sin notificaciones']] as const).map(([id, label]) => (
           <button key={id} type="button" onClick={() => setView(id)} className={cn('flex-1 rounded-lg px-3 py-1.5 text-[13px] font-semibold', view === id ? 'bg-ink text-white' : 'text-muted')}>
             {label}
           </button>
@@ -156,7 +158,7 @@ function PushTab() {
 }
 
 function PushDevices({ view }: { view: 'dispositivos' | 'sin' }) {
-  const { data, error, loading, reload } = useQuery('push-devices', () => api2.get<{ panel: PanelDevice[]; families: FamilyDevice[]; without: NoDevice[] }>('/audit/push/devices'))
+  const { data, error, loading, reload } = useQuery('push-devices', () => api2.get<{ panel: PanelDevice[]; families: FamilyDevice[]; without: NoDevice[]; staffWithout: StaffNoDevice[] }>('/audit/push/devices'))
   const remove = async (audience: 'panel' | 'familia', id: string | number) => {
     await api2.post('/audit/push/devices/delete', { audience, id })
     toast('Dispositivo quitado: deja de recibir notificaciones hasta que las active de nuevo')
@@ -168,6 +170,31 @@ function PushDevices({ view }: { view: 'dispositivos' | 'sin' }) {
   if (view === 'sin')
     return (
       <>
+        <section className="space-y-2">
+          <h3 className="text-lg">Personal ({data.staffWithout.length})</h3>
+          <p className="text-[14px] text-muted">Usuarios activos del panel sin ningún celular con notificaciones. Se activan en el panel: menú → Notificaciones → «Activar notificaciones aquí». Si lo intentaron y falló, aquí sale el motivo.</p>
+          {!data.staffWithout.length ? (
+            <Empty title="Todo el personal tiene notificaciones activas" />
+          ) : (
+            <ul className="card divide-y divide-line p-0">
+              {data.staffWithout.map((s) => (
+                <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-[14px]">
+                  <span className="min-w-0 flex-1">
+                    <b className="text-ink">{s.name}</b>
+                    <span className="text-muted"> · {ROLE[s.role] ?? s.role}</span>
+                    {s.lastTry ? (
+                      <span className="block text-[12px] text-berry">Lo intentó el {dateTime(s.lastTry.at)} y no se pudo: {(s.lastTry.error ?? '').split(' · ')[0]}</span>
+                    ) : (
+                      <span className="block text-[12px] text-muted">No hay ningún intento registrado de activarlas</span>
+                    )}
+                  </span>
+                  <span className="text-[13px] text-muted">{s.lastLogin ? `Último ingreso: ${dateTime(s.lastLogin)}` : 'Nunca ha entrado'}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <h3 className="text-lg">Familias ({data.without.length})</h3>
         <p className="text-[14px] text-muted">
           <b className="text-ink">{data.without.length}</b> estudiantes activos sin ningún celular con notificaciones. Sus familias solo ven las novedades al abrir el app (y el correo, si tienen). Para activarlas: abrir el app de familias → «Más» → «Mi cuenta» → «Notificaciones en el celular».
         </p>
@@ -288,7 +315,9 @@ function PushSent() {
                     {PUSH_TYPE[s.type] ?? s.type} · {s.recipient ?? '—'}
                   </span>
                 </span>
-                {s.devices === 0 ? (
+                {s.type === 'activacion' ? (
+                  s.delivered ? <Badge tone="green">Activó · {s.detail[0]?.device ?? ''}</Badge> : <Badge tone="red">No se pudo · {s.detail[0]?.device ?? ''}</Badge>
+                ) : s.devices === 0 ? (
                   <Badge tone="yellow">{s.audience === 'familia' ? 'Solo en el app (sin celular activado)' : 'Nadie lo tiene activado'}</Badge>
                 ) : s.failed ? (
                   <Badge tone="red">{s.delivered} de {s.devices} dispositivos</Badge>

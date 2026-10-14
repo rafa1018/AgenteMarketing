@@ -20,6 +20,20 @@ function clean_prefs($p): array
     foreach (PUSH_TYPES as $t) $out[$t] = !isset($p[$t]) || (bool) $p[$t];
     return $out;
 }
+/** Records who turned notifications on (or tried and failed, with why) in the notification log. */
+function push_activation_log(string $uid, string $device, bool $ok, ?string $error): void
+{
+    $app = push_app();
+    if (!$app) return;
+    $who = push_user_name($uid);
+    Gabush\Application\Notifications\StaffDigest::log(
+        $app, 'panel', 'activacion',
+        $ok ? "🔔 $who activó las notificaciones" : "⚠️ $who intentó activar las notificaciones y no se pudo",
+        $ok ? null : $error, null, $who,
+        [['who' => $who, 'device' => $device ?: 'Dispositivo', 'status' => $ok ? 201 : 0]],
+    );
+}
+
 function valid_endpoint(string $e): bool
 {
     return (bool) preg_match('#^https://[a-z0-9.-]+(:\d+)?/#i', $e) && strlen($e) < 1000;
@@ -38,6 +52,13 @@ rp_require_admin();
 $me = rp_current_user()['id'];
 $in = rp_body(6000);
 $action = $in['action'] ?? '';
+// a failed attempt to turn notifications on (permission blocked, browser without push…): recorded so the
+// school can see who tried and why it did not work (Auditoría → Notificaciones)
+if ($action === 'report') {
+    push_activation_log($me, rp_clean($in['device'] ?? '', 60), false, rp_clean($in['error'] ?? 'Error desconocido', 300));
+    rp_json(200, ['ok' => true]);
+}
+
 $endpoint = (string) ($in['endpoint'] ?? ($in['subscription']['endpoint'] ?? ''));
 if (!valid_endpoint($endpoint)) {
     rp_json(422, ['ok' => false, 'error' => 'validation']);
@@ -57,6 +78,7 @@ if ($action === 'subscribe') {
         $data['subs'] = array_slice($subs, -MAX_SUBS);
         return [$data, null];
     });
+    push_activation_log($me, $sub['device'], true, null);
     rp_json(200, ['ok' => true]);
 }
 

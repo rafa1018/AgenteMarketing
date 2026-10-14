@@ -75,22 +75,33 @@ export function Notifications() {
     })()
   }, [])
 
+  // a failed attempt is reported (who, device, why) so the school can see it in Auditoría → Notificaciones
+  const report = (error: string) => api.post('push.php', { action: 'report', device: deviceName(), error: `${error} · ${navigator.userAgent.slice(0, 140)}` }).catch(() => null)
+
   const enable = async () => {
     setBusy(true)
+    let stage = 'pidiendo permiso'
     try {
       const p = await Notification.requestPermission()
       setPerm(p)
-      if (p !== 'granted') return
+      if (p !== 'granted') {
+        await report(p === 'denied' ? 'El celular bloqueó el permiso de notificaciones' : 'No aceptó el permiso de notificaciones')
+        return
+      }
+      stage = 'preparando la app'
       const reg = (await navigator.serviceWorker.getRegistration('/admin/')) ?? (await navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' }))
       await navigator.serviceWorker.ready
+      stage = 'suscribiendo el celular'
       const s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) })
+      stage = 'guardando en el servidor'
       const { data } = await api.post('push.php', { action: 'subscribe', subscription: s.toJSON(), prefs, device: deviceName() })
-      if (!data?.ok) throw new Error('subscribe')
+      if (!data?.ok) throw new Error(data?.error ?? 'el servidor no lo aceptó')
       setSub(s)
       setDevices((n) => n + 1)
       await api.post('push.php', { action: 'test', endpoint: s.endpoint })
       toast('Notificaciones activadas. Te enviamos una de prueba.')
-    } catch {
+    } catch (e) {
+      await report(`Falló ${stage}: ${e instanceof Error ? e.message : String(e)}`)
       toast('No se pudieron activar las notificaciones en este dispositivo.')
     } finally {
       setBusy(false)

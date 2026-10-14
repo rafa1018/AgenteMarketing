@@ -268,7 +268,20 @@ final class AuditController extends Controller
              ORDER BY c.name, s.first_name",
             [$year],
         );
-        return ['panel' => $panel, 'families' => $families, 'without' => self::intsAll($without, 'id')];
+        // active staff users without any device (the owner account is listed only if it has none either)
+        $withDevice = array_flip(array_map(static fn($s) => (string) ($s['uid'] ?? 'root'), $this->panelSubs()));
+        $staffWithout = [];
+        foreach ((array) ((json_decode((string) @file_get_contents($this->app->dataDir() . '/users.json'), true) ?: [])['users'] ?? []) as $u) {
+            if (empty($u['active']) || isset($withDevice[(string) $u['id']])) continue;
+            $staffWithout[] = ['id' => (string) $u['id'], 'name' => (string) $u['name'], 'role' => (string) ($u['role'] ?? ''), 'lastLogin' => $u['lastLogin'] ?? null];
+        }
+        usort($staffWithout, static fn($a, $b) => strcmp($a['name'], $b['name']));
+        // last failed attempt of each person (push_log "activacion"), to tell "never tried" from "tried and failed"
+        $tries = [];
+        foreach ($this->db()->all("SELECT recipient, body, created_at FROM push_log WHERE type = 'activacion' AND delivered = 0 ORDER BY id") as $t) $tries[(string) $t['recipient']] = ['error' => $t['body'], 'at' => $t['created_at']];
+        foreach ($staffWithout as &$s) $s['lastTry'] = $tries[$s['name']] ?? null;
+        unset($s);
+        return ['panel' => $panel, 'families' => $families, 'without' => self::intsAll($without, 'id'), 'staffWithout' => $staffWithout];
     }
 
     /** {audience: panel|familia, id}: forgets a device (it stops receiving notifications until it is activated again). */
