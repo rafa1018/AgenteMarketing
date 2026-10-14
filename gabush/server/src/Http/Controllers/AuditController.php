@@ -68,11 +68,18 @@ final class AuditController extends Controller
         return [$w, $p];
     }
 
-    /** ?portal=familia|panel|todos&q=&role=&online=1 */
+    /** The owner / technical account ("Administración Gabush", role admin) is left out unless ?owner=1. */
+    private function ownerFilter(Request $req, string $alias): ?string
+    {
+        return $req->query('owner') === '1' ? null : "($alias.role IS NULL OR $alias.role <> 'admin')";
+    }
+
+    /** ?portal=familia|panel|todos&q=&role=&online=1&owner=1 */
     public function presence(Request $req): array
     {
         $this->staff($req, 'usuarios');
         [$where, $p] = $this->portalFilter($req, 'u');
+        if ($ow = $this->ownerFilter($req, 'u')) $where[] = $ow;
         if (($role = (string) $req->query('role', '')) !== '') { $where[] = 'u.role = ?'; $p[] = $role; }
         if (($q = trim((string) $req->query('q', ''))) !== '') { $where[] = '(u.user_name LIKE ? OR c.name LIKE ?)'; array_push($p, "%$q%", "%$q%"); }
         if ($req->query('online') === '1') $where[] = 'u.last_seen >= NOW() - INTERVAL ' . self::ONLINE_MINUTES . ' MINUTE';
@@ -92,7 +99,7 @@ final class AuditController extends Controller
         $counts = $this->db()->one(
             "SELECT SUM(portal = 'familia' AND last_seen >= NOW() - INTERVAL " . self::ONLINE_MINUTES . " MINUTE) AS familiaOnline,
                     SUM(portal = 'panel' AND last_seen >= NOW() - INTERVAL " . self::ONLINE_MINUTES . " MINUTE) AS panelOnline,
-                    SUM(portal = 'familia') AS familias, SUM(portal = 'panel') AS panel FROM user_presence",
+                    SUM(portal = 'familia') AS familias, SUM(portal = 'panel') AS panel FROM user_presence u WHERE " . ($this->ownerFilter($req, 'u') ?? '1=1'),
         );
         // families with a portal account that never came in
         $never = (int) $this->db()->value(
@@ -113,6 +120,7 @@ final class AuditController extends Controller
     {
         $this->staff($req, 'usuarios');
         [$where, $p] = $this->portalFilter($req, 'a');
+        if ($ow = $this->ownerFilter($req, 'a')) $where[] = $ow;
         if (in_array($ev = (string) $req->query('event', ''), ['ingreso', 'salida', 'fallido', 'inactividad'], true)) { $where[] = 'a.event = ?'; $p[] = $ev; }
         if (($role = (string) $req->query('role', '')) !== '') { $where[] = 'a.role = ?'; $p[] = $role; }
         if (($q = trim((string) $req->query('q', ''))) !== '') { $where[] = '(a.user_name LIKE ? OR a.user_id LIKE ? OR a.ip LIKE ?)'; array_push($p, "%$q%", "%$q%", "%$q%"); }

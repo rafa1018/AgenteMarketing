@@ -93,6 +93,25 @@ function PortalFilter({ value, onChange }: { value: Portal; onChange: (p: Portal
   )
 }
 
+/** Type of user: staff roles or the families; the technical account is hidden unless asked for. */
+function RoleFilter({ value, onChange, owner, onOwner }: { value: string; onChange: (r: string) => void; owner: boolean; onOwner: (v: boolean) => void }) {
+  return (
+    <>
+      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Tipo de usuario" className="min-h-10 rounded-full border border-line bg-white px-3 text-[13px] font-semibold">
+        <option value="">Todos los usuarios</option>
+        <option value="rectora">Rectora</option>
+        <option value="docente">Docentes</option>
+        <option value="auxiliar">Auxiliares</option>
+        <option value="personalizado">Personalizados</option>
+        <option value="familia">Familias</option>
+      </select>
+      <label className="flex items-center gap-2 text-[13px] font-semibold text-muted" title="Administración Gabush: la cuenta principal / técnica">
+        <input type="checkbox" checked={owner} onChange={(e) => onOwner(e.target.checked)} className="size-4 accent-[#3a36a8]" /> Mostrar cuenta técnica
+      </label>
+    </>
+  )
+}
+
 const PortalBadge = ({ p }: { p: 'familia' | 'panel' }) => <Badge tone={p === 'familia' ? 'blue' : 'gray'}>{p === 'familia' ? 'Familias' : 'Panel'}</Badge>
 
 export function AuditPage() {
@@ -422,9 +441,10 @@ function PresenceTab() {
   const [role, setRole] = useState('')
   const [q, setQ] = useState('')
   const [online, setOnline] = useState(false)
+  const [owner, setOwner] = useState(false)
   const [range, setRange] = useState<Range>({ from: today(), to: today() })
-  const { data, error, loading, reload } = useQuery(`presence:${portal}:${role}:${q}:${online}:${range.from}:${range.to}`, () =>
-    api2.get<{ users: Presence[]; counts: { familiaOnline: number; panelOnline: number; familias: number; panel: number; familiasNunca: number }; roles: string[]; onlineMinutes: number }>('/audit/presence' + qs({ portal, role: portal === 'panel' ? role || null : null, q: q.trim() || null, online: online ? 1 : null, from: range.from || null, to: range.to || null })),
+  const { data, error, loading, reload } = useQuery(`presence:${portal}:${role}:${q}:${online}:${owner}:${range.from}:${range.to}`, () =>
+    api2.get<{ users: Presence[]; counts: { familiaOnline: number; panelOnline: number; familias: number; panel: number; familiasNunca: number }; roles: string[]; onlineMinutes: number }>('/audit/presence' + qs({ portal, role: role || null, q: q.trim() || null, online: online ? 1 : null, owner: owner ? 1 : null, from: range.from || null, to: range.to || null })),
   )
   return (
     <div className="space-y-4">
@@ -438,12 +458,7 @@ function PresenceTab() {
       )}
       <div className="flex flex-wrap items-center gap-2">
         <PortalFilter value={portal} onChange={setPortal} />
-        {portal === 'panel' && (
-          <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Rol" className="min-h-10 rounded-full border border-line bg-white px-3 text-[13px] font-semibold">
-            <option value="">Todos los roles</option>
-            {data?.roles.map((r) => <option key={r} value={r}>{ROLE[r] ?? r}</option>)}
-          </select>
-        )}
+        <RoleFilter value={role} onChange={setRole} owner={owner} onOwner={setOwner} />
         <label className="flex items-center gap-2 text-[13px] font-semibold text-ink">
           <input type="checkbox" checked={online} onChange={(e) => setOnline(e.target.checked)} className="size-4 accent-[#3f9a1f]" /> Solo en línea
         </label>
@@ -512,14 +527,17 @@ function AccessTab() {
   const [portal, setPortal] = useState<Portal>('todos')
   const [event, setEvent] = useState('')
   const [q, setQ] = useState('')
+  const [role, setRole] = useState('')
+  const [owner, setOwner] = useState(false)
   const [range, setRange] = useState<Range>({ from: today(), to: today() })
-  const { data, error, loading, reload } = useQuery(`access:${portal}:${event}:${q}:${range.from}:${range.to}`, () =>
-    api2.get<{ events: AccessEvent[] }>('/audit/access' + qs({ portal, event: event || null, q: q.trim() || null, from: range.from || null, to: range.to || null })),
+  const { data, error, loading, reload } = useQuery(`access:${portal}:${event}:${q}:${role}:${owner}:${range.from}:${range.to}`, () =>
+    api2.get<{ events: AccessEvent[] }>('/audit/access' + qs({ portal, event: event || null, q: q.trim() || null, role: role || null, owner: owner ? 1 : null, from: range.from || null, to: range.to || null })),
   )
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <PortalFilter value={portal} onChange={setPortal} />
+        <RoleFilter value={role} onChange={setRole} owner={owner} onOwner={setOwner} />
         <select value={event} onChange={(e) => setEvent(e.target.value)} aria-label="Evento" className="min-h-10 rounded-full border border-line bg-white px-3 text-[13px] font-semibold">
           <option value="">Todos los eventos</option>
           <option value="ingreso">Ingresos</option>
