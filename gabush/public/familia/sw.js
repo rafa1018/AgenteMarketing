@@ -25,6 +25,10 @@ self.addEventListener('fetch', (e) => {
   )
 })
 
+// Tells the school this phone really showed (or the family tapped) a notification — Auditoría → Notificaciones.
+const receipt = (ref, event) =>
+  ref ? fetch('/api/v2/push/receipt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref, event }), keepalive: true }).catch(() => {}) : Promise.resolve()
+
 self.addEventListener('push', (e) => {
   let msg = {}
   try {
@@ -33,14 +37,17 @@ self.addEventListener('push', (e) => {
     msg = { body: e.data && e.data.text() }
   }
   e.waitUntil(
-    self.registration.showNotification(msg.title || 'Jardín Gabush', {
-      body: msg.body || '',
-      icon: '/icon-192.png?v=2',
-      badge: '/favicon-48.png?v=2',
-      tag: msg.tag || undefined,
-      renotify: Boolean(msg.tag),
-      data: { url: msg.url || '/familia/' },
-    }),
+    Promise.all([
+      self.registration.showNotification(msg.title || 'Jardín Gabush', {
+        body: msg.body || '',
+        icon: '/icon-192.png?v=2',
+        badge: '/favicon-48.png?v=2',
+        tag: msg.tag || undefined,
+        renotify: Boolean(msg.tag),
+        data: { url: msg.url || '/familia/', ref: msg.ref || null },
+      }),
+      receipt(msg.ref, 'received'),
+    ]),
   )
 })
 
@@ -48,14 +55,17 @@ self.addEventListener('notificationclick', (e) => {
   e.notification.close()
   const url = (e.notification.data && e.notification.data.url) || '/familia/'
   e.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      for (const c of list) {
-        if (c.url.includes('/familia/')) {
-          c.navigate(url).catch(() => {})
-          return c.focus()
+    Promise.all([
+      receipt(e.notification.data && e.notification.data.ref, 'opened'),
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+        for (const c of list) {
+          if (c.url.includes('/familia/')) {
+            c.navigate(url).catch(() => {})
+            return c.focus()
+          }
         }
-      }
-      return self.clients.openWindow(url)
-    }),
+        return self.clients.openWindow(url)
+      }),
+    ]),
   )
 })

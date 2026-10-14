@@ -129,14 +129,14 @@ export function AuditPage() {
   )
 }
 
-type PanelDevice = { id: string; who: string; device: string; since: string | null; lastOk: string | null; lastStatus: number | null; types: string[] }
-type FamilyDevice = { id: number; studentId: number; who: string; course: string | null; device: string; since: string; lastOk: string | null; off: string[] }
+type PanelDevice = { id: string; who: string; device: string; since: string | null; lastOk: string | null; lastStatus: number | null; types: string[]; confirmed: string | null }
+type FamilyDevice = { id: number; studentId: number; who: string; course: string | null; device: string; since: string; lastOk: string | null; off: string[]; confirmed: string | null }
 type NoDevice = { id: number; name: string; course: string | null; lastLogin: string | null; phone: string | null }
-type Sent = { id: number; audience: 'panel' | 'familia'; type: string; title: string; body: string | null; url: string | null; studentId: number | null; recipient: string | null; devices: number; delivered: number; failed: number; detail: { who: string; device: string; status: number }[]; at: string }
+type Sent = { id: number; audience: 'panel' | 'familia'; type: string; title: string; body: string | null; url: string | null; studentId: number | null; recipient: string | null; devices: number; delivered: number; failed: number; received: number; opened: number; detail: { who: string; device: string; status: number; receivedAt: string | null; openedAt: string | null; tracked: boolean }[]; at: string }
 const PUSH_TYPE: Record<string, string> = {
   inscripciones: 'Inscripciones', pagos: 'Pagos', asistencia: 'Asistencia', cumpleanos: 'Cumpleaños', eventos: 'Eventos', recordatorio: 'Recordatorio de pago',
   pago: 'Pago recibido', cobro: 'Nuevo cobro', mensaje: 'Mensaje', notas: 'Notas', observador: 'Observador', documento: 'Documento', 'pago-en-linea': 'Pago en línea',
-  activacion: 'Activación de notificaciones',
+  activacion: 'Activación de notificaciones', prueba: 'Prueba al activar',
 }
 type StaffNoDevice = { id: string; name: string; role: string; lastLogin: string | null; lastTry: { error: string | null; at: string } | null }
 
@@ -220,8 +220,16 @@ function PushDevices({ view }: { view: 'dispositivos' | 'sin' }) {
         )}
       </>
     )
-  const state = (lastOk: string | null, status?: number | null) =>
-    status && (status < 200 || status >= 300) ? <Badge tone="red">Falló la última ({status || 'sin conexión'})</Badge> : lastOk ? <span className="text-[13px] text-muted">Última recibida: {dateTime(lastOk)}</span> : <span className="text-[13px] text-muted">Aún no ha recibido ninguna</span>
+  // "confirmed" = the device itself said it showed one (the real proof); "lastOk" = only accepted by Google/Apple
+  const state = (lastOk: string | null, confirmed: string | null, status?: number | null) =>
+    status && (status < 200 || status >= 300) ? (
+      <Badge tone="red">Falló la última ({status || 'sin conexión'})</Badge>
+    ) : (
+      <span className="text-right text-[13px] text-muted">
+        {confirmed ? <span className="block text-leaf">Confirmó la última: {dateTime(confirmed)}</span> : <span className="block">Aún no ha confirmado ninguna</span>}
+        {lastOk && <span className="block text-[12px]">Última enviada: {dateTime(lastOk)}</span>}
+      </span>
+    )
   return (
     <>
       <section className="space-y-2">
@@ -239,7 +247,7 @@ function PushDevices({ view }: { view: 'dispositivos' | 'sin' }) {
                     {d.types.map((t) => <Badge key={t} tone="blue">{PUSH_TYPE[t] ?? t}</Badge>)}
                   </span>
                 </span>
-                {state(d.lastOk, d.lastStatus)}
+                {state(d.lastOk, d.confirmed, d.lastStatus)}
                 <DeleteButton what="este dispositivo" onDelete={() => remove('panel', d.id)} />
               </li>
             ))}
@@ -259,7 +267,7 @@ function PushDevices({ view }: { view: 'dispositivos' | 'sin' }) {
                   <span className="text-muted"> · {d.course ?? ''} · {d.device} · desde {dateTime(d.since)}</span>
                   {d.off.length > 0 && <span className="block text-[12px] text-[#8a5716]">Apagó: {d.off.map((t) => PUSH_TYPE[t] ?? t).join(', ')}</span>}
                 </span>
-                {state(d.lastOk)}
+                {state(d.lastOk, d.confirmed)}
                 <DeleteButton what="este dispositivo" onDelete={() => remove('familia', d.id)} />
               </li>
             ))}
@@ -319,10 +327,18 @@ function PushSent() {
                   s.delivered ? <Badge tone="green">Activó · {s.detail[0]?.device ?? ''}</Badge> : <Badge tone="red">No se pudo · {s.detail[0]?.device ?? ''}</Badge>
                 ) : s.devices === 0 ? (
                   <Badge tone="yellow">{s.audience === 'familia' ? 'Solo en el app (sin celular activado)' : 'Nadie lo tiene activado'}</Badge>
-                ) : s.failed ? (
-                  <Badge tone="red">{s.delivered} de {s.devices} dispositivos</Badge>
+                ) : s.received > 0 ? (
+                  // the device itself confirmed it showed the notification
+                  <span className="flex flex-wrap justify-end gap-1">
+                    <Badge tone="green">Confirmada en {s.received} de {s.devices}</Badge>
+                    {s.opened > 0 && <Badge tone="blue">La tocaron</Badge>}
+                  </span>
+                ) : s.delivered > 0 && s.detail.some((d) => d.tracked) ? (
+                  <Badge tone="yellow">Enviada · sin confirmación del dispositivo</Badge>
+                ) : s.delivered > 0 ? (
+                  <Badge tone="gray">Enviada (sin seguimiento)</Badge>
                 ) : (
-                  <Badge tone="green">Llegó a {s.delivered} {s.delivered === 1 ? 'dispositivo' : 'dispositivos'}</Badge>
+                  <Badge tone="red">No se pudo enviar</Badge>
                 )}
                 <span className="w-36 text-right text-[13px] whitespace-nowrap text-ink">{dateTime(s.at)}</span>
               </button>
@@ -337,7 +353,7 @@ function PushSent() {
                         setResending(s.id)
                         try {
                           const r = await api2.post<{ delivered: number }>(`/audit/push/sent/${s.id}/resend`)
-                          toast(r.delivered ? `Reenviada: llegó a ${r.delivered} ${r.delivered === 1 ? 'dispositivo' : 'dispositivos'}` : 'Se reenvió, pero ningún dispositivo la aceptó')
+                          toast(r.delivered ? 'Reenviada. Aparecerá «Confirmada» cuando el dispositivo avise que le llegó.' : 'Se intentó reenviar, pero Google/Apple no la aceptó para ningún dispositivo')
                           reload()
                         } catch (e) {
                           toast(e instanceof Error ? e.message : 'No se pudo reenviar')
@@ -348,19 +364,42 @@ function PushSent() {
                     >
                       {resending === s.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCw size={14} />} Reenviar
                     </button>
+                    <DeleteButton
+                      what="este registro"
+                      onDelete={async () => {
+                        await api2.del(`/audit/push/sent/${s.id}`)
+                        toast('Registro eliminado')
+                        setOpen(null)
+                        reload()
+                      }}
+                    />
                   </div>
-                  {s.detail.map((d, i) => (
-                    <p key={i} className={d.status >= 200 && d.status < 300 ? 'text-leaf' : 'text-berry'}>
-                      {d.who} · {d.device || 'Dispositivo'} · {d.status >= 200 && d.status < 300 ? 'entregado al servicio de notificaciones' : d.status === 404 || d.status === 410 ? 'el dispositivo ya no existe (se quitó)' : `falló (${d.status || 'sin conexión'})`}
-                    </p>
-                  ))}
+                  {s.detail.map((d, i) => {
+                    const sent = d.status >= 200 && d.status < 300
+                    return (
+                      <p key={i} className={d.receivedAt ? 'text-leaf' : sent ? 'text-[#8a5716]' : 'text-berry'}>
+                        {d.who} · {d.device || 'Dispositivo'} ·{' '}
+                        {d.receivedAt
+                          ? `le llegó el ${dateTime(d.receivedAt)}${d.openedAt ? ` · la tocó el ${dateTime(d.openedAt)}` : ''}`
+                          : sent
+                            ? d.tracked
+                              ? 'Google/Apple la aceptó, pero el dispositivo no ha confirmado que le llegó (apagado, sin internet o ya desinstalado)'
+                              : 'Google/Apple la aceptó (envío anterior al seguimiento)'
+                            : d.status === 404 || d.status === 410
+                              ? 'el dispositivo ya no existe (se quitó de la lista)'
+                              : `falló (${d.status || 'sin conexión'})`}
+                      </p>
+                    )
+                  })}
                 </div>
               )}
             </li>
           ))}
         </ul>
       )}
-      <p className="text-[12px] text-muted">«Entregado» = el servicio de Apple/Google lo aceptó. Si el celular está apagado o sin internet, le llega cuando se conecte (hasta 24 horas).</p>
+      <p className="text-[12px] text-muted">
+        «Confirmada» = el propio celular avisó que la mostró: esa es la prueba de que llegó. «Sin confirmación» = Google/Apple la aceptó pero el dispositivo no ha respondido (apagado, sin internet — le llega cuando se conecte, hasta 24 horas — o ya desinstalado). Los envíos de antes del 14 de octubre no tienen seguimiento.
+      </p>
     </div>
   )
 }

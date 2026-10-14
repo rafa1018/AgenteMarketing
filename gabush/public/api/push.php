@@ -108,7 +108,14 @@ if ($action === 'unsubscribe') {
 if ($action === 'test') {
     $sub = current(array_filter(rp_read_json($file)['subs'] ?? [], fn($s) => $s['endpoint'] === $endpoint));
     if (!$sub) rp_json(404, ['ok' => false, 'error' => 'not_found']);
-    $code = push_send_one($sub, ['title' => '🔔 Notificaciones activadas', 'body' => 'Así te avisaremos de inscripciones, pagos y asistencia.', 'url' => '/admin/#/inicio', 'tag' => 'test', 'type' => 'test'], push_vapid(), 'mailto:' . ($CONFIG['push_contact'] ?? 'gabushjardin@gmail.com'));
+    $ref = bin2hex(random_bytes(8));
+    $msg = ['title' => '🔔 Notificaciones activadas', 'body' => 'Así te avisaremos de inscripciones, pagos y asistencia.', 'url' => '/admin/#/inicio', 'tag' => 'test', 'type' => 'test', 'ref' => $ref];
+    $code = push_send_one($sub, $msg, push_vapid(), 'mailto:' . ($CONFIG['push_contact'] ?? 'gabushjardin@gmail.com'));
+    // logged with its ref: if the phone confirms it, the activation really works
+    if ($app = push_app()) {
+        $who = push_user_name($me);
+        Gabush\Application\Notifications\StaffDigest::log($app, 'panel', 'prueba', 'Notificación de prueba al activar', $msg['body'], null, $who, [['who' => $who, 'device' => (string) ($sub['device'] ?? ''), 'status' => $code, 'ref' => $ref, 'key' => hash('sha256', (string) $sub['endpoint'])]], $msg['url']);
+    }
     rp_json($code >= 200 && $code < 300 ? 200 : 502, ['ok' => $code >= 200 && $code < 300, 'status' => $code]);
 }
 

@@ -81,14 +81,43 @@ final class StaffDigest
     {
         try {
             $ok = count(array_filter($detail, static fn($d) => $d['status'] >= 200 && $d['status'] < 300));
-            $app->db()->insert('push_log', [
+            $id = $app->db()->insert('push_log', [
                 'audience' => $audience, 'type' => mb_substr($type, 0, 32), 'title' => mb_substr($title, 0, 160), 'body' => $body !== null ? mb_substr($body, 0, 500) : null,
                 'url' => $url !== null ? mb_substr($url, 0, 200) : null,
                 'student_id' => $studentId, 'recipient' => $recipient !== null ? mb_substr($recipient, 0, 200) : null,
                 'devices' => count($detail), 'delivered' => $ok, 'failed' => count($detail) - $ok, 'detail' => $detail ? json_encode($detail, JSON_UNESCAPED_UNICODE) : null,
             ]);
+            // each device that accepted it will confirm with its ref when it really shows it (see receipt())
+            foreach ($detail as $d) {
+                if (empty($d['ref']) || $d['status'] < 200 || $d['status'] >= 300) continue;
+                $app->db()->run(
+                    'INSERT INTO push_receipts (ref, log_id, device_key, who, device) VALUES (?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE log_id = VALUES(log_id), device_key = VALUES(device_key), who = VALUES(who), device = VALUES(device)',
+                    [$d['ref'], $id, $d['key'] ?? null, mb_substr((string) $d['who'], 0, 160), mb_substr((string) $d['device'], 0, 120)],
+                );
+            }
         } catch (\Throwable $e) {
             error_log('[gabush push_log] ' . $e->getMessage()); // the log must never break a notification
         }
+    }
+
+    /** A new random reference for one notification to one device. */
+    public static function ref(): string
+    {
+        return bin2hex(random_bytes(8));
+    }
+
+    /**
+     * The device says it received (showed) or the person tapped a notification. It can arrive before the
+     * sender saved the log row, so it upserts by ref.
+     */
+    public static function receipt(App $app, string $ref, string $event): void
+    {
+        if (!preg_match('/^[0-9a-f]{16}$/', $ref)) return;
+        $col = $event === 'opened' ? 'opened_at' : 'received_at';
+        $app->db()->run(
+            "INSERT INTO push_receipts (ref, $col) VALUES (?, NOW()) ON DUPLICATE KEY UPDATE $col = COALESCE($col, NOW())" . ($event === 'opened' ? ', received_at = COALESCE(received_at, NOW())' : ''),
+            [$ref],
+        );
     }
 }

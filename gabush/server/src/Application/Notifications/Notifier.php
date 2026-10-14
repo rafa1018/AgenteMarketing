@@ -71,14 +71,15 @@ final class Notifier
             $prefs = $s['prefs'] ? json_decode($s['prefs'], true) : [];
             if (($prefs[$message['tag']] ?? true) === false) continue;
             $code = 0;
+            $ref = StaffDigest::ref(); // the phone confirms with it when it really shows the notification
             if ($canSend) {
                 try {
-                    $code = \push_send_one(['endpoint' => $s['endpoint'], 'keys' => ['p256dh' => $s['p256dh'], 'auth' => $s['auth']]], $message, $vapid, 'mailto:gabushjardin@gmail.com');
+                    $code = \push_send_one(['endpoint' => $s['endpoint'], 'keys' => ['p256dh' => $s['p256dh'], 'auth' => $s['auth']]], $message + ['ref' => $ref], $vapid, 'mailto:gabushjardin@gmail.com');
                 } catch (\Throwable) {
                     $code = 0;
                 }
             }
-            $detail[] = ['who' => 'Familia', 'device' => self::deviceLabel($s['user_agent']), 'status' => $code];
+            $detail[] = ['who' => 'Familia', 'device' => self::deviceLabel($s['user_agent']), 'status' => $code, 'ref' => $ref, 'key' => 'f' . $s['id']];
             if ($code === 404 || $code === 410) $this->db->run('DELETE FROM push_subscriptions WHERE id = ?', [$s['id']]);
             elseif ($code >= 200 && $code < 300) $this->db->run('UPDATE push_subscriptions SET last_ok_at = NOW() WHERE id = ?', [$s['id']]);
         }

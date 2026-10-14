@@ -24,6 +24,10 @@ self.addEventListener('fetch', (e) => {
   )
 })
 
+// Tells the school this device really showed (or the person tapped) a notification — Auditoría → Notificaciones.
+const receipt = (ref, event) =>
+  ref ? fetch('/api/v2/push/receipt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref, event }), keepalive: true }).catch(() => {}) : Promise.resolve()
+
 // ── Push notifications (inscripciones, pagos pendientes, asistencia) ──
 self.addEventListener('push', (e) => {
   let msg = {}
@@ -33,14 +37,17 @@ self.addEventListener('push', (e) => {
     msg = { body: e.data && e.data.text() }
   }
   e.waitUntil(
-    self.registration.showNotification(msg.title || 'Gabush Kids', {
-      body: msg.body || '',
-      icon: '/icon-192.png?v=2',
-      badge: '/favicon-48.png?v=2',
-      tag: msg.tag || undefined,
-      renotify: Boolean(msg.tag),
-      data: { url: msg.url || '/admin/' },
-    }),
+    Promise.all([
+      self.registration.showNotification(msg.title || 'Gabush Kids', {
+        body: msg.body || '',
+        icon: '/icon-192.png?v=2',
+        badge: '/favicon-48.png?v=2',
+        tag: msg.tag || undefined,
+        renotify: Boolean(msg.tag),
+        data: { url: msg.url || '/admin/', ref: msg.ref || null },
+      }),
+      receipt(msg.ref, 'received'),
+    ]),
   )
 })
 
@@ -48,10 +55,13 @@ self.addEventListener('notificationclick', (e) => {
   e.notification.close()
   const url = new URL(e.notification.data?.url || '/admin/', self.location.origin).href
   e.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-      const win = wins.find((w) => w.url.includes('/admin/'))
-      if (win) return win.navigate(url).then((w) => (w || win).focus())
-      return self.clients.openWindow(url)
-    }),
+    Promise.all([
+      receipt(e.notification.data?.ref, 'opened'),
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+        const win = wins.find((w) => w.url.includes('/admin/'))
+        if (win) return win.navigate(url).then((w) => (w || win).focus())
+        return self.clients.openWindow(url)
+      }),
+    ]),
   )
 })

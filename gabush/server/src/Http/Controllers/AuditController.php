@@ -26,6 +26,8 @@ final class AuditController extends Controller
         $r->add('POST', '/audit/push/devices/delete', [$c, 'deletePushDevice']);
         $r->add('GET', '/audit/push/sent', [$c, 'pushSent']);
         $r->add('POST', '/audit/push/sent/{id}/resend', [$c, 'pushResend']);
+        $r->add('DELETE', '/audit/push/sent/{id}', [$c, 'deletePushSent']);
+        $r->add('POST', '/push/receipt', [$c, 'pushReceipt']);
         $r->add('DELETE', '/audit/access/{id}', [$c, 'deleteAccess']);
         $r->add('DELETE', '/audit/boletines/{id}', [$c, 'deleteBoletin']);
         $r->add('POST', '/audit/presence/delete', [$c, 'deletePresence']);
@@ -233,10 +235,13 @@ final class AuditController extends Controller
         foreach ((array) ((json_decode((string) @file_get_contents($this->app->dataDir() . '/users.json'), true) ?: [])['users'] ?? []) as $u) {
             if (!empty($u['id']) && isset($u['push']) && is_array($u['push'])) $allowed[(string) $u['id']] = $u['push'];
         }
-        $panel = array_map(static function ($s) use ($names, $allowed) {
+        // last time each device really confirmed a notification (push_receipts.device_key)
+        $confirmed = array_column($this->db()->all('SELECT device_key, MAX(received_at) AS at FROM push_receipts WHERE received_at IS NOT NULL AND device_key IS NOT NULL GROUP BY device_key'), 'at', 'device_key');
+        $panel = array_map(static function ($s) use ($names, $allowed, $confirmed) {
             $uid = (string) ($s['uid'] ?? 'root');
+            $key = hash('sha256', (string) $s['endpoint']);
             return [
-                'id' => hash('sha256', (string) $s['endpoint']),
+                'id' => $key, 'confirmed' => $confirmed[$key] ?? null,
                 'who' => $names[$uid] ?? $uid,
                 'device' => (string) (($s['device'] ?? '') ?: 'Dispositivo'),
                 'since' => $s['createdAt'] ?? null, 'lastOk' => $s['lastOk'] ?? null, 'lastStatus' => $s['lastStatus'] ?? null,
@@ -244,10 +249,10 @@ final class AuditController extends Controller
             ];
         }, $this->panelSubs());
         $year = $this->settings()->activeYear();
-        $families = array_map(static function ($r) {
+        $families = array_map(static function ($r) use ($confirmed) {
             $prefs = $r['prefs'] ? (json_decode((string) $r['prefs'], true) ?: []) : [];
             return [
-                'id' => (int) $r['id'], 'studentId' => (int) $r['studentId'], 'who' => $r['student'], 'course' => $r['course'],
+                'id' => (int) $r['id'], 'confirmed' => $confirmed['f' . $r['id']] ?? null, 'studentId' => (int) $r['studentId'], 'who' => $r['student'], 'course' => $r['course'],
                 'device' => \Gabush\Application\Notifications\Notifier::deviceLabel($r['ua']), 'since' => $r['since'], 'lastOk' => $r['lastOk'],
                 'off' => array_keys(array_filter($prefs, static fn($v) => $v === false)),
             ];
@@ -325,7 +330,27 @@ final class AuditController extends Controller
              FROM push_log l WHERE ' . implode(' AND ', [...$w, ...$rw]) . ' ORDER BY l.id DESC LIMIT 500',
             [...$p, ...$rp],
         );
-        foreach ($rows as &$r) $r['detail'] = $r['detail'] ? (json_decode((string) $r['detail'], true) ?: []) : [];
+        // what each device confirmed (received = it showed it, opened = the person tapped it)
+        $receipts = [];
+        if ($rows) {
+            $ids = array_column($rows, 'id');
+            foreach ($this->db()->all('SELECT ref, received_at, opened_at FROM push_receipts WHERE log_id IN (' . implode(',', array_map('intval', $ids)) . ')') as $x) $receipts[$x['ref']] = $x;
+        }
+        foreach ($rows as &$r) {
+            $r['detail'] = $r['detail'] ? (json_decode((string) $r['detail'], true) ?: []) : [];
+            $r['received'] = 0;
+            $r['opened'] = 0;
+            foreach ($r['detail'] as &$d) {
+                $x = isset($d['ref']) ? ($receipts[$d['ref']] ?? null) : null;
+                $d['receivedAt'] = $x['received_at'] ?? null;
+                $d['openedAt'] = $x['opened_at'] ?? null;
+                $d['tracked'] = isset($d['ref']); // older ones (before 14 oct) had no confirmation
+                if ($d['receivedAt']) $r['received']++;
+                if ($d['openedAt']) $r['opened']++;
+                unset($d['ref'], $d['key']);
+            }
+            unset($d);
+        }
         unset($r);
         $types = array_column($this->db()->all('SELECT DISTINCT type FROM push_log ORDER BY type'), 'type');
         return ['sent' => self::intsAll($rows, 'id', 'studentId', 'devices', 'delivered', 'failed'), 'types' => $types];
@@ -352,6 +377,27 @@ final class AuditController extends Controller
         }
         $this->audit()->log($actor, 'push.resend', 'push_log', (int) $l['id'], ['title' => $title, 'delivered' => $delivered]);
         return ['delivered' => $delivered];
+    }
+
+    /**
+     * {ref, event: received|opened} — sent by the phone's service worker when it shows a notification and when
+     * the person taps it. No session needed: the ref is a random 16-hex token only that device received.
+     */
+    public function pushReceipt(Request $req): array
+    {
+        $in = $req->json();
+        \Gabush\Application\Notifications\StaffDigest::receipt($this->app, (string) ($in['ref'] ?? ''), ($in['event'] ?? '') === 'opened' ? 'opened' : 'received');
+        return [];
+    }
+
+    public function deletePushSent(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'usuarios');
+        $id = $req->intParam('id');
+        $this->db()->run('DELETE FROM push_receipts WHERE log_id = ?', [$id]);
+        $this->db()->run('DELETE FROM push_log WHERE id = ?', [$id]);
+        $this->audit()->log($actor, 'push.log_delete', 'push_log', $id);
+        return [];
     }
 
     /** Money movements of the "Movimientos de cartera" tab, by group. */

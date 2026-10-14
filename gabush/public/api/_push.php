@@ -199,13 +199,14 @@ function push_notify(string $type, array $message): int
     $detail = [];
     $sent = 0;
     foreach ($targets as $s) {
+        $ref = bin2hex(random_bytes(8)); // the device confirms with it when it really shows the notification
         try {
-            $code = push_send_one($s, $message + ['type' => $type], $vapid, $subject);
+            $code = push_send_one($s, $message + ['type' => $type, 'ref' => $ref], $vapid, $subject);
         } catch (Throwable $e) {
             $code = 0;
         }
         $status[$s['endpoint']] = $code;
-        $detail[] = ['who' => push_user_name((string) ($s['uid'] ?? RP_ROOT)), 'device' => (string) ($s['device'] ?? ''), 'status' => $code];
+        $detail[] = ['who' => push_user_name((string) ($s['uid'] ?? RP_ROOT)), 'device' => (string) ($s['device'] ?? ''), 'status' => $code, 'ref' => $ref, 'key' => hash('sha256', (string) $s['endpoint'])];
         if ($code === 404 || $code === 410) $gone[] = $s['endpoint'];
         elseif ($code >= 200 && $code < 300) $sent++;
     }
