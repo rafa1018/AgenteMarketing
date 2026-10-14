@@ -51,7 +51,7 @@ final class Scheduler
 
         $reminders = (array) $settings->get('reminders', ['enabled' => true, 'daysBefore' => 3, 'hour' => 8]);
         if (!empty($reminders['enabled']) && (int) $now->format('G') >= (int) ($reminders['hour'] ?? 8) && ($state['remindersDay'] ?? '') !== $now->format('Y-m-d')) {
-            $done['reminders'] = $this->paymentReminders($billing, (int) ($reminders['daysBefore'] ?? 3));
+            $done['reminders'] = $this->paymentReminders($billing, (int) ($reminders['daysBefore'] ?? 3), (int) ($reminders['everyDays'] ?? 7));
             $state['remindersDay'] = $now->format('Y-m-d');
         }
 
@@ -105,7 +105,7 @@ final class Scheduler
     }
 
     /** Families with overdue charges, or charges due within $daysBefore days. */
-    private function paymentReminders(BillingService $billing, int $daysBefore): int
+    private function paymentReminders(BillingService $billing, int $daysBefore, int $everyDays): int
     {
         $db = $this->app->db();
         $limit = $this->app->today()->modify("+$daysBefore days")->format('Y-m-d');
@@ -120,8 +120,9 @@ final class Scheduler
         foreach ($students as $sid) {
             $open = array_values(array_filter($billing->charges((int) $sid, null, true), static fn($c) => $c['dueOn'] !== null && $c['dueOn'] <= $limit && $c['balance'] > 0));
             if (!$open) continue;
-            $n->paymentReminder((int) $sid, array_sum(array_column($open, 'balance')), $open, array_sum(array_column($open, 'lateFees')));
-            $sent++;
+            $before = (int) $db->value('SELECT COUNT(*) FROM reminders_sent');
+            $n->paymentReminder((int) $sid, array_sum(array_column($open, 'balance')), $open, array_sum(array_column($open, 'lateFees')), $everyDays);
+            if ((int) $db->value('SELECT COUNT(*) FROM reminders_sent') > $before) $sent++;
         }
         return $sent;
     }

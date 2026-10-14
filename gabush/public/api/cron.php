@@ -15,7 +15,7 @@ push_maybe_reminders();
 // Fase 2 (MySQL): pensiones del mes, mora, recordatorios a familias y cola de correos
 if (!empty($CONFIG['db'])) {
     try {
-        require dirname(__DIR__, 2) . '/server/bootstrap.php';
+        defined('GB_SERVER') || require dirname(__DIR__, 2) . '/server/bootstrap.php'; // the reminders may have loaded it
         $done = (new Gabush\Application\Scheduler(Gabush\App::boot()))->run();
         echo date('c') . ' v2 ' . json_encode($done) . "\n";
     } catch (Throwable $e) {

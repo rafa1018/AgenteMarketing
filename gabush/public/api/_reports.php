@@ -201,6 +201,9 @@ function push_maybe_reminders(): void
 
     $data = rep_data();
     $open = rep_is_open($data, $today);
+    // students, billing and attendance live in the database since the move to v2 (the old JSON files are gone)
+    $app = push_app();
+    $digest = $app ? new Gabush\Application\Notifications\StaffDigest($app) : null;
     foreach ($claimed as $kind) {
         if ($kind === 'eventos') {
             $todays = array_values(array_filter($data['events'], fn($e) => ($e['type'] ?? '') !== 'festivo' && $e['start'] <= $today && $e['end'] >= $today));
@@ -213,7 +216,7 @@ function push_maybe_reminders(): void
                 'tag'   => 'eventos',
             ]);
         } elseif ($kind === 'cumpleanos') {
-            $list = rep_birthdays($data, $today);
+            $list = $digest ? $digest->birthdays() : rep_birthdays($data, $today);
             if (!$list) continue;
             push_notify('cumpleanos', [
                 'title' => count($list) === 1 ? '🎂 Hoy cumple años ' . $list[0] : '🎂 Cumpleaños de hoy: ' . count($list),
@@ -222,18 +225,18 @@ function push_maybe_reminders(): void
                 'tag'   => 'cumpleanos',
             ]);
         } elseif ($kind === 'pagos') {
-            $dues = rep_dues($data, $today);
+            $dues = $digest ? $digest->dues() : rep_dues($data, $today);
             if (!$dues) continue;
             $total = array_sum(array_column($dues, 1));
             push_notify('pagos', [
                 'title' => '💰 Pagos pendientes: ' . rep_money($total),
                 'body'  => (count($dues) === 1 ? '1 estudiante' : count($dues) . ' estudiantes') . ': ' . rep_names(array_map(fn($d) => explode(' ', $d[0])[0] . ' ' . rep_money($d[1]), $dues)),
-                'url'   => '/admin/#/pagos',
+                'url'   => $digest ? '/admin/#/cartera' : '/admin/#/pagos',
                 'tag'   => 'pagos',
             ]);
         } elseif ($open) {
             $shift = $kind === 'asistencia-manana' ? 'manana' : null;
-            $pending = rep_attendance_pending($data, $today, $shift);
+            $pending = $digest ? $digest->attendancePending($shift) : rep_attendance_pending($data, $today, $shift);
             if (!$pending) continue;
             push_notify('asistencia', [
                 'title' => '✅ Asistencia sin marcar: ' . count($pending),

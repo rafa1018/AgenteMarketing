@@ -1,4 +1,4 @@
-import { FileDown, Search, Trash2, X } from 'lucide-react'
+import { FileDown, Loader2, RotateCw, Search, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { dateTime, money, todayISO } from '@/shared/format'
@@ -96,15 +96,223 @@ function PortalFilter({ value, onChange }: { value: Portal; onChange: (p: Portal
 const PortalBadge = ({ p }: { p: 'familia' | 'panel' }) => <Badge tone={p === 'familia' ? 'blue' : 'gray'}>{p === 'familia' ? 'Familias' : 'Panel'}</Badge>
 
 export function AuditPage() {
-  const [tab, setTab] = useTab<'conexiones' | 'ingresos' | 'boletines' | 'cartera'>('conexiones')
+  const [tab, setTab] = useTab<'conexiones' | 'ingresos' | 'boletines' | 'cartera' | 'notificaciones'>('conexiones')
   return (
     <div className="space-y-5">
-      <PageHead title="Auditoría" sub="Quién está en línea, cuándo entró cada persona, quién vio los boletines y quién movió dinero en cartera (anulaciones, descuentos, mora…) y por qué." actions={tab === 'boletines' ? <YearPicker /> : undefined} />
-      <Tabs tabs={[{ id: 'conexiones', label: 'En línea y conexiones' }, { id: 'ingresos', label: 'Historial de ingresos' }, { id: 'boletines', label: 'Boletines vistos' }, { id: 'cartera', label: 'Movimientos de cartera' }]} value={tab} onChange={setTab} />
+      <PageHead title="Auditoría" sub="Quién está en línea, cuándo entró cada persona, quién vio los boletines, quién movió dinero en cartera y qué notificaciones se enviaron." actions={tab === 'boletines' ? <YearPicker /> : undefined} />
+      <Tabs tabs={[{ id: 'conexiones', label: 'En línea y conexiones' }, { id: 'ingresos', label: 'Historial de ingresos' }, { id: 'boletines', label: 'Boletines vistos' }, { id: 'cartera', label: 'Movimientos de cartera' }, { id: 'notificaciones', label: 'Notificaciones' }]} value={tab} onChange={setTab} />
       {tab === 'conexiones' && <PresenceTab />}
       {tab === 'ingresos' && <AccessTab />}
       {tab === 'boletines' && <BoletinesTab />}
       {tab === 'cartera' && <BillingTab />}
+      {tab === 'notificaciones' && <PushTab />}
+    </div>
+  )
+}
+
+type PanelDevice = { id: string; who: string; device: string; since: string | null; lastOk: string | null; lastStatus: number | null; types: string[] }
+type FamilyDevice = { id: number; studentId: number; who: string; course: string | null; device: string; since: string; lastOk: string | null; off: string[] }
+type NoDevice = { id: number; name: string; course: string | null; lastLogin: string | null; phone: string | null }
+type Sent = { id: number; audience: 'panel' | 'familia'; type: string; title: string; body: string | null; url: string | null; studentId: number | null; recipient: string | null; devices: number; delivered: number; failed: number; detail: { who: string; device: string; status: number }[]; at: string }
+const PUSH_TYPE: Record<string, string> = {
+  inscripciones: 'Inscripciones', pagos: 'Pagos', asistencia: 'Asistencia', cumpleanos: 'Cumpleaños', eventos: 'Eventos', recordatorio: 'Recordatorio de pago',
+  pago: 'Pago recibido', cobro: 'Nuevo cobro', mensaje: 'Mensaje', notas: 'Notas', observador: 'Observador', documento: 'Documento', 'pago-en-linea': 'Pago en línea',
+}
+
+/** Who has notifications turned on (staff and families), what was sent and whether it reached a phone. */
+function PushTab() {
+  const [view, setView] = useState<'dispositivos' | 'enviadas' | 'sin'>('dispositivos')
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 rounded-xl bg-white p-1 ring-1 ring-line sm:inline-flex">
+        {([['dispositivos', 'Dispositivos activos'], ['enviadas', 'Enviadas'], ['sin', 'Familias sin notificaciones']] as const).map(([id, label]) => (
+          <button key={id} type="button" onClick={() => setView(id)} className={cn('flex-1 rounded-lg px-3 py-1.5 text-[13px] font-semibold', view === id ? 'bg-ink text-white' : 'text-muted')}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === 'enviadas' ? <PushSent /> : <PushDevices view={view} />}
+    </div>
+  )
+}
+
+function PushDevices({ view }: { view: 'dispositivos' | 'sin' }) {
+  const { data, error, loading, reload } = useQuery('push-devices', () => api2.get<{ panel: PanelDevice[]; families: FamilyDevice[]; without: NoDevice[] }>('/audit/push/devices'))
+  const remove = async (audience: 'panel' | 'familia', id: string | number) => {
+    await api2.post('/audit/push/devices/delete', { audience, id })
+    toast('Dispositivo quitado: deja de recibir notificaciones hasta que las active de nuevo')
+    reload()
+  }
+  if (error) return <ErrorBox message={error.message} onRetry={reload} />
+  if (loading && !data) return <Spinner />
+  if (!data) return null
+  if (view === 'sin')
+    return (
+      <>
+        <p className="text-[14px] text-muted">
+          <b className="text-ink">{data.without.length}</b> estudiantes activos sin ningún celular con notificaciones. Sus familias solo ven las novedades al abrir el app (y el correo, si tienen). Para activarlas: abrir el app de familias → «Más» → «Mi cuenta» → «Notificaciones en el celular».
+        </p>
+        {!data.without.length ? (
+          <Empty title="Todas las familias tienen notificaciones activas" />
+        ) : (
+          <ul className="card divide-y divide-line p-0">
+            {data.without.map((s) => (
+              <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-[14px]">
+                <span className="min-w-0 flex-1">
+                  <button type="button" onClick={() => openStudent(s.id)} className="font-semibold text-ink hover:underline">{s.name}</button>
+                  <span className="text-muted"> · {s.course ?? 'Sin curso'}</span>
+                </span>
+                <span className="text-[13px] text-muted">{s.lastLogin ? `Último ingreso al app: ${dateTime(s.lastLogin)}` : 'Nunca ha entrado al app'}</span>
+                {s.phone && (
+                  <a href={`https://wa.me/57${s.phone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent('Hola, desde el app de familias de Gabush pueden activar las notificaciones para enterarse al instante de pagos, notas y novedades. Entren aquí y toquen «Activar notificaciones»: https://gabushkids.com/familia/#/cuenta')}`} target="_blank" rel="noopener noreferrer" className="btn btn-whatsapp !min-h-8 !px-3 !text-[12px]">
+                    Invitar por WhatsApp
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </>
+    )
+  const state = (lastOk: string | null, status?: number | null) =>
+    status && (status < 200 || status >= 300) ? <Badge tone="red">Falló la última ({status || 'sin conexión'})</Badge> : lastOk ? <span className="text-[13px] text-muted">Última recibida: {dateTime(lastOk)}</span> : <span className="text-[13px] text-muted">Aún no ha recibido ninguna</span>
+  return (
+    <>
+      <section className="space-y-2">
+        <h3 className="text-lg">Personal ({data.panel.length})</h3>
+        {!data.panel.length ? (
+          <Empty title="Nadie del personal tiene notificaciones activas">Cada persona las activa en su celular desde el panel: menú → Notificaciones.</Empty>
+        ) : (
+          <ul className="card divide-y divide-line p-0">
+            {data.panel.map((d) => (
+              <li key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-[14px]">
+                <span className="min-w-0 flex-1">
+                  <b className="text-ink">{d.who}</b>
+                  <span className="text-muted"> · {d.device}{d.since ? ` · desde ${dateTime(d.since)}` : ''}</span>
+                  <span className="mt-1 flex flex-wrap gap-1">
+                    {d.types.map((t) => <Badge key={t} tone="blue">{PUSH_TYPE[t] ?? t}</Badge>)}
+                  </span>
+                </span>
+                {state(d.lastOk, d.lastStatus)}
+                <DeleteButton what="este dispositivo" onDelete={() => remove('panel', d.id)} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="space-y-2">
+        <h3 className="text-lg">Familias ({data.families.length})</h3>
+        {!data.families.length ? (
+          <Empty title="Ninguna familia ha activado las notificaciones">Mira la pestaña «Familias sin notificaciones» para invitarlas.</Empty>
+        ) : (
+          <ul className="card divide-y divide-line p-0">
+            {data.families.map((d) => (
+              <li key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-[14px]">
+                <span className="min-w-0 flex-1">
+                  <button type="button" onClick={() => openStudent(d.studentId)} className="font-semibold text-ink hover:underline">{d.who}</button>
+                  <span className="text-muted"> · {d.course ?? ''} · {d.device} · desde {dateTime(d.since)}</span>
+                  {d.off.length > 0 && <span className="block text-[12px] text-[#8a5716]">Apagó: {d.off.map((t) => PUSH_TYPE[t] ?? t).join(', ')}</span>}
+                </span>
+                {state(d.lastOk)}
+                <DeleteButton what="este dispositivo" onDelete={() => remove('familia', d.id)} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
+  )
+}
+
+function PushSent() {
+  const { year } = useSetup()
+  const [audience, setAudience] = useState<'' | 'panel' | 'familia'>('')
+  const [type, setType] = useState('')
+  const [q, setQ] = useState('')
+  const [student, setStudent] = useState<Picked | null>(null)
+  const [range, setRange] = useState<Range>({ from: daysAgo(6), to: today() })
+  const [open, setOpen] = useState<number | null>(null)
+  const [resending, setResending] = useState<number | null>(null)
+  const params = { audience: audience || null, type: type || null, q: q.trim() || null, student: student?.id ?? null, from: range.from || null, to: range.to || null }
+  const { data, error, loading, reload } = useQuery(`push-sent:${JSON.stringify(params)}`, () => api2.get<{ sent: Sent[]; types: string[] }>('/audit/push/sent' + qs(params)))
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={audience} onChange={(e) => setAudience(e.target.value as '' | 'panel' | 'familia')} aria-label="Para quién" className="min-h-10 rounded-full border border-line bg-white px-3 text-[13px] font-semibold">
+          <option value="">Personal y familias</option>
+          <option value="panel">Personal</option>
+          <option value="familia">Familias</option>
+        </select>
+        <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Tipo" className="min-h-10 rounded-full border border-line bg-white px-3 text-[13px] font-semibold">
+          <option value="">Todos los tipos</option>
+          {data?.types.map((t) => <option key={t} value={t}>{PUSH_TYPE[t] ?? t}</option>)}
+        </select>
+        <SearchBox value={q} onChange={setQ} placeholder="Buscar en el título o destinatario…" />
+      </div>
+      <StudentPicker year={year} value={student} onChange={setStudent} />
+      <RangeFilter value={range} onChange={setRange} />
+      {error ? (
+        <ErrorBox message={error.message} onRetry={reload} />
+      ) : loading && !data ? (
+        <Spinner />
+      ) : !data?.sent.length ? (
+        <Empty title="No se enviaron notificaciones en esas fechas">El registro empezó el 14 de octubre de 2026; lo anterior no quedó guardado.</Empty>
+      ) : (
+        <ul className="card divide-y divide-line p-0">
+          {data.sent.map((s) => (
+            <li key={s.id} className="px-4 py-2.5 text-[14px]">
+              <button type="button" onClick={() => setOpen(open === s.id ? null : s.id)} className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 text-left">
+                <Badge tone={s.audience === 'panel' ? 'gray' : 'blue'}>{s.audience === 'panel' ? 'Personal' : 'Familia'}</Badge>
+                <span className="min-w-0 flex-1">
+                  <b className="text-ink">{s.title}</b>
+                  <span className="block text-[13px] text-muted">
+                    {PUSH_TYPE[s.type] ?? s.type} · {s.recipient ?? '—'}
+                  </span>
+                </span>
+                {s.devices === 0 ? (
+                  <Badge tone="yellow">{s.audience === 'familia' ? 'Solo en el app (sin celular activado)' : 'Nadie lo tiene activado'}</Badge>
+                ) : s.failed ? (
+                  <Badge tone="red">{s.delivered} de {s.devices} dispositivos</Badge>
+                ) : (
+                  <Badge tone="green">Llegó a {s.delivered} {s.delivered === 1 ? 'dispositivo' : 'dispositivos'}</Badge>
+                )}
+                <span className="w-36 text-right text-[13px] whitespace-nowrap text-ink">{dateTime(s.at)}</span>
+              </button>
+              {open === s.id && (
+                <div className="mt-2 space-y-1 rounded-xl bg-paper p-3 text-[13px]">
+                  <div className="flex flex-wrap items-start gap-2">
+                    {s.body && <p className="min-w-0 flex-1 text-text">{s.body}</p>}
+                    <button
+                      type="button"
+                      disabled={resending === s.id}
+                      onClick={async () => {
+                        setResending(s.id)
+                        try {
+                          const r = await api2.post<{ delivered: number }>(`/audit/push/sent/${s.id}/resend`)
+                          toast(r.delivered ? `Reenviada: llegó a ${r.delivered} ${r.delivered === 1 ? 'dispositivo' : 'dispositivos'}` : 'Se reenvió, pero ningún dispositivo la aceptó')
+                          reload()
+                        } catch (e) {
+                          toast(e instanceof Error ? e.message : 'No se pudo reenviar')
+                        }
+                        setResending(null)
+                      }}
+                      className="btn btn-ghost ml-auto !min-h-8 !bg-white !px-3 !text-[12px]"
+                    >
+                      {resending === s.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCw size={14} />} Reenviar
+                    </button>
+                  </div>
+                  {s.detail.map((d, i) => (
+                    <p key={i} className={d.status >= 200 && d.status < 300 ? 'text-leaf' : 'text-berry'}>
+                      {d.who} · {d.device || 'Dispositivo'} · {d.status >= 200 && d.status < 300 ? 'entregado al servicio de notificaciones' : d.status === 404 || d.status === 410 ? 'el dispositivo ya no existe (se quitó)' : `falló (${d.status || 'sin conexión'})`}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-[12px] text-muted">«Entregado» = el servicio de Apple/Google lo aceptó. Si el celular está apagado o sin internet, le llega cuando se conecte (hasta 24 horas).</p>
     </div>
   )
 }

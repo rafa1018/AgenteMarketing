@@ -141,8 +141,37 @@ function push_send_one(array $sub, array $message, array $vapid, string $subject
     return $code;
 }
 
+/** The v2 application (database), loaded once; null when the site has no database configured. */
+function push_app(): ?object
+{
+    static $app = false;
+    if ($app !== false) return $app;
+    global $CONFIG;
+    $app = null;
+    if (empty($CONFIG['db'])) return null;
+    try {
+        if (!defined('GB_SERVER')) require dirname(__DIR__, 2) . '/server/bootstrap.php';
+        $app = Gabush\App::boot();
+    } catch (Throwable $e) {
+        error_log('[gabush push] ' . $e->getMessage());
+    }
+    return $app;
+}
+
+/** Name of a panel user (the owner account included) for the notification log. */
+function push_user_name(string $uid): string
+{
+    global $CONFIG;
+    if ($uid === '' || $uid === RP_ROOT) return (string) ($CONFIG['admin_name'] ?? 'Administrador');
+    foreach (rp_read_json(rp_data_dir() . '/users.json')['users'] ?? [] as $u) {
+        if (($u['id'] ?? '') === $uid) return (string) ($u['name'] ?? $u['username'] ?? $uid);
+    }
+    return $uid;
+}
+
 /**
  * Notifies every subscribed device that wants this type. Expired subscriptions (404/410) are removed.
+ * Each send is recorded (Auditoría → Notificaciones), and each device keeps when it last received one.
  * $message: {title, body, url, tag}
  */
 function push_notify(string $type, array $message): int
@@ -159,10 +188,11 @@ function push_notify(string $type, array $message): int
         $permsOf[$uid] ??= rp_user_perms($uid);
         return !$need || array_intersect($need, $permsOf[$uid]);
     });
-    if (!$targets) return 0;
-    $vapid = push_vapid();
+    $vapid = $targets ? push_vapid() : null;
     $subject = 'mailto:' . ($CONFIG['push_contact'] ?? 'gabushjardin@gmail.com');
     $gone = [];
+    $status = [];
+    $detail = [];
     $sent = 0;
     foreach ($targets as $s) {
         try {
@@ -170,14 +200,28 @@ function push_notify(string $type, array $message): int
         } catch (Throwable $e) {
             $code = 0;
         }
+        $status[$s['endpoint']] = $code;
+        $detail[] = ['who' => push_user_name((string) ($s['uid'] ?? RP_ROOT)), 'device' => (string) ($s['device'] ?? ''), 'status' => $code];
         if ($code === 404 || $code === 410) $gone[] = $s['endpoint'];
         elseif ($code >= 200 && $code < 300) $sent++;
     }
-    if ($gone) {
-        rp_with_json($file, function (array $data) use ($gone) {
+    if ($status) {
+        $now = date('c');
+        rp_with_json($file, function (array $data) use ($gone, $status, $now) {
+            foreach ($data['subs'] ?? [] as $i => $s) {
+                $code = $status[$s['endpoint']] ?? null;
+                if ($code === null) continue;
+                $data['subs'][$i]['lastStatus'] = $code;
+                $data['subs'][$i]['lastAt'] = $now;
+                if ($code >= 200 && $code < 300) $data['subs'][$i]['lastOk'] = $now;
+            }
             $data['subs'] = array_values(array_filter($data['subs'] ?? [], fn($s) => !in_array($s['endpoint'], $gone, true)));
             return [$data, null];
         });
+    }
+    if ($app = push_app()) {
+        $who = implode(', ', array_unique(array_column($detail, 'who')));
+        Gabush\Application\Notifications\StaffDigest::log($app, 'panel', $type, (string) ($message['title'] ?? ''), $message['body'] ?? null, null, $who ?: 'Nadie con este aviso activado', $detail, $message['url'] ?? null);
     }
     return $sent;
 }

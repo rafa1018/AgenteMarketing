@@ -14,13 +14,13 @@ use Gabush\Infrastructure\Database\Database;
  */
 final class Notifier
 {
-    public function __construct(private readonly Database $db, private readonly EmailService $email, private readonly string $baseUrl)
+    public function __construct(private readonly Database $db, private readonly EmailService $email, private readonly string $baseUrl, private readonly ?App $app = null)
     {
     }
 
     public static function from(App $app): self
     {
-        return $app->service(self::class, static fn(App $a) => new self($a->db(), EmailService::from($a), $a->baseUrl()));
+        return $app->service(self::class, static fn(App $a) => new self($a->db(), EmailService::from($a), $a->baseUrl(), $a));
     }
 
     public static function money(int $v): string
@@ -49,24 +49,67 @@ final class Notifier
         $this->push($studentId, ['title' => $title, 'body' => $body, 'url' => $url, 'tag' => $kind]);
     }
 
-    /** Web push to the family's devices (uses the panel's VAPID keys). Expired devices are removed. */
-    private function push(int $studentId, array $message): void
+    /**
+     * Web push to the family's devices (uses the panel's VAPID keys). Expired devices are removed. Every
+     * notification is recorded — also when the family has no device, so the school knows it only reached the app.
+     */
+    /** Sends again a family notification that did not arrive (only the push: the novedad is already in the app). */
+    public function resend(int $studentId, string $type, string $title, ?string $body, ?string $url): int
     {
-        if (!function_exists('push_send_one') || !function_exists('curl_init')) return;
-        $subs = $this->db->all('SELECT id, endpoint, p256dh, auth, prefs FROM push_subscriptions WHERE student_id = ?', [$studentId]);
-        if (!$subs) return;
-        $vapid = \push_vapid();
+        $before = (int) $this->db->value('SELECT COALESCE(MAX(id), 0) FROM push_log');
+        $this->push($studentId, ['title' => $title, 'body' => (string) $body, 'url' => $url ?: '/familia/', 'tag' => $type], true);
+        return (int) $this->db->value('SELECT COALESCE(SUM(delivered), 0) FROM push_log WHERE id > ? AND student_id = ?', [$before, $studentId]);
+    }
+
+    private function push(int $studentId, array $message, bool $resent = false): void
+    {
+        $subs = $this->db->all('SELECT id, endpoint, p256dh, auth, prefs, user_agent FROM push_subscriptions WHERE student_id = ?', [$studentId]);
+        $detail = [];
+        $canSend = function_exists('push_send_one') && function_exists('curl_init');
+        $vapid = $subs && $canSend ? \push_vapid() : null;
         foreach ($subs as $s) {
             $prefs = $s['prefs'] ? json_decode($s['prefs'], true) : [];
             if (($prefs[$message['tag']] ?? true) === false) continue;
-            try {
-                $code = \push_send_one(['endpoint' => $s['endpoint'], 'keys' => ['p256dh' => $s['p256dh'], 'auth' => $s['auth']]], $message, $vapid, 'mailto:gabushjardin@gmail.com');
-            } catch (\Throwable) {
-                $code = 0;
+            $code = 0;
+            if ($canSend) {
+                try {
+                    $code = \push_send_one(['endpoint' => $s['endpoint'], 'keys' => ['p256dh' => $s['p256dh'], 'auth' => $s['auth']]], $message, $vapid, 'mailto:gabushjardin@gmail.com');
+                } catch (\Throwable) {
+                    $code = 0;
+                }
             }
+            $detail[] = ['who' => 'Familia', 'device' => self::deviceLabel($s['user_agent']), 'status' => $code];
             if ($code === 404 || $code === 410) $this->db->run('DELETE FROM push_subscriptions WHERE id = ?', [$s['id']]);
             elseif ($code >= 200 && $code < 300) $this->db->run('UPDATE push_subscriptions SET last_ok_at = NOW() WHERE id = ?', [$s['id']]);
         }
+        $who = $this->db->value("SELECT CONCAT(first_name, ' ', last_name) FROM students WHERE id = ?", [$studentId]);
+        if ($this->app) StaffDigest::log($this->app, 'familia', (string) ($message['tag'] ?? ''), ($resent ? '↻ ' : '') . $message['title'], $message['body'] ?? null, $studentId, $who ? (string) $who : null, $detail, $message['url'] ?? null);
+    }
+
+    /** "iPhone · Safari", "Android · Chrome", "Windows · Edge"… from a browser's user agent. */
+    public static function deviceLabel(?string $ua): string
+    {
+        $ua = (string) $ua;
+        if ($ua === '') return 'Dispositivo';
+        $os = match (true) {
+            str_contains($ua, 'iPhone') => 'iPhone',
+            str_contains($ua, 'iPad') => 'iPad',
+            str_contains($ua, 'Android') => 'Android',
+            str_contains($ua, 'Windows') => 'Windows',
+            str_contains($ua, 'Mac OS') || str_contains($ua, 'Macintosh') => 'Mac',
+            str_contains($ua, 'Linux') => 'Linux',
+            default => 'Otro',
+        };
+        $browser = match (true) {
+            str_contains($ua, 'Edg/') => 'Edge',
+            str_contains($ua, 'SamsungBrowser') => 'Samsung Internet',
+            str_contains($ua, 'OPR/') => 'Opera',
+            str_contains($ua, 'Firefox') || str_contains($ua, 'FxiOS') => 'Firefox',
+            str_contains($ua, 'CriOS') || str_contains($ua, 'Chrome') => 'Chrome',
+            str_contains($ua, 'Safari') => 'Safari',
+            default => '',
+        };
+        return $browser ? "$os · $browser" : $os;
     }
 
     private function portal(string $path = ''): string
@@ -129,10 +172,11 @@ final class Notifier
     }
 
     /** Daily reminder of what is pending/overdue (once a day per student, see reminders_sent). */
-    public function paymentReminder(int $studentId, int $balance, array $charges, int $lateFees): void
+    /** At most one payment reminder per family every $everyDays days (default 7), not every day. */
+    public function paymentReminder(int $studentId, int $balance, array $charges, int $lateFees, int $everyDays = 7): void
     {
         $key = 'pay:' . $studentId . ':' . date('Y-m-d');
-        if ($this->db->value('SELECT 1 FROM reminders_sent WHERE `key` = ?', [$key])) return;
+        if ($this->db->value('SELECT 1 FROM reminders_sent WHERE `key` LIKE ? AND sent_at >= CURDATE() - INTERVAL ? DAY', ['pay:' . $studentId . ':%', max(1, $everyDays) - 1])) return;
         $this->db->run('INSERT INTO reminders_sent (`key`) VALUES (?)', [$key]);
         $c = $this->contact($studentId);
         if (!$c) return;

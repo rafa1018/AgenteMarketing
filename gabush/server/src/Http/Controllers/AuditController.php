@@ -22,6 +22,10 @@ final class AuditController extends Controller
         $r->add('GET', '/audit/access', [$c, 'access']);
         $r->add('GET', '/audit/boletines', [$c, 'boletines']);
         $r->add('GET', '/audit/billing', [$c, 'billing']);
+        $r->add('GET', '/audit/push/devices', [$c, 'pushDevices']);
+        $r->add('POST', '/audit/push/devices/delete', [$c, 'deletePushDevice']);
+        $r->add('GET', '/audit/push/sent', [$c, 'pushSent']);
+        $r->add('POST', '/audit/push/sent/{id}/resend', [$c, 'pushResend']);
         $r->add('DELETE', '/audit/access/{id}', [$c, 'deleteAccess']);
         $r->add('DELETE', '/audit/boletines/{id}', [$c, 'deleteBoletin']);
         $r->add('POST', '/audit/presence/delete', [$c, 'deletePresence']);
@@ -187,6 +191,138 @@ final class AuditController extends Controller
         foreach ($students as &$s) $s['byPeriod'] = (object) ($byPeriod[(int) $s['id']] ?? []);
         unset($s);
         return ['events' => self::intsAll($events, 'id', 'studentId'), 'students' => self::intsAll($students, 'id', 'total', 'views', 'downloads', 'shared')];
+    }
+
+    // ───────────────────────── notifications ─────────────────────────
+    private const PUSH_TYPES = ['inscripciones', 'pagos', 'asistencia', 'cumpleanos', 'eventos'];
+
+    /** Staff devices of the panel (api/data push.json, written by api/push.php). @return list<array<string,mixed>> */
+    private function panelSubs(): array
+    {
+        $raw = @file_get_contents($this->app->dataDir() . '/push.json');
+        return (array) ((json_decode((string) $raw, true) ?: [])['subs'] ?? []);
+    }
+
+    /** uid → name of the panel users (users.json; the owner account is "root"). */
+    private function panelUsers(): array
+    {
+        $users = (array) ((json_decode((string) @file_get_contents($this->app->dataDir() . '/users.json'), true) ?: [])['users'] ?? []);
+        $out = ['root' => (string) ($this->app->config->get('admin_name', '') ?: 'Administrador (cuenta principal)')];
+        foreach ($users as $u) if (!empty($u['id'])) $out[(string) $u['id']] = (string) ($u['name'] ?? $u['username'] ?? $u['id']);
+        return $out;
+    }
+
+    /**
+     * Who has notifications turned on, on which device, since when, when it last got one and which types:
+     * the staff (panel) and the families (app). Plus the active families with portal access but no device.
+     */
+    public function pushDevices(Request $req): array
+    {
+        $this->staff($req, 'usuarios');
+        $names = $this->panelUsers();
+        $panel = array_map(static fn($s) => [
+            'id' => hash('sha256', (string) $s['endpoint']),
+            'who' => $names[(string) ($s['uid'] ?? 'root')] ?? (string) ($s['uid'] ?? 'root'),
+            'device' => (string) (($s['device'] ?? '') ?: 'Dispositivo'),
+            'since' => $s['createdAt'] ?? null, 'lastOk' => $s['lastOk'] ?? null, 'lastStatus' => $s['lastStatus'] ?? null,
+            'types' => array_values(array_filter(self::PUSH_TYPES, static fn($t) => ($s['prefs'][$t] ?? true) !== false)),
+        ], $this->panelSubs());
+        $year = $this->settings()->activeYear();
+        $families = array_map(static function ($r) {
+            $prefs = $r['prefs'] ? (json_decode((string) $r['prefs'], true) ?: []) : [];
+            return [
+                'id' => (int) $r['id'], 'studentId' => (int) $r['studentId'], 'who' => $r['student'], 'course' => $r['course'],
+                'device' => \Gabush\Application\Notifications\Notifier::deviceLabel($r['ua']), 'since' => $r['since'], 'lastOk' => $r['lastOk'],
+                'off' => array_keys(array_filter($prefs, static fn($v) => $v === false)),
+            ];
+        }, $this->db()->all(
+            "SELECT p.id, p.student_id AS studentId, CONCAT(s.first_name, ' ', s.last_name) AS student, c.name AS course, p.user_agent AS ua, p.prefs,
+                    p.created_at AS since, p.last_ok_at AS lastOk
+             FROM push_subscriptions p JOIN students s ON s.id = p.student_id
+             LEFT JOIN enrollments e ON e.student_id = s.id AND e.year_id = ? LEFT JOIN courses c ON c.id = e.course_id
+             ORDER BY p.created_at DESC",
+            [$year],
+        ));
+        $without = $this->db()->all(
+            "SELECT s.id, CONCAT(s.first_name, ' ', s.last_name) AS name, c.name AS course, pa.last_login_at AS lastLogin,
+                    (SELECT g.phone FROM guardians g WHERE g.family_id = s.family_id AND g.phone IS NOT NULL ORDER BY g.is_primary DESC, g.id LIMIT 1) AS phone
+             FROM enrollments e JOIN students s ON s.id = e.student_id LEFT JOIN courses c ON c.id = e.course_id
+             LEFT JOIN portal_accounts pa ON pa.student_id = s.id AND pa.active = 1
+             WHERE e.year_id = ? AND e.status = 'activo' AND NOT EXISTS (SELECT 1 FROM push_subscriptions p WHERE p.student_id = s.id)
+             ORDER BY c.name, s.first_name",
+            [$year],
+        );
+        return ['panel' => $panel, 'families' => $families, 'without' => self::intsAll($without, 'id')];
+    }
+
+    /** {audience: panel|familia, id}: forgets a device (it stops receiving notifications until it is activated again). */
+    public function deletePushDevice(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'usuarios');
+        $in = $req->json();
+        $id = (string) ($in['id'] ?? '');
+        if (($in['audience'] ?? '') === 'familia') {
+            $this->db()->run('DELETE FROM push_subscriptions WHERE id = ?', [(int) $id]);
+        } else {
+            $file = $this->app->dataDir() . '/push.json';
+            $fp = fopen($file, 'c+');
+            if ($fp && flock($fp, LOCK_EX)) {
+                $data = json_decode((string) stream_get_contents($fp), true) ?: [];
+                $data['subs'] = array_values(array_filter((array) ($data['subs'] ?? []), static fn($s) => hash('sha256', (string) $s['endpoint']) !== $id));
+                ftruncate($fp, 0);
+                rewind($fp);
+                fwrite($fp, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                flock($fp, LOCK_UN);
+            }
+            if ($fp) fclose($fp);
+        }
+        $this->audit()->log($actor, 'push.device_delete', 'push_device', null, ['audience' => $in['audience'] ?? 'panel']);
+        return [];
+    }
+
+    /** ?audience=panel|familia&type=&q=&student=&from=&to= — the notifications sent, newest first. */
+    public function pushSent(Request $req): array
+    {
+        $this->staff($req, 'usuarios');
+        $w = ['1=1'];
+        $p = [];
+        if (in_array($a = (string) $req->query('audience', ''), ['panel', 'familia'], true)) { $w[] = 'l.audience = ?'; $p[] = $a; }
+        if (($t = (string) $req->query('type', '')) !== '') { $w[] = 'l.type = ?'; $p[] = $t; }
+        if ($student = (int) $req->query('student', 0)) { $w[] = 'l.student_id = ?'; $p[] = $student; }
+        if (($q = trim((string) $req->query('q', ''))) !== '') { $w[] = '(l.title LIKE ? OR l.body LIKE ? OR l.recipient LIKE ?)'; array_push($p, "%$q%", "%$q%", "%$q%"); }
+        [$rw, $rp] = $this->range($req, 'l.created_at');
+        $rows = $this->db()->all(
+            'SELECT l.id, l.audience, l.type, l.title, l.body, l.url, l.student_id AS studentId, l.recipient, l.devices, l.delivered, l.failed, l.detail, l.created_at AS at
+             FROM push_log l WHERE ' . implode(' AND ', [...$w, ...$rw]) . ' ORDER BY l.id DESC LIMIT 500',
+            [...$p, ...$rp],
+        );
+        foreach ($rows as &$r) $r['detail'] = $r['detail'] ? (json_decode((string) $r['detail'], true) ?: []) : [];
+        unset($r);
+        $types = array_column($this->db()->all('SELECT DISTINCT type FROM push_log ORDER BY type'), 'type');
+        return ['sent' => self::intsAll($rows, 'id', 'studentId', 'devices', 'delivered', 'failed'), 'types' => $types];
+    }
+
+    /**
+     * Sends a notification of the log again (it did not arrive, or nobody had it on then): to the family's
+     * devices, or to the staff devices that want that type. The resend is logged too ("↻").
+     */
+    public function pushResend(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'usuarios');
+        $l = $this->db()->one('SELECT id, audience, type, title, body, url, student_id FROM push_log WHERE id = ?', [$req->intParam('id')]) ?? throw \Gabush\Http\HttpError::notFound();
+        $title = (string) preg_replace('/^↻ /u', '', (string) $l['title']);
+        if ($l['audience'] === 'familia') {
+            if (!$l['student_id']) throw new \Gabush\Domain\Shared\DomainError('student', 'Esta notificación no tiene estudiante.');
+            if (!$this->db()->value('SELECT COUNT(*) FROM push_subscriptions WHERE student_id = ?', [$l['student_id']])) {
+                throw new \Gabush\Domain\Shared\DomainError('no_device', 'Esa familia no tiene ningún celular con notificaciones activas: la novedad ya está en su app. Invítala a activarlas (pestaña «Familias sin notificaciones»).');
+            }
+            $delivered = \Gabush\Application\Notifications\Notifier::from($this->app)->resend((int) $l['student_id'], (string) $l['type'], $title, $l['body'], $l['url']);
+        } else {
+            if (!function_exists('push_notify')) throw new \Gabush\Domain\Shared\DomainError('push', 'Las notificaciones no están disponibles.');
+            $delivered = \push_notify((string) $l['type'], ['title' => '↻ ' . $title, 'body' => (string) $l['body'], 'url' => $l['url'] ?: '/admin/', 'tag' => (string) $l['type']]);
+        }
+        $this->audit()->log($actor, 'push.resend', 'push_log', (int) $l['id'], ['title' => $title, 'delivered' => $delivered]);
+        return ['delivered' => $delivered];
     }
 
     /** Money movements of the "Movimientos de cartera" tab, by group. */
