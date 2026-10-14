@@ -1,5 +1,6 @@
 import { CalendarPlus, Download, Loader2, MessageCircle, Pencil, Plus, Printer, Save, Trash2, Wallet } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { Modal } from '@/components/ui/Modal'
 import { useMutation, useQuery } from '@/shared/useQuery'
 import { date, MONTH_NAMES, money, monthLabel, parseMoney, todayISO } from '@/shared/format'
 import { toast } from '../../store'
@@ -34,7 +35,7 @@ export function BillingPage() {
   )
 }
 
-type OverviewData = { year: number; billed: { month: string; amount: number }[]; collected: { month: string; amount: number; n: number }[]; byMethod: { method: string; amount: number; n: number }[]; pending: number; overdue: number; debtors: number; today: { amount: number; n: number }; online: { amount: number; n: number } }
+type OverviewData = { year: number; billed: { month: string; amount: number }[]; collected: { month: string; amount: number; n: number }[]; byMethod: { method: string; amount: number; n: number }[]; pending: number; overdue: number; debtors: number; pendingActive: number; debtorsActive: number; today: { amount: number; n: number }; online: { amount: number; n: number } }
 
 function Overview() {
   const { year } = useSetup()
@@ -49,7 +50,7 @@ function Overview() {
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Recaudado en el año" value={money(totalCollected)} tone="green" />
-        <Stat label="Por cobrar" value={money(data.pending)} hint={`${data.debtors} familias`} tone={data.pending ? 'red' : 'ink'} />
+        <Stat label="Por cobrar (activos)" value={money(data.pendingActive)} hint={`${data.debtorsActive} familias${data.pending > data.pendingActive ? ` · retirados y antiguos: ${money(data.pending - data.pendingActive)}` : ''}`} tone={data.pendingActive ? 'red' : 'ink'} />
         <Stat label="Vencido" value={money(data.overdue)} tone={data.overdue ? 'red' : 'ink'} />
         <Stat label="Recibido hoy" value={money(data.today.amount)} hint={`${data.today.n} pagos · en línea en el año: ${money(data.online.amount)}`} />
       </div>
@@ -100,23 +101,53 @@ function Overview() {
 
 type Debtor = { id: number; code: string; firstName: string; lastName: string; secondLastName: string | null; course: string | null; guardian: string | null; guardianPhone: string | null; status: string | null; balance: number; overdue: number; lateFees: number; credit: number; byYear?: { year: number | null; balance: number; overdue: number }[] }
 
+/** Studies this year (active or pre-enrolled) vs. withdrawn / former student with an old debt. */
+const isCurrent = (d: Debtor) => d.status === 'activo' || d.status === 'prematricula'
+
 function Debtors() {
   const { year } = useSetup()
   const [min, setMin] = useState('')
   const [q, setQ] = useState('')
+  const [group, setGroup] = useState<'activos' | 'inactivos'>('activos')
+  const [closing, setClosing] = useState<Debtor | null>(null)
   const { data, error, loading, reload } = useQuery(year ? `debt:${year}:${min}` : null, () => api2.get<{ debtors: Debtor[] }>('/billing/debtors' + qs({ year, min: parseMoney(min) || null })))
-  const rows = useMemo(() => (data?.debtors ?? []).filter((d) => !q || `${d.firstName} ${d.lastName} ${d.code} ${d.guardian}`.toLowerCase().includes(q.toLowerCase())), [data, q])
+  const all = data?.debtors ?? []
+  const active = all.filter(isCurrent)
+  const inactive = all.filter((d) => !isCurrent(d))
+  const rows = useMemo(() => (group === 'activos' ? active : inactive).filter((d) => !q || `${d.firstName} ${d.lastName} ${d.code} ${d.guardian}`.toLowerCase().includes(q.toLowerCase())), [active, inactive, group, q])
   const total = rows.reduce((a, d) => a + d.balance, 0)
+  const sum = (l: Debtor[]) => l.reduce((a, d) => a + d.balance, 0)
   const wa = (d: Debtor) => {
     const text = `Hola ${d.guardian ?? ''}, le saludamos del Jardín Infantil Gabush. ${d.firstName} tiene un saldo pendiente de ${money(d.balance)}${d.lateFees ? ` (incluye ${money(d.lateFees)} de mora)` : ''}. Puede pagar en línea desde el portal de familias: https://gabushkids.com/familia/ ¡Gracias!`
     return `https://wa.me/57${(d.guardianPhone ?? '').replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(text)}`
   }
   return (
     <div className="space-y-4">
+      {data && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {([
+            ['activos', 'Estudiantes activos', active, 'Las familias que estudian este año: cobro del día a día.'],
+            ['inactivos', 'Retirados y antiguos', inactive, 'Deudas de quienes ya no estudian: cóbralas o ciérralas.'],
+          ] as const).map(([id, label, list, hint]) => (
+            <button key={id} type="button" onClick={() => setGroup(id)} className={`card p-4 text-left ring-2 transition ${group === id ? 'ring-royal' : 'ring-transparent hover:ring-line'}`}>
+              <span className="block text-[12px] font-bold tracking-wide text-muted uppercase">{label}</span>
+              <span className={`block font-serif text-[1.7rem] font-semibold tabular-nums ${list.length ? 'text-berry' : 'text-leaf'}`}>{money(sum(list))}</span>
+              <span className="block text-[13px] text-muted">
+                {list.length} {list.length === 1 ? 'estudiante' : 'estudiantes'} · {hint}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-[1fr_220px]">
         <SearchBox value={q} onChange={setQ} placeholder="Buscar estudiante o acudiente…" />
         <input value={min} onChange={(e) => setMin(e.target.value)} inputMode="numeric" placeholder="Saldo mayor a $…" className={inputCls()} />
       </div>
+      {group === 'inactivos' && inactive.length > 0 && (
+        <p className="rounded-xl bg-butter px-4 py-3 text-[14px] text-[#8a5716]">
+          Revisa cada caso: si la familia va a pagar, recuérdale por WhatsApp o haz un acuerdo. Si la deuda ya no se va a cobrar (se fue, no responde, se negoció), usa <b>«Cerrar deuda»</b>: el saldo queda en cero con el motivo, lo ya pagado no cambia y queda registrado en Auditoría → Movimientos de cartera.
+        </p>
+      )}
       {error ? (
         <ErrorBox message={error.message} onRetry={reload} />
       ) : loading && !data ? (
@@ -159,12 +190,57 @@ function Debtors() {
                     <MessageCircle size={16} /> Recordar
                   </a>
                 )}
+                {!isCurrent(d) && (
+                  <button type="button" onClick={() => setClosing(d)} className="btn btn-ghost !min-h-10 !px-3 !text-sm text-muted hover:text-berry">
+                    Cerrar deuda
+                  </button>
+                )}
               </li>
             ))}
           </ul>
         </>
       )}
+      <WriteOffModal debtor={closing} onClose={() => setClosing(null)} onDone={reload} />
     </div>
+  )
+}
+
+/** Closes the old debt of a withdrawn / former student that will not be collected, with the reason. */
+function WriteOffModal({ debtor, onClose, onDone }: { debtor: Debtor | null; onClose: () => void; onDone: () => void }) {
+  const [reason, setReason] = useState('')
+  const m = useMutation()
+  return (
+    <Modal open={Boolean(debtor)} onClose={onClose} label="Cerrar deuda" closeLabel="Cerrar" className="sm:!max-w-md">
+      {debtor && (
+        <div className="space-y-4 p-6">
+          <h2 className="text-[1.4rem]">Cerrar la deuda de {debtor.firstName}</h2>
+          <p className="text-[14px] text-muted">
+            Saldo de <b className="text-ink">{money(debtor.balance)}</b>
+            {debtor.byYear?.length ? ` (${debtor.byYear.map((y) => `${y.year ?? 'sin año'}: ${money(y.balance)}`).join(' · ')})` : ''}. Es perdonar todo lo que aún debe (cobros y mora): queda en cero con este motivo y lo que ya pagó no cambia. Queda registrado quién, la fecha y la hora y por qué en Auditoría → Movimientos de cartera. Si luego paga, se quita el descuento desde su cartera.
+          </p>
+          <Field label="Motivo">
+            <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={160} autoFocus placeholder="Se retiró y no respondió, acuerdo con la rectora, deuda prescrita…" className={inputCls()} />
+          </Field>
+          {m.message && <ErrorBox message={m.message} />}
+          <button
+            type="button"
+            disabled={m.busy || reason.trim().length < 4}
+            onClick={async () => {
+              const r = await m.run(() => api2.post<{ charges: number; amount: number }>(`/billing/students/${debtor.id}/write-off`, { reason: reason.trim() }))
+              if (r) {
+                toast(`Deuda cerrada: ${money(r.amount)} en ${r.charges} ${r.charges === 1 ? 'cobro' : 'cobros'}`)
+                setReason('')
+                onClose()
+                onDone()
+              }
+            }}
+            className="btn btn-primary w-full disabled:opacity-50"
+          >
+            Cerrar deuda de {money(debtor.balance)}
+          </button>
+        </div>
+      )}
+    </Modal>
   )
 }
 

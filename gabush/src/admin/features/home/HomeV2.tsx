@@ -12,7 +12,7 @@ export function HomeV2() {
   const name = useCalendar((s) => s.name)
   const { setup, year } = useSetup()
   const students = useQuery(year ? `home-st:${year}` : null, () => api2.get<{ students: StudentRow[] }>('/students' + qs({ year })))
-  const billing = useQuery(year && can('pagos') ? `home-bill:${year}` : null, () => api2.get<{ pending: number; overdue: number; debtors: number; collected: { month: string; amount: number }[]; today: { amount: number; n: number } }>('/billing/overview' + qs({ year })))
+  const billing = useQuery(year && can('pagos') ? `home-bill:${year}` : null, () => api2.get<{ pending: number; overdue: number; debtors: number; pendingActive: number; debtorsActive: number; collected: { month: string; amount: number }[]; today: { amount: number; n: number } }>('/billing/overview' + qs({ year })))
   const rows = students.data?.students ?? []
   const active = rows.filter((s) => s.status === 'activo').length
   const pre = rows.filter((s) => s.status === 'prematricula').length
@@ -40,7 +40,20 @@ export function HomeV2() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Stat label="Estudiantes activos" value={active} hint={`${pre ? `${pre} en prematrícula · ` : ''}${Math.max(0, capacity - active - pre)} cupos libres`} icon={<Users size={18} />} />
           {can('pagos') && <Stat label="Recaudado este mes" value={money(collectedMonth)} hint={billing.data ? `hoy ${money(billing.data.today.amount)}` : undefined} tone="green" icon={<HandCoins size={18} />} />}
-          {can('pagos') && <Stat label="Por cobrar" value={money(billing.data?.pending ?? 0)} hint={billing.data ? `${billing.data.debtors} familias · vencido ${money(billing.data.overdue)}` : undefined} tone="red" icon={<Wallet size={18} />} />}
+          {can('pagos') && (
+            // what the current families owe is the day-to-day figure; old debts of withdrawn / former students apart
+            <Stat
+              label="Por cobrar (activos)"
+              value={money(billing.data?.pendingActive ?? 0)}
+              hint={
+                billing.data
+                  ? `${billing.data.debtorsActive} ${billing.data.debtorsActive === 1 ? 'familia' : 'familias'}${billing.data.pending > billing.data.pendingActive ? ` · retirados y antiguos: ${money(billing.data.pending - billing.data.pendingActive)} (${billing.data.debtors - billing.data.debtorsActive})` : ''}`
+                  : undefined
+              }
+              tone="red"
+              icon={<Wallet size={18} />}
+            />
+          )}
           <Stat label="Documentos pendientes" value={docs} hint="estudiantes con documentos por entregar" tone={docs ? 'pink' : 'ink'} icon={<FileWarning size={18} />} />
         </div>
       )}

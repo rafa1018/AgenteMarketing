@@ -322,7 +322,14 @@ export function StatementView({ studentId }: { studentId: number }) {
                       <span className="block font-semibold text-ink tabular-nums">{money(c.net)}</span>
                       {c.status === 'abierto' && c.paid > 0 && <span className="block text-[12px] text-muted">debe {money(c.balance)}</span>}
                     </span>
-                    {c.overdue ? <Badge tone="red">Vencido</Badge> : <StatusBadge status={c.status} />}
+                    {c.overdue ? (
+                      <Badge tone="red">Vencido</Badge>
+                    ) : c.status === 'pagado' && c.adjustments.some((a) => a.kind === 'descuento' && a.reason?.startsWith('Cierre de cartera')) ? (
+                      // closed from Deudores: forgiven, not paid
+                      <Badge tone="yellow">Perdonado</Badge>
+                    ) : (
+                      <StatusBadge status={c.status} />
+                    )}
                     <ChevronDown size={18} className={cn('shrink-0 text-muted transition-transform', open === c.id && 'rotate-180')} />
                   </button>
                   {open === c.id && (

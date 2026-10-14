@@ -327,7 +327,7 @@ final class AuditController extends Controller
 
     /** Money movements of the "Movimientos de cartera" tab, by group. */
     private const BILLING = [
-        'anulaciones' => ['charge.void', 'payment.void', 'charges.void_after_withdrawal'],
+        'anulaciones' => ['charge.void', 'payment.void', 'charges.void_after_withdrawal', 'student.write_off'],
         'descuentos' => ['charge.descuento', 'charge.adjustment_delete', 'charge.discount_expired', 'charges.monthly_discount', 'charges.early_discount'],
         'mora' => ['charge.recargo', 'charge.waive_late_fee', 'charge.restore_late_fee', 'charges.enrollment_late_fee'],
         'valores' => ['charge.amount', 'charge.due_date', 'student_price.save', 'prices.save'],
@@ -401,7 +401,7 @@ final class AuditController extends Controller
     private static function actionLabel(string $a): string
     {
         return [
-            'charge.void' => 'Anuló un cobro', 'payment.void' => 'Anuló un pago', 'charges.void_after_withdrawal' => 'Anuló cobros por retiro',
+            'charge.void' => 'Anuló un cobro', 'payment.void' => 'Anuló un pago', 'charges.void_after_withdrawal' => 'Anuló cobros por retiro', 'student.write_off' => 'Cerró la deuda',
             'charge.descuento' => 'Descuento', 'charge.adjustment_delete' => 'Quitó un descuento/recargo', 'charge.discount_expired' => 'Venció un descuento condicionado',
             'charges.monthly_discount' => 'Descuento mensual aplicado', 'charges.early_discount' => 'Pronto pago aplicado',
             'charge.recargo' => 'Recargo', 'charge.waive_late_fee' => 'Perdonó la mora', 'charge.restore_late_fee' => 'Restauró la mora', 'charges.enrollment_late_fee' => 'Matrícula extraordinaria',
@@ -431,6 +431,11 @@ final class AuditController extends Controller
         if ($r['action'] === 'charge.due_date') $parts[] = 'Del ' . ($d['from'] ?? '?') . ' al ' . ($d['to'] ?? '?');
         if ($r['action'] === 'grades.unlock' && !empty($d['until'])) $parts[] = 'Hasta el ' . $d['until'];
         if (!empty($d['reason'])) $parts[] = (string) $d['reason'];
+        if ($r['action'] === 'student.write_off' && !empty($d['items'])) {
+            $parts[] = implode(', ', array_map(static fn($i) => $i['description'] . ' ' . $money($i['balance']), (array) $d['items']));
+            if (!empty($d['lateFees'])) $parts[] = 'incluye ' . $money($d['lateFees']) . ' de mora';
+            unset($d['charges']); // already in the list
+        }
         if (!empty($d['validUntil'])) $parts[] = 'Solo si paga hasta el ' . $d['validUntil'];
         if (!empty($d['method'])) $parts[] = ucfirst((string) $d['method']) . (!empty($d['reference']) ? ' · ' . $d['reference'] : '');
         if (!empty($d['description'])) $parts[] = (string) $d['description'];

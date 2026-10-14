@@ -30,6 +30,7 @@ final class BillingController extends Controller
         $r->add('GET', '/billing/students/{id}', [$c, 'statement']);
         $r->add('POST', '/billing/students/{id}/apply-credit', [$c, 'applyCredit']);
         $r->add('PUT', '/billing/students/{id}/grades-unlock', [$c, 'gradesUnlock']);
+        $r->add('POST', '/billing/students/{id}/write-off', [$c, 'writeOff']);
         $r->add('POST', '/billing/charges', [$c, 'createCharge']);
         $r->add('POST', '/billing/charges/{id}/void', [$c, 'voidCharge']);
         $r->add('POST', '/billing/charges/{id}/due', [$c, 'changeDue']);
@@ -87,6 +88,9 @@ final class BillingController extends Controller
             'pending' => array_sum(array_column($debtors, 'balance')),
             'overdue' => array_sum(array_column($debtors, 'overdue')),
             'debtors' => count($debtors),
+            // students of this year vs. withdrawn / not enrolled any more (old debts to collect or close)
+            'pendingActive' => array_sum(array_map(static fn($d) => self::isCurrent($d) ? $d['balance'] : 0, $debtors)),
+            'debtorsActive' => count(array_filter($debtors, [self::class, 'isCurrent'])),
             'today' => self::ints($db->one("SELECT COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS n FROM payments WHERE status = 'aprobado' AND paid_on = CURDATE()") ?? [], 'amount', 'n'),
             'online' => self::ints($db->one("SELECT COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS n FROM payments WHERE status = 'aprobado' AND source = 'en_linea' AND YEAR(paid_on) = ?", [$year]) ?? [], 'amount', 'n'),
         ];
@@ -296,6 +300,43 @@ final class BillingController extends Controller
         $rows = self::intsAll($rows, 'id', 'amount', 'studentId');
         $ok = array_filter($rows, static fn($r) => $r['status'] === 'aprobado');
         return ['from' => $from, 'to' => $to, 'payments' => $rows, 'total' => array_sum(array_column($ok, 'amount')), 'count' => count($ok)];
+    }
+
+    /** A debtor who studies this year (active or pre-enrolled), as opposed to a withdrawn / former student. */
+    public static function isCurrent(array $d): bool
+    {
+        return in_array($d['status'] ?? null, ['activo', 'prematricula'], true);
+    }
+
+    /**
+     * {reason}: closes the debt of a former / withdrawn student that will not be collected ("castigo de
+     * cartera"): each open charge gets a discount for what is still owed, with the reason. What was paid stays;
+     * every discount shows in Auditoría → Movimientos de cartera.
+     */
+    public function writeOff(Request $req): array
+    {
+        $actor = $this->staffWrite($req, 'pagos');
+        $id = $req->intParam('id');
+        $v = Validate::of($req);
+        $reason = $v->str('reason', 160, true, 'El motivo');
+        $v->check();
+        $year = $this->settings()->activeYear();
+        if ($this->db()->value("SELECT 1 FROM enrollments WHERE student_id = ? AND year_id = ? AND status IN ('activo','prematricula')", [$id, $year])) {
+            throw new DomainError('active', 'Este estudiante está activo este año: su deuda se cobra o se negocia, no se cierra aquí.');
+        }
+        $b = $this->billing();
+        $closed = [];
+        $this->db()->transaction(function () use ($b, $id, $reason, $actor, &$closed): void {
+            foreach ($b->charges($id, null, true) as $c) {
+                if ($c['balance'] <= 0) continue;
+                $b->addAdjustment((int) $c['id'], 'descuento', (int) $c['balance'], 'Cierre de cartera: ' . $reason, $actor, null, false);
+                $closed[] = ['description' => $c['description'], 'balance' => (int) $c['balance'], 'lateFees' => (int) $c['lateFees']];
+            }
+        });
+        $amount = array_sum(array_column($closed, 'balance'));
+        // one entry for the whole closure (who, when, why, how much and which charges)
+        if ($closed) $this->audit()->log($actor, 'student.write_off', 'student', $id, ['amount' => $amount, 'reason' => $reason, 'charges' => count($closed), 'lateFees' => array_sum(array_column($closed, 'lateFees')), 'items' => $closed]);
+        return ['charges' => count($closed), 'amount' => $amount];
     }
 
     public function debtors(Request $req): array

@@ -601,7 +601,8 @@ final class BillingService
 
     /** Discount or surcharge on a charge. */
     /** $validUntil (discounts only): it counts only if the charge is fully paid by that date ("pronto pago"). */
-    public function addAdjustment(int $chargeId, string $kind, int $amount, string $reason, Actor $actor, ?string $validUntil = null): void
+    /** $audit false: the caller records one entry for the whole operation (e.g. closing a debt). */
+    public function addAdjustment(int $chargeId, string $kind, int $amount, string $reason, Actor $actor, ?string $validUntil = null, bool $audit = true): void
     {
         if (!in_array($kind, ['descuento', 'recargo'], true)) throw new DomainError('kind', 'Tipo de ajuste inválido.');
         if ($amount <= 0) throw new DomainError('amount', 'El valor debe ser mayor que cero.');
@@ -611,7 +612,7 @@ final class BillingService
             $this->db->insert('charge_adjustments', ['charge_id' => $chargeId, 'kind' => $kind, 'amount' => $amount, 'reason' => $reason, 'valid_until' => $validUntil, 'created_by' => $actor->label()]);
             $this->refreshStatus($chargeId);
         });
-        $this->audit->log($actor, "charge.$kind", 'charge', $chargeId, compact('amount', 'reason', 'validUntil'));
+        if ($audit) $this->audit->log($actor, "charge.$kind", 'charge', $chargeId, compact('amount', 'reason', 'validUntil'));
     }
 
     /**
