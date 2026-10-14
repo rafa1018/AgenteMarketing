@@ -18,6 +18,7 @@ final class Audit
         $this->db->insert('audit_log', [
             'actor_type' => $actor->type,
             'actor_id' => $actor->id,
+            'actor_name' => mb_substr($actor->name, 0, 120),
             'action' => $action,
             'entity' => $entity,
             'entity_id' => $entityId === null ? null : (string) $entityId,

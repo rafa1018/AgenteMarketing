@@ -75,7 +75,7 @@ const ALL_PAGES: Page[] = [
   { id: 'sitio', label: 'Sitio web', icon: Globe, view: SitePage, perm: 'ajustes', group: 'web' },
   { id: 'copias', label: 'Copias de seguridad', icon: Archive, view: BackupsPage, perm: 'ajustes', group: 'cuenta' },
   { id: 'usuarios', label: 'Usuarios', icon: ShieldCheck, view: UsersPage, perm: 'usuarios', group: 'cuenta' },
-  { id: 'auditoria', label: 'Auditoría de accesos', icon: Activity, view: AuditPage, perm: 'usuarios', group: 'cuenta' },
+  { id: 'auditoria', label: 'Auditoría', icon: Activity, view: AuditPage, perm: 'usuarios', group: 'cuenta' },
   { id: 'notificaciones', label: 'Notificaciones', icon: BellRing, view: NotificationsPage, group: 'cuenta' },
   { id: 'ajustes', label: 'Ajustes', icon: SettingsIcon, view: Settings, perm: 'ajustes', group: 'cuenta' },
 ]

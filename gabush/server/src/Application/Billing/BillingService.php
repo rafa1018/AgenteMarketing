@@ -685,15 +685,17 @@ final class BillingService
     }
 
     /** The rectora forgives the late fee of a charge (it stops growing too). */
-    public function waiveLateFee(int $chargeId, bool $waive, Actor $actor): void
+    public function waiveLateFee(int $chargeId, bool $waive, Actor $actor, ?string $reason = null): void
     {
-        $this->db->transaction(function () use ($chargeId, $waive, $actor): void {
-            $exists = $this->db->value("SELECT id FROM charge_adjustments WHERE charge_id = ? AND kind = 'mora' AND legacy_ref IS NULL ORDER BY id LIMIT 1", [$chargeId]);
-            if ($exists) $this->db->update('charge_adjustments', ['waived' => $waive, 'waived_by' => $waive ? $actor->label() : null], ['id' => $exists]);
-            elseif ($waive) $this->db->insert('charge_adjustments', ['charge_id' => $chargeId, 'kind' => 'mora', 'amount' => 0, 'waived' => 1, 'waived_by' => $actor->label(), 'reason' => 'Mora perdonada']);
+        $amount = 0;
+        $this->db->transaction(function () use ($chargeId, $waive, $actor, $reason, &$amount): void {
+            $row = $this->db->one("SELECT id, amount FROM charge_adjustments WHERE charge_id = ? AND kind = 'mora' AND legacy_ref IS NULL ORDER BY id LIMIT 1", [$chargeId]);
+            $amount = (int) ($row['amount'] ?? 0);
+            if ($row) $this->db->update('charge_adjustments', ['waived' => $waive, 'waived_by' => $waive ? $actor->label() : null] + ($waive && $reason ? ['reason' => "Mora perdonada: $reason"] : []), ['id' => $row['id']]);
+            elseif ($waive) $this->db->insert('charge_adjustments', ['charge_id' => $chargeId, 'kind' => 'mora', 'amount' => 0, 'waived' => 1, 'waived_by' => $actor->label(), 'reason' => $reason ? "Mora perdonada: $reason" : 'Mora perdonada']);
             $this->refreshStatus($chargeId);
         });
-        $this->audit->log($actor, $waive ? 'charge.waive_late_fee' : 'charge.restore_late_fee', 'charge', $chargeId);
+        $this->audit->log($actor, $waive ? 'charge.waive_late_fee' : 'charge.restore_late_fee', 'charge', $chargeId, ['amount' => $amount, 'reason' => $reason]);
     }
 
     /**

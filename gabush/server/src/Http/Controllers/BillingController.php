@@ -184,7 +184,9 @@ final class BillingController extends Controller
         $actor = $this->staffWrite($req, 'pagos');
         $v = Validate::of($req);
         $waive = $v->bool('waive', true);
-        $this->billing()->waiveLateFee($req->intParam('id'), $waive, $actor);
+        $reason = $v->str('reason', 200, $waive, 'El motivo');
+        $v->check();
+        $this->billing()->waiveLateFee($req->intParam('id'), $waive, $actor, $reason);
         return [];
     }
 

@@ -21,6 +21,7 @@ final class AuditController extends Controller
         $r->add('GET', '/audit/presence', [$c, 'presence']);
         $r->add('GET', '/audit/access', [$c, 'access']);
         $r->add('GET', '/audit/boletines', [$c, 'boletines']);
+        $r->add('GET', '/audit/billing', [$c, 'billing']);
         $r->add('DELETE', '/audit/access/{id}', [$c, 'deleteAccess']);
         $r->add('DELETE', '/audit/boletines/{id}', [$c, 'deleteBoletin']);
         $r->add('POST', '/audit/presence/delete', [$c, 'deletePresence']);
@@ -186,6 +187,119 @@ final class AuditController extends Controller
         foreach ($students as &$s) $s['byPeriod'] = (object) ($byPeriod[(int) $s['id']] ?? []);
         unset($s);
         return ['events' => self::intsAll($events, 'id', 'studentId'), 'students' => self::intsAll($students, 'id', 'total', 'views', 'downloads', 'shared')];
+    }
+
+    /** Money movements of the "Movimientos de cartera" tab, by group. */
+    private const BILLING = [
+        'anulaciones' => ['charge.void', 'payment.void', 'charges.void_after_withdrawal'],
+        'descuentos' => ['charge.descuento', 'charge.adjustment_delete', 'charge.discount_expired', 'charges.monthly_discount', 'charges.early_discount'],
+        'mora' => ['charge.recargo', 'charge.waive_late_fee', 'charge.restore_late_fee', 'charges.enrollment_late_fee'],
+        'valores' => ['charge.amount', 'charge.due_date', 'student_price.save', 'prices.save'],
+        'acuerdos' => ['grades.unlock', 'grades.unlock_remove'],
+        'pagos' => ['payment.create'],
+        'cobros' => ['charge.create', 'charges.monthly', 'charges.days', 'charges.concept_to_enrolled'],
+    ];
+
+    /**
+     * ?group=cambios|anulaciones|descuentos|mora|valores|acuerdos|pagos|cobros|todos&from=&to=&student=&actor=&q=
+     * "cambios" (default) = everything but the routine payments and charges. ?format=csv downloads it.
+     */
+    public function billing(Request $req): array|\Gabush\Http\Response
+    {
+        $this->staff($req, 'usuarios');
+        $group = (string) $req->query('group', 'cambios');
+        $actions = match (true) {
+            isset(self::BILLING[$group]) => self::BILLING[$group],
+            $group === 'todos' => array_merge(...array_values(self::BILLING)),
+            default => array_merge(self::BILLING['anulaciones'], self::BILLING['descuentos'], self::BILLING['mora'], self::BILLING['valores'], self::BILLING['acuerdos']),
+        };
+        $w = ['a.action IN (' . implode(',', array_fill(0, count($actions), '?')) . ')'];
+        $p = $actions;
+        [$rw, $rp] = $this->range($req, 'a.created_at');
+        $w = [...$w, ...$rw];
+        $p = [...$p, ...$rp];
+        $sid = 'COALESCE(ch.student_id, pm.student_id, en.student_id, IF(a.entity = \'student\', a.entity_id, NULL))';
+        if ($student = (int) $req->query('student', 0)) { $w[] = "$sid = ?"; $p[] = $student; }
+        if (($actor = (string) $req->query('actor', '')) !== '') { $w[] = 'a.actor_id = ?'; $p[] = $actor; }
+        if (($q = trim((string) $req->query('q', ''))) !== '') { $w[] = '(a.data LIKE ? OR ch.description LIKE ? OR pm.receipt_number LIKE ?)'; array_push($p, "%$q%", "%$q%", "%$q%"); }
+        $rows = $this->db()->all(
+            "SELECT a.id, a.created_at AS at, a.action, a.entity, a.entity_id AS entityId, a.data, a.ip, a.actor_type AS actorType, a.actor_id AS actorId,
+                    COALESCE(a.actor_name, (SELECT u.user_name FROM user_presence u WHERE u.portal = 'panel' AND u.user_id = a.actor_id LIMIT 1), a.actor_id) AS actorName,
+                    $sid AS studentId, CONCAT(s.first_name, ' ', s.last_name) AS student,
+                    ch.description AS chargeDescription, ch.amount AS chargeAmount, pm.receipt_number AS receipt, pm.amount AS paymentAmount
+             FROM audit_log a
+             LEFT JOIN charges ch ON a.entity = 'charge' AND ch.id = a.entity_id
+             LEFT JOIN payments pm ON a.entity = 'payment' AND pm.id = a.entity_id
+             LEFT JOIN enrollments en ON a.entity = 'enrollment' AND en.id = a.entity_id
+             LEFT JOIN students s ON s.id = $sid
+             WHERE " . implode(' AND ', $w) . ' ORDER BY a.id DESC LIMIT 1000',
+            $p,
+        );
+        foreach ($rows as &$r) {
+            $r['data'] = $r['data'] ? (json_decode((string) $r['data'], true) ?: []) : [];
+            if ($r['actorType'] === 'system') $r['actorName'] = 'Sistema (automático)';
+            foreach (['studentId', 'chargeAmount', 'paymentAmount'] as $k) $r[$k] = $r[$k] !== null ? (int) $r[$k] : null;
+            $r['id'] = (int) $r['id'];
+            $r['label'] = self::actionLabel($r['action']);
+            $r['amount'] = self::amountOf($r) ?: null;
+            $r['detail'] = self::detailOf($r);
+        }
+        unset($r);
+        if ($req->query('format') === 'csv') {
+            $from = (string) $req->query('from', '') ?: 'inicio';
+            $to = (string) $req->query('to', '') ?: date('Y-m-d');
+            return \Gabush\Http\Response::csv("movimientos-cartera-$from-a-$to.csv", ['Fecha', 'Quién', 'Acción', 'Estudiante', 'Cobro / recibo', 'Valor', 'Motivo / detalle', 'IP'], array_map(static fn($r) => [
+                $r['at'], $r['actorName'], $r['label'], $r['student'], $r['receipt'] ? 'Recibo ' . $r['receipt'] : $r['chargeDescription'],
+                $r['amount'], $r['detail'], $r['ip'],
+            ], $rows));
+        }
+        $actors = $this->db()->all(
+            "SELECT a.actor_id AS id, COALESCE(MAX(a.actor_name), MAX(u.user_name), a.actor_id) AS name FROM audit_log a
+             LEFT JOIN user_presence u ON u.portal = 'panel' AND u.user_id = a.actor_id
+             WHERE a.actor_type = 'staff' AND a.action IN (" . implode(',', array_fill(0, count(array_merge(...array_values(self::BILLING))), '?')) . ') GROUP BY a.actor_id ORDER BY name',
+            array_merge(...array_values(self::BILLING)),
+        );
+        return ['events' => $rows, 'actors' => $actors];
+    }
+
+    private static function actionLabel(string $a): string
+    {
+        return [
+            'charge.void' => 'Anuló un cobro', 'payment.void' => 'Anuló un pago', 'charges.void_after_withdrawal' => 'Anuló cobros por retiro',
+            'charge.descuento' => 'Descuento', 'charge.adjustment_delete' => 'Quitó un descuento/recargo', 'charge.discount_expired' => 'Venció un descuento condicionado',
+            'charges.monthly_discount' => 'Descuento mensual aplicado', 'charges.early_discount' => 'Pronto pago aplicado',
+            'charge.recargo' => 'Recargo', 'charge.waive_late_fee' => 'Perdonó la mora', 'charge.restore_late_fee' => 'Restauró la mora', 'charges.enrollment_late_fee' => 'Matrícula extraordinaria',
+            'charge.amount' => 'Cambió el valor', 'charge.due_date' => 'Cambió el vencimiento', 'student_price.save' => 'Precio especial', 'prices.save' => 'Cambió la tabla de precios',
+            'grades.unlock' => 'Acuerdo de pago (notas visibles)', 'grades.unlock_remove' => 'Quitó acuerdo de pago',
+            'payment.create' => 'Registró un pago', 'charge.create' => 'Creó un cobro', 'charges.monthly' => 'Generó pensiones', 'charges.days' => 'Generó cobros por días', 'charges.concept_to_enrolled' => 'Cobro masivo',
+        ][$a] ?? $a;
+    }
+
+    /** @param array<string,mixed> $r */
+    private static function amountOf(array $r): ?int
+    {
+        $d = $r['data'];
+        if ($r['action'] === 'charge.amount') return isset($d['to']) ? (int) $d['to'] : null;
+        if (in_array($r['action'], ['charge.void'], true)) return $r['chargeAmount'];
+        if (in_array($r['action'], ['payment.void', 'payment.create'], true)) return $r['paymentAmount'] ?? (isset($d['amount']) ? (int) $d['amount'] : null);
+        return isset($d['amount']) && is_numeric($d['amount']) ? (int) $d['amount'] : null;
+    }
+
+    /** @param array<string,mixed> $r */
+    private static function detailOf(array $r): string
+    {
+        $d = $r['data'];
+        $money = static fn($v) => '$' . number_format((int) $v, 0, ',', '.');
+        $parts = [];
+        if ($r['action'] === 'charge.amount') $parts[] = 'De ' . $money($d['from'] ?? 0) . ' a ' . $money($d['to'] ?? 0);
+        if ($r['action'] === 'charge.due_date') $parts[] = 'Del ' . ($d['from'] ?? '?') . ' al ' . ($d['to'] ?? '?');
+        if ($r['action'] === 'grades.unlock' && !empty($d['until'])) $parts[] = 'Hasta el ' . $d['until'];
+        if (!empty($d['reason'])) $parts[] = (string) $d['reason'];
+        if (!empty($d['validUntil'])) $parts[] = 'Solo si paga hasta el ' . $d['validUntil'];
+        if (!empty($d['method'])) $parts[] = ucfirst((string) $d['method']) . (!empty($d['reference']) ? ' · ' . $d['reference'] : '');
+        if (!empty($d['description'])) $parts[] = (string) $d['description'];
+        foreach (['charges' => 'cobros', 'created' => 'creados', 'voided' => 'anulados'] as $k => $l) if (isset($d[$k]) && is_numeric($d[$k])) $parts[] = $d[$k] . " $l";
+        return implode(' · ', $parts);
     }
 
     /** @return array{0:list<string>,1:list<mixed>} */

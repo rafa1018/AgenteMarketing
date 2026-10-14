@@ -1,7 +1,8 @@
 import { FileDown, Search, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { dateTime, todayISO } from '@/shared/format'
+import { dateTime, money, todayISO } from '@/shared/format'
+import { openStudent } from '../students/openStudent'
 import { useQuery } from '@/shared/useQuery'
 import { toast } from '../../store'
 import { PageHead } from '../../ui'
@@ -95,14 +96,115 @@ function PortalFilter({ value, onChange }: { value: Portal; onChange: (p: Portal
 const PortalBadge = ({ p }: { p: 'familia' | 'panel' }) => <Badge tone={p === 'familia' ? 'blue' : 'gray'}>{p === 'familia' ? 'Familias' : 'Panel'}</Badge>
 
 export function AuditPage() {
-  const [tab, setTab] = useTab<'conexiones' | 'ingresos' | 'boletines'>('conexiones')
+  const [tab, setTab] = useTab<'conexiones' | 'ingresos' | 'boletines' | 'cartera'>('conexiones')
   return (
     <div className="space-y-5">
-      <PageHead title="Auditoría de accesos" sub="Quién está en línea, cuándo entró cada persona y quién vio o descargó los boletines." actions={tab === 'boletines' ? <YearPicker /> : undefined} />
-      <Tabs tabs={[{ id: 'conexiones', label: 'En línea y conexiones' }, { id: 'ingresos', label: 'Historial de ingresos' }, { id: 'boletines', label: 'Boletines vistos' }]} value={tab} onChange={setTab} />
+      <PageHead title="Auditoría" sub="Quién está en línea, cuándo entró cada persona, quién vio los boletines y quién movió dinero en cartera (anulaciones, descuentos, mora…) y por qué." actions={tab === 'boletines' ? <YearPicker /> : undefined} />
+      <Tabs tabs={[{ id: 'conexiones', label: 'En línea y conexiones' }, { id: 'ingresos', label: 'Historial de ingresos' }, { id: 'boletines', label: 'Boletines vistos' }, { id: 'cartera', label: 'Movimientos de cartera' }]} value={tab} onChange={setTab} />
       {tab === 'conexiones' && <PresenceTab />}
       {tab === 'ingresos' && <AccessTab />}
       {tab === 'boletines' && <BoletinesTab />}
+      {tab === 'cartera' && <BillingTab />}
+    </div>
+  )
+}
+
+type BillingEvent = { id: number; at: string; action: string; label: string; actorName: string; actorType: string; studentId: number | null; student: string | null; chargeDescription: string | null; receipt: string | null; amount: number | null; detail: string; ip: string | null }
+const GROUPS: [string, string][] = [
+  ['cambios', 'Cambios (sin pagos ni cobros normales)'],
+  ['anulaciones', 'Anulaciones'],
+  ['descuentos', 'Descuentos'],
+  ['mora', 'Recargos y mora'],
+  ['valores', 'Valores, precios y vencimientos'],
+  ['acuerdos', 'Acuerdos de pago'],
+  ['pagos', 'Pagos registrados'],
+  ['cobros', 'Cobros creados'],
+  ['todos', 'Todo'],
+]
+const toneOf = (a: string): 'red' | 'green' | 'yellow' | 'blue' | 'gray' =>
+  a.includes('void') ? 'red' : a.includes('descuento') || a.includes('discount') || a.includes('waive') ? 'green' : a.includes('recargo') || a.includes('late_fee') ? 'yellow' : a.startsWith('payment') ? 'blue' : 'gray'
+
+/** Money movements: who voided, discounted, surcharged, forgave late fees, changed values… and why. */
+function BillingTab() {
+  const { year } = useSetup()
+  const [group, setGroup] = useState('cambios')
+  const [actor, setActor] = useState('')
+  const [q, setQ] = useState('')
+  const [student, setStudent] = useState<Picked | null>(null)
+  const [range, setRange] = useState<Range>({ from: today().slice(0, 8) + '01', to: today() })
+  const params = { group, actor: actor || null, q: q.trim() || null, student: student?.id ?? null, from: range.from || null, to: range.to || null }
+  const { data, error, loading, reload } = useQuery(`audit-billing:${JSON.stringify(params)}`, () => api2.get<{ events: BillingEvent[]; actors: { id: string; name: string }[] }>('/audit/billing' + qs(params)))
+  const total = (data?.events ?? []).reduce((s, e) => s + (e.amount ?? 0), 0)
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={group} onChange={(e) => setGroup(e.target.value)} aria-label="Tipo de movimiento" className="min-h-10 rounded-full border border-line bg-white px-3 text-[13px] font-semibold">
+          {GROUPS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+        </select>
+        <select value={actor} onChange={(e) => setActor(e.target.value)} aria-label="Quién" className="min-h-10 rounded-full border border-line bg-white px-3 text-[13px] font-semibold">
+          <option value="">Todas las personas</option>
+          {data?.actors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+        <SearchBox value={q} onChange={setQ} placeholder="Buscar en el motivo, cobro o recibo…" />
+        <a href={'/api/v2/audit/billing' + qs({ ...params, format: 'csv' })} className="btn btn-ghost !min-h-10 !text-sm">
+          <FileDown size={16} /> Excel
+        </a>
+      </div>
+      <StudentPicker year={year} value={student} onChange={setStudent} />
+      <RangeFilter value={range} onChange={setRange} />
+      {error ? (
+        <ErrorBox message={error.message} onRetry={reload} />
+      ) : loading && !data ? (
+        <Spinner />
+      ) : !data?.events.length ? (
+        <Empty title="Sin movimientos con ese filtro">Cambia las fechas (por ejemplo «Todo») o el tipo de movimiento.</Empty>
+      ) : (
+        <>
+          <p className="text-[14px] text-muted">
+            <b className="text-ink">{data.events.length}</b> movimientos{data.events.length >= 1000 ? ' (se muestran los 1.000 más recientes; acota las fechas)' : ''}
+            {group !== 'cambios' && group !== 'todos' && total > 0 ? ` · suman ${money(total)}` : ''}
+          </p>
+          <div className="card overflow-x-auto p-0">
+            <table className="w-full min-w-[820px] text-left text-[14px]">
+              <thead className="bg-paper text-[12px] font-bold tracking-wide text-muted uppercase">
+                <tr>
+                  <th className="px-4 py-2.5">Fecha</th>
+                  <th className="px-3 py-2.5">Quién</th>
+                  <th className="px-3 py-2.5">Acción</th>
+                  <th className="px-3 py-2.5">Estudiante</th>
+                  <th className="px-3 py-2.5 text-right">Valor</th>
+                  <th className="px-4 py-2.5">Motivo / detalle</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.events.map((e) => (
+                  <tr key={e.id} className="border-t border-line align-top">
+                    <td className="px-4 py-2.5 whitespace-nowrap">{dateTime(e.at)}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={cn('font-semibold', e.actorType === 'system' ? 'text-muted' : 'text-ink')}>{e.actorName}</span>
+                      {e.ip && <span className="block text-[11px] text-muted">{e.ip}</span>}
+                    </td>
+                    <td className="px-3 py-2.5"><Badge tone={toneOf(e.action)}>{e.label}</Badge></td>
+                    <td className="px-3 py-2.5">
+                      {e.studentId ? (
+                        <button type="button" onClick={() => openStudent(e.studentId!, 'cartera')} className="text-left font-semibold text-royal hover:underline">
+                          {e.student}
+                        </button>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                      {(e.receipt || e.chargeDescription) && <span className="block text-[12px] text-muted">{e.receipt ? `Recibo ${e.receipt}` : e.chargeDescription}</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-semibold whitespace-nowrap tabular-nums">{e.amount !== null ? money(e.amount) : ''}</td>
+                    <td className="px-4 py-2.5 text-[13px] text-text">{e.detail || <span className="text-muted">Sin motivo</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[12px] text-muted">Toca el nombre del estudiante para abrir su cartera. Estos registros no se pueden borrar ni editar.</p>
+        </>
+      )}
     </div>
   )
 }

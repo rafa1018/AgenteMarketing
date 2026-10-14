@@ -99,6 +99,38 @@ function AmountModal({ charge, onClose, onDone }: { charge: Charge | null; onClo
   )
 }
 
+/** "Perdonar mora" asks why, so it shows in Auditoría → Movimientos de cartera. */
+function WaiveModal({ charge, onClose, onConfirm }: { charge: Charge | null; onClose: () => void; onConfirm: (reason: string) => Promise<void> }) {
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  return (
+    <Modal open={Boolean(charge)} onClose={onClose} label="Perdonar mora" closeLabel="Cerrar" className="sm:!max-w-md">
+      {charge && (
+        <div className="space-y-4 p-6">
+          <h2 className="text-[1.4rem]">Perdonar mora</h2>
+          <p className="text-[14px] text-muted">{charge.description}{charge.lateFees ? ` · mora de ${money(charge.lateFees)}` : ''}. Queda registrado quién la perdonó y por qué.</p>
+          <Field label="Motivo">
+            <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} autoFocus placeholder="Acuerdo con la rectora, error del banco…" className={inputCls()} />
+          </Field>
+          <button
+            type="button"
+            disabled={busy || reason.trim().length < 3}
+            onClick={async () => {
+              setBusy(true)
+              await onConfirm(reason.trim())
+              setBusy(false)
+              setReason('')
+            }}
+            className="btn btn-primary w-full disabled:opacity-50"
+          >
+            <ShieldOff size={17} /> Perdonar mora
+          </button>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 /** Account of one student: what was charged, adjustments, what was paid, receipts. */
 /**
  * Notes held in the family app for overdue payments: shows it, and lets the staff make an exception while there
@@ -178,6 +210,7 @@ export function StatementView({ studentId }: { studentId: number }) {
   const [voiding, setVoiding] = useState<{ kind: 'charge' | 'payment'; id: number; label: string } | null>(null)
   const [redating, setRedating] = useState<Charge | null>(null)
   const [repricing, setRepricing] = useState<Charge | null>(null)
+  const [waiving, setWaiving] = useState<Charge | null>(null)
   const [open, setOpen] = useState<number | null>(null)
 
   if (error) return <ErrorBox message={error.message} onRetry={reload} />
@@ -187,9 +220,9 @@ export function StatementView({ studentId }: { studentId: number }) {
   const charges = [...data.charges].reverse()
   const pending = data.charges.filter((c) => c.status === 'abierto')
 
-  const waive = async (c: Charge, waiveIt: boolean) => {
+  const waive = async (c: Charge, waiveIt: boolean, reason?: string) => {
     try {
-      await api2.post(`/billing/charges/${c.id}/late-fee`, { waive: waiveIt })
+      await api2.post(`/billing/charges/${c.id}/late-fee`, { waive: waiveIt, reason: reason ?? null })
       toast(waiveIt ? 'Mora perdonada' : 'Mora restaurada')
       reload()
     } catch (e) {
@@ -344,7 +377,7 @@ export function StatementView({ studentId }: { studentId: number }) {
                               <Undo2 size={15} /> Volver a cobrar mora
                             </button>
                           ) : (
-                            <button type="button" onClick={() => waive(c, true)} className="btn btn-ghost !min-h-9 !px-3 !text-[13px]">
+                            <button type="button" onClick={() => setWaiving(c)} className="btn btn-ghost !min-h-9 !px-3 !text-[13px]">
                               <ShieldOff size={15} /> Perdonar mora
                             </button>
                           ))}
@@ -405,6 +438,15 @@ export function StatementView({ studentId }: { studentId: number }) {
       <VoidModal target={voiding} onClose={() => setVoiding(null)} onDone={reload} />
       <DueDateModal charge={redating} onClose={() => setRedating(null)} onDone={reload} />
       <AmountModal charge={repricing} onClose={() => setRepricing(null)} onDone={reload} />
+      <WaiveModal
+        charge={waiving}
+        onClose={() => setWaiving(null)}
+        onConfirm={async (reason) => {
+          if (!waiving) return
+          await waive(waiving, true, reason)
+          setWaiving(null)
+        }}
+      />
     </div>
   )
 }
