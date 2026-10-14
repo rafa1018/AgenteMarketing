@@ -1,4 +1,4 @@
-import { Check, Eye, EyeOff, KeyRound, Loader2, Pencil, ShieldCheck, Trash2, UserPlus } from 'lucide-react'
+import { BellRing, Check, Eye, EyeOff, KeyRound, Loader2, Pencil, ShieldCheck, Trash2, UserPlus } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import type { Perm } from '@/lib/calendar'
 import { cn } from '@/lib/utils'
@@ -7,6 +7,7 @@ import { api, toast } from '../store'
 import { api2 } from '../v2/api'
 import { ConfirmModal, PageHead, field, labelCls } from '../ui'
 import { PERMS, ROLES, roleColor, roleLabel, roleOf, type Role } from '../roles'
+import { PUSH_TYPES, TYPE_PERMS } from './Notifications'
 
 interface StaffUser {
   id: string
@@ -17,8 +18,14 @@ interface StaffUser {
   active: boolean
   lastLogin?: string | null
   owner?: boolean
+  /** phone notifications the administrator allowed; null = all that the permissions allow */
+  push?: string[] | null
 }
 type Draft = Omit<StaffUser, 'id' | 'lastLogin' | 'owner'> & { id?: string; password: string }
+
+/** Notification types this person would get: the ones their permissions allow, limited by the administrator's choice. */
+const pushTypesOf = (perms: Perm[], push: string[] | null | undefined) =>
+  PUSH_TYPES.filter((t) => TYPE_PERMS[t.id].some((p) => perms.includes(p)) && (push == null || push.includes(t.id))).map((t) => t.id as string)
 
 const ERRORS: Record<string, string> = {
   name: 'Escribe el nombre (mínimo 2 letras).',
@@ -29,7 +36,7 @@ const ERRORS: Record<string, string> = {
 }
 
 function newDraft(role: Role = 'docente'): Draft {
-  return { name: '', user: '', role, perms: [...(roleOf(role)?.perms ?? [])], active: true, password: '' }
+  return { name: '', user: '', role, perms: [...(roleOf(role)?.perms ?? [])], active: true, password: '', push: null }
 }
 
 /** Readable random password (no confusing characters). */
@@ -188,6 +195,37 @@ function UserEditor({ draft, people, onClose, onSaved }: { draft: Draft | null; 
           })}
         </ul>
 
+        <p className={cn(labelCls, 'mt-6')}>Notificaciones al celular</p>
+        <p className="mb-2 text-xs text-muted">Avisos que le pueden llegar a esta persona cuando las active en su celular (menú → Notificaciones). Solo se pueden marcar los que su permiso permite.</p>
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {PUSH_TYPES.map((t) => {
+            const byPerm = TYPE_PERMS[t.id].some((p) => d.perms.includes(p))
+            const on = byPerm && pushTypesOf(d.perms, d.push).includes(t.id)
+            const need = TYPE_PERMS[t.id].map((p) => PERMS.find((x) => x.id === p)?.label ?? p).join(' o ')
+            return (
+              <li key={t.id}>
+                <label className={cn('flex items-start gap-3 rounded-2xl border-2 p-3 transition-colors', !byPerm ? 'cursor-not-allowed border-line opacity-50' : on ? 'cursor-pointer border-royal/40 bg-[#eeedfb]' : 'cursor-pointer border-line')}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    disabled={!byPerm}
+                    onChange={() => {
+                      const current = pushTypesOf(d.perms, d.push)
+                      up({ push: on ? current.filter((x) => x !== t.id) : [...current, t.id] })
+                    }}
+                    className="sr-only"
+                  />
+                  <span className={cn('mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border-2', on ? 'border-royal bg-royal text-white' : 'border-muted/40')}>{on && <Check size={13} strokeWidth={3.5} />}</span>
+                  <span>
+                    <span className="block font-semibold text-ink">{t.label}</span>
+                    <span className="block text-xs leading-snug text-muted">{byPerm ? t.detail : `Necesita el permiso ${need}.`}</span>
+                  </span>
+                </label>
+              </li>
+            )
+          })}
+        </ul>
+
         <label className="mt-5 flex items-center gap-3 font-semibold text-ink">
           <input type="checkbox" checked={d.active} onChange={(e) => up({ active: e.target.checked })} className="size-5 accent-[#3a36a8]" />
           Activo (puede ingresar)
@@ -305,6 +343,15 @@ export function UsersPage() {
                 ))}
                 {!u.perms.length && <li className="text-sm text-muted">Sin permisos</li>}
               </ul>
+              {(() => {
+                const types = u.owner ? PUSH_TYPES.map((t) => t.id as string) : pushTypesOf(u.perms, u.push)
+                return (
+                  <p className="mt-2 flex items-center gap-1.5 text-[13px] text-muted">
+                    <BellRing size={14} className="shrink-0" />
+                    {types.length ? `Avisos al celular: ${PUSH_TYPES.filter((t) => types.includes(t.id)).map((t) => t.label).join(', ')}` : 'Sin avisos al celular'}
+                  </p>
+                )
+              })()}
               {u.lastLogin && <p className="mt-3 text-xs text-muted">Último ingreso: {new Date(u.lastLogin).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}</p>}
             </li>
           ))}

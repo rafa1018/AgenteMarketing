@@ -19,6 +19,8 @@ function user_public(array $u): array
         'id' => $u['id'], 'name' => $u['name'], 'user' => $u['user'], 'role' => $u['role'],
         'perms' => array_values(array_intersect(RP_PERMS, (array) ($u['perms'] ?? []))),
         'active' => !empty($u['active']), 'lastLogin' => $u['lastLogin'] ?? null, 'createdAt' => $u['createdAt'] ?? null,
+        // notifications the administrator allowed (null = all that the permissions allow)
+        'push' => isset($u['push']) && is_array($u['push']) ? array_values(array_intersect(RP_PUSH_TYPES, $u['push'])) : null,
     ];
 }
 
@@ -51,6 +53,7 @@ if ($action === 'save') {
     $role = in_array($u['role'] ?? '', ROLES, true) ? $u['role'] : 'personalizado';
     $perms = array_values(array_intersect(RP_PERMS, array_filter((array) ($u['perms'] ?? []), 'is_string')));
     $active = !empty($u['active']);
+    $push = array_key_exists('push', $u) ? (is_array($u['push']) ? array_values(array_intersect(RP_PUSH_TYPES, array_filter($u['push'], 'is_string'))) : null) : false; // false = unchanged
     $password = is_string($u['password'] ?? null) ? $u['password'] : '';
 
     $bad = [];
@@ -62,7 +65,7 @@ if ($action === 'save') {
     if ($bad) rp_json(422, ['ok' => false, 'error' => 'validation', 'fields' => $bad]);
 
     $hash = $password !== '' ? password_hash($password, PASSWORD_DEFAULT) : null;
-    $saved = rp_with_json($file, function (array $data) use ($id, $name, $login, $role, $perms, $active, $hash) {
+    $saved = rp_with_json($file, function (array $data) use ($id, $name, $login, $role, $perms, $active, $hash, $push) {
         $users = $data['users'] ?? [];
         foreach ($users as $x) {
             if (mb_strtolower($x['user']) === $login && $x['id'] !== $id) return [$data, 'taken'];
@@ -77,6 +80,10 @@ if ($action === 'save') {
             $rec = array_merge($users[$idx], ['name' => $name, 'user' => $login, 'role' => $role, 'perms' => $perms, 'active' => $active]);
             if ($hash) $rec['hash'] = $hash;
             $users[$idx] = $rec;
+        }
+        if ($push !== false) {
+            $rec['push'] = $push;
+            $users[array_search($rec['id'], array_column($users, 'id'), true)] = $rec;
         }
         $data['users'] = $users;
         return [$data, $rec];

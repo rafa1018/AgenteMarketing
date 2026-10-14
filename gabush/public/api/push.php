@@ -29,7 +29,7 @@ if ($method === 'GET') {
     rp_require_admin_read();
     $me = rp_current_user()['id'];
     $subs = array_values(array_filter(rp_read_json($file)['subs'] ?? [], fn($s) => ($s['uid'] ?? RP_ROOT) === $me));
-    rp_json(200, ['ok' => true, 'publicKey' => push_vapid()['public'], 'subs' => array_map(fn($s) => ['endpoint' => $s['endpoint'], 'prefs' => $s['prefs'], 'device' => $s['device'] ?? ''], $subs)]);
+    rp_json(200, ['ok' => true, 'publicKey' => push_vapid()['public'], 'allowed' => rp_user_push_types($me), 'subs' => array_map(fn($s) => ['endpoint' => $s['endpoint'], 'prefs' => $s['prefs'], 'device' => $s['device'] ?? ''], $subs)]);
 }
 if ($method !== 'POST') {
     rp_json(405, ['ok' => false, 'error' => 'method']);

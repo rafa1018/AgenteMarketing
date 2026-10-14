@@ -549,8 +549,10 @@ final class BillingService
     {
         $policy = $this->lateFeePolicy();
         $updated = 0;
+        $delta = 0; // how much the late fees changed in total (for the audit)
+        $students = [];
         $rows = $this->db->all(
-            "SELECT c.id, c.due_on FROM charges c JOIN billing_concepts bc ON bc.id = c.concept_id
+            "SELECT c.id, c.due_on, c.student_id FROM charges c JOIN billing_concepts bc ON bc.id = c.concept_id
              WHERE c.status = 'abierto' AND bc.late_fee_applies = 1 AND c.due_on IS NOT NULL AND c.due_on < ?",
             [$this->today->format('Y-m-d')],
         );
@@ -561,18 +563,23 @@ final class BillingService
             if ($mora && $mora['waived']) continue;
             if ($fee['amount'] <= 0) {
                 // the rule changed (more grace days, mora turned off…): an open charge drops its fee
-                if ($mora) { $this->db->run('DELETE FROM charge_adjustments WHERE id = ?', [$mora['id']]); $updated++; }
+                if ($mora) { $this->db->run('DELETE FROM charge_adjustments WHERE id = ?', [$mora['id']]); $updated++; $delta -= (int) $mora['amount']; $students[$c['student_id']] = true; }
                 continue;
             }
             $reason = $policy->describe($due, $this->today);
             if ($mora) {
                 if ((int) $mora['amount'] === $fee['amount']) continue;
                 $this->db->update('charge_adjustments', ['amount' => $fee['amount'], 'days_late' => $fee['days'], 'reason' => $reason], ['id' => $mora['id']]);
+                $delta += $fee['amount'] - (int) $mora['amount'];
             } else {
                 $this->db->insert('charge_adjustments', ['charge_id' => $c['id'], 'kind' => 'mora', 'amount' => $fee['amount'], 'days_late' => $fee['days'], 'reason' => $reason, 'created_by' => $actor->label()]);
+                $delta += $fee['amount'];
             }
+            $students[$c['student_id']] = true;
             $updated++;
         }
+        // one entry per run in Auditoría → Movimientos de cartera ("Mora calculada")
+        if ($updated) $this->audit->log($actor, 'charges.late_fees', 'charges', $this->today->format('Y-m-d'), ['amount' => $delta, 'charges' => $updated, 'students' => count($students), 'reason' => $policy->mode === 'mes' ? '$' . number_format($policy->amountPerDay, 0, ',', '.') . ' por cada mes de atraso' : '$' . number_format($policy->amountPerDay, 0, ',', '.') . ' por día de atraso']);
         return ['updated' => $updated];
     }
 

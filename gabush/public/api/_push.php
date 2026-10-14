@@ -182,11 +182,15 @@ function push_notify(string $type, array $message): int
     $subs = rp_read_json($file)['subs'] ?? [];
     $need = PUSH_PERMS[$type] ?? [];
     $permsOf = [];
-    $targets = array_filter($subs, function ($s) use ($type, $need, &$permsOf) {
+    $allowedOf = [];
+    $targets = array_filter($subs, function ($s) use ($type, $need, &$permsOf, &$allowedOf) {
         if (($s['prefs'][$type] ?? true) === false) return false;
         $uid = (string) ($s['uid'] ?? RP_ROOT); // devices registered before users existed = owner
         $permsOf[$uid] ??= rp_user_perms($uid);
-        return !$need || array_intersect($need, $permsOf[$uid]);
+        if ($need && !array_intersect($need, $permsOf[$uid])) return false;
+        // the administrator may have limited which notifications this person gets (Usuarios)
+        if (!array_key_exists($uid, $allowedOf)) $allowedOf[$uid] = rp_user_push_types($uid);
+        return $allowedOf[$uid] === null || !in_array($type, PUSH_TYPES, true) || in_array($type, $allowedOf[$uid], true);
     });
     $vapid = $targets ? push_vapid() : null;
     $subject = 'mailto:' . ($CONFIG['push_contact'] ?? 'gabushjardin@gmail.com');

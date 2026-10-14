@@ -354,6 +354,22 @@ function rp_user_perms(string $uid): array
     return [];
 }
 
+/** Phone notifications a staff user can get. */
+const RP_PUSH_TYPES = ['inscripciones', 'pagos', 'asistencia', 'cumpleanos', 'eventos'];
+
+/**
+ * Which notification types the administrator allowed for this user (Usuarios → Notificaciones al celular).
+ * null = not chosen: everything their permissions allow. The owner account always gets all of them.
+ */
+function rp_user_push_types(string $uid): ?array
+{
+    if ($uid === '' || $uid === RP_ROOT) return null;
+    foreach (rp_read_json(rp_data_dir() . '/users.json')['users'] ?? [] as $u) {
+        if (($u['id'] ?? '') === $uid) return isset($u['push']) && is_array($u['push']) ? array_values(array_intersect(RP_PUSH_TYPES, $u['push'])) : null;
+    }
+    return null;
+}
+
 function rp_can(string $perm): bool
 {
     $me = rp_current_user();

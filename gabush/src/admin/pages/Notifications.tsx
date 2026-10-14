@@ -5,9 +5,9 @@ import { useCalendar, type Perm } from '@/lib/calendar'
 import { api, toast } from '../store'
 import { Card, PageHead } from '../ui'
 
-type Prefs = { inscripciones: boolean; pagos: boolean; asistencia: boolean; cumpleanos: boolean; eventos: boolean }
+export type Prefs = { inscripciones: boolean; pagos: boolean; asistencia: boolean; cumpleanos: boolean; eventos: boolean }
 const DEFAULT_PREFS: Prefs = { inscripciones: true, pagos: true, asistencia: true, cumpleanos: true, eventos: true }
-const TYPES: { id: keyof Prefs; label: string; detail: string }[] = [
+export const PUSH_TYPES: { id: keyof Prefs; label: string; detail: string }[] = [
   { id: 'inscripciones', label: 'Inscripciones nuevas', detail: 'Al instante, cuando alguien llena el formulario de la página.' },
   { id: 'pagos', label: 'Pagos pendientes', detail: 'Cada mañana (7:00 a. m.) si hay cobros vencidos o para hoy.' },
   { id: 'asistencia', label: 'Asistencia sin marcar', detail: 'A las 11:30 a. m. (jornada mañana) y 5:15 p. m. si el jardín abrió y faltan niños por marcar.' },
@@ -16,7 +16,7 @@ const TYPES: { id: keyof Prefs; label: string; detail: string }[] = [
 ]
 
 /** Who may receive each type (same rule as the server). */
-const TYPE_PERMS: Record<keyof Prefs, Perm[]> = {
+export const TYPE_PERMS: Record<keyof Prefs, Perm[]> = {
   inscripciones: ['inscripciones'],
   pagos: ['pagos'],
   asistencia: ['asistencia'],
@@ -51,7 +51,9 @@ export function Notifications() {
   const [busy, setBusy] = useState(false)
   const [ready, setReady] = useState(false)
   const perms = useCalendar((s) => s.perms)
-  const types = TYPES.filter((tp) => TYPE_PERMS[tp.id].some((p) => perms.includes(p)))
+  // what the administrator allowed for this user (Usuarios); null = everything the permissions allow
+  const [allowed, setAllowed] = useState<string[] | null>(null)
+  const types = PUSH_TYPES.filter((tp) => TYPE_PERMS[tp.id].some((p) => perms.includes(p)) && (allowed === null || allowed.includes(tp.id)))
 
   useEffect(() => {
     if (!supported()) return setReady(true)
@@ -61,6 +63,7 @@ export function Notifications() {
       const current = (await reg?.pushManager.getSubscription()) ?? null
       if (data?.ok) {
         setPublicKey(data.publicKey)
+        setAllowed(Array.isArray(data.allowed) ? data.allowed : null)
         setDevices(data.subs.length)
         const mine = current && data.subs.find((s: { endpoint: string }) => s.endpoint === current.endpoint)
         if (mine) setPrefs({ ...DEFAULT_PREFS, ...mine.prefs })

@@ -220,13 +220,21 @@ final class AuditController extends Controller
     {
         $this->staff($req, 'usuarios');
         $names = $this->panelUsers();
-        $panel = array_map(static fn($s) => [
-            'id' => hash('sha256', (string) $s['endpoint']),
-            'who' => $names[(string) ($s['uid'] ?? 'root')] ?? (string) ($s['uid'] ?? 'root'),
-            'device' => (string) (($s['device'] ?? '') ?: 'Dispositivo'),
-            'since' => $s['createdAt'] ?? null, 'lastOk' => $s['lastOk'] ?? null, 'lastStatus' => $s['lastStatus'] ?? null,
-            'types' => array_values(array_filter(self::PUSH_TYPES, static fn($t) => ($s['prefs'][$t] ?? true) !== false)),
-        ], $this->panelSubs());
+        // what the administrator allowed for each user (Usuarios → Notificaciones al celular); null = all
+        $allowed = [];
+        foreach ((array) ((json_decode((string) @file_get_contents($this->app->dataDir() . '/users.json'), true) ?: [])['users'] ?? []) as $u) {
+            if (!empty($u['id']) && isset($u['push']) && is_array($u['push'])) $allowed[(string) $u['id']] = $u['push'];
+        }
+        $panel = array_map(static function ($s) use ($names, $allowed) {
+            $uid = (string) ($s['uid'] ?? 'root');
+            return [
+                'id' => hash('sha256', (string) $s['endpoint']),
+                'who' => $names[$uid] ?? $uid,
+                'device' => (string) (($s['device'] ?? '') ?: 'Dispositivo'),
+                'since' => $s['createdAt'] ?? null, 'lastOk' => $s['lastOk'] ?? null, 'lastStatus' => $s['lastStatus'] ?? null,
+                'types' => array_values(array_filter(self::PUSH_TYPES, static fn($t) => ($s['prefs'][$t] ?? true) !== false && (!isset($allowed[$uid]) || in_array($t, $allowed[$uid], true)))),
+            ];
+        }, $this->panelSubs());
         $year = $this->settings()->activeYear();
         $families = array_map(static function ($r) {
             $prefs = $r['prefs'] ? (json_decode((string) $r['prefs'], true) ?: []) : [];
@@ -329,7 +337,7 @@ final class AuditController extends Controller
     private const BILLING = [
         'anulaciones' => ['charge.void', 'payment.void', 'charges.void_after_withdrawal', 'student.write_off'],
         'descuentos' => ['charge.descuento', 'charge.adjustment_delete', 'charge.discount_expired', 'charges.monthly_discount', 'charges.early_discount'],
-        'mora' => ['charge.recargo', 'charge.waive_late_fee', 'charge.restore_late_fee', 'charges.enrollment_late_fee'],
+        'mora' => ['charge.recargo', 'charge.waive_late_fee', 'charge.restore_late_fee', 'charges.enrollment_late_fee', 'charges.late_fees'],
         'valores' => ['charge.amount', 'charge.due_date', 'student_price.save', 'prices.save'],
         'acuerdos' => ['grades.unlock', 'grades.unlock_remove'],
         'pagos' => ['payment.create'],
@@ -404,7 +412,7 @@ final class AuditController extends Controller
             'charge.void' => 'Anuló un cobro', 'payment.void' => 'Anuló un pago', 'charges.void_after_withdrawal' => 'Anuló cobros por retiro', 'student.write_off' => 'Cerró la deuda',
             'charge.descuento' => 'Descuento', 'charge.adjustment_delete' => 'Quitó un descuento/recargo', 'charge.discount_expired' => 'Venció un descuento condicionado',
             'charges.monthly_discount' => 'Descuento mensual aplicado', 'charges.early_discount' => 'Pronto pago aplicado',
-            'charge.recargo' => 'Recargo', 'charge.waive_late_fee' => 'Perdonó la mora', 'charge.restore_late_fee' => 'Restauró la mora', 'charges.enrollment_late_fee' => 'Matrícula extraordinaria',
+            'charge.recargo' => 'Recargo', 'charge.waive_late_fee' => 'Perdonó la mora', 'charge.restore_late_fee' => 'Restauró la mora', 'charges.enrollment_late_fee' => 'Matrícula extraordinaria', 'charges.late_fees' => 'Mora calculada (automática)',
             'charge.amount' => 'Cambió el valor', 'charge.due_date' => 'Cambió el vencimiento', 'student_price.save' => 'Precio especial', 'prices.save' => 'Cambió la tabla de precios',
             'grades.unlock' => 'Acuerdo de pago (notas visibles)', 'grades.unlock_remove' => 'Quitó acuerdo de pago',
             'payment.create' => 'Registró un pago', 'charge.create' => 'Creó un cobro', 'charges.monthly' => 'Generó pensiones', 'charges.days' => 'Generó cobros por días', 'charges.concept_to_enrolled' => 'Cobro masivo',
@@ -439,6 +447,7 @@ final class AuditController extends Controller
         if (!empty($d['validUntil'])) $parts[] = 'Solo si paga hasta el ' . $d['validUntil'];
         if (!empty($d['method'])) $parts[] = ucfirst((string) $d['method']) . (!empty($d['reference']) ? ' · ' . $d['reference'] : '');
         if (!empty($d['description'])) $parts[] = (string) $d['description'];
+        if (isset($d['students']) && is_numeric($d['students'])) $parts[] = $d['students'] . ' estudiantes';
         foreach (['charges' => 'cobros', 'created' => 'creados', 'voided' => 'anulados'] as $k => $l) if (isset($d[$k]) && is_numeric($d[$k])) $parts[] = $d[$k] . " $l";
         return implode(' · ', $parts);
     }
