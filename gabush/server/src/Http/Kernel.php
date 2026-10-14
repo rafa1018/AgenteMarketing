@@ -23,6 +23,7 @@ final class Kernel
         Controllers\BillingController::class,
         Controllers\CashController::class,
         Controllers\MessageController::class,
+        Controllers\StaffMessageController::class,
         Controllers\EmailController::class,
         Controllers\PaymentGatewayController::class,
         Controllers\PortalController::class,

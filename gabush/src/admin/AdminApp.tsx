@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { Activity, Archive, BarChart3, UserRoundCheck, Bell, FileSpreadsheet, BellRing, BookOpenCheck, CalendarDays, CreditCard, FileCheck2, Globe, GraduationCap, Images, KeyRound, LayoutGrid, Mail, MessagesSquare, PiggyBank, School, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
+import { Activity, Archive, BarChart3, UserRoundCheck, Bell, FileSpreadsheet, BellRing, BookOpenCheck, CalendarDays, CreditCard, FileCheck2, Globe, GraduationCap, Images, Inbox, KeyRound, LayoutGrid, Mail, MessagesSquare, PiggyBank, Send, School, ShieldCheck, RefreshCw, ClipboardCheck, House, Loader2, LogOut, Menu, Settings as SettingsIcon, Users, Wallet, X } from 'lucide-react'
 import { useCallback, useEffect, useState, type ComponentType } from 'react'
 import { checkAdmin, loadEvents, logout, reloadEvents, useCalendar, type Perm } from '@/lib/calendar'
 import { cn } from '@/lib/utils'
@@ -25,6 +25,9 @@ import { AcademicPage } from './features/academics/AcademicPage'
 import { GradesPage } from './features/grades/GradesPage'
 import { CashPage } from './features/cash/CashPage'
 import { MessagesPage } from './features/messages/MessagesPage'
+import { StaffMessagesPage } from './features/messages/StaffMessagesPage'
+import { InboxPage } from './features/messages/InboxPage'
+import { refreshInbox, useInboxUnread } from './features/messages/inbox'
 import { PortalAccountsPage } from './features/portal/PortalAccountsPage'
 import { EmailSettingsPage } from './features/settings/EmailSettingsPage'
 import { PaymentGatewayPage } from './features/settings/PaymentGatewayPage'
@@ -58,7 +61,9 @@ const ALL_PAGES: Page[] = [
   { id: 'estudiantes', label: 'Estudiantes', icon: Users, view: StudentsPage, perms: ['estudiantes', 'matriculas'], group: 'jardin' },
   { id: 'matriculas', label: 'Matrículas', icon: FileCheck2, view: EnrollmentsPage, perm: 'matriculas', group: 'jardin' },
   { id: 'inscripciones', label: 'Inscripciones', icon: Bell, view: Inscriptions, perm: 'inscripciones', group: 'jardin' },
-  { id: 'mensajes', label: 'Mensajes', icon: MessagesSquare, view: MessagesPage, perm: 'mensajes', group: 'jardin' },
+  { id: 'bandeja', label: 'Mi bandeja', icon: Inbox, view: InboxPage, group: 'jardin' },
+  { id: 'mensajes', label: 'Mensajes a familias', icon: MessagesSquare, view: MessagesPage, perm: 'mensajes', group: 'jardin' },
+  { id: 'mensajes-personal', label: 'Mensajes al personal', icon: Send, view: StaffMessagesPage, perms: ['usuarios', 'personal'], group: 'jardin' },
   { id: 'calendario', label: 'Calendario', icon: CalendarDays, view: CalendarPage, perm: 'calendario', group: 'jardin' },
   { id: 'calificaciones', label: 'Calificaciones', icon: BookOpenCheck, view: GradesPage, perms: ['calificaciones', 'academico'], group: 'academico' },
   { id: 'academico', label: 'Gestión académica', icon: School, view: AcademicPage, perm: 'academico', group: 'academico' },
@@ -101,6 +106,7 @@ function Shell() {
   const loaded = useAdmin((s) => s.loaded)
   const failed = useAdmin((s) => s.failed)
   const newIns = useAdmin((s) => s.inscriptions.filter((i) => i.status === 'pendiente').length)
+  const unreadInbox = useInboxUnread()
   const toast = useAdmin((s) => s.toast)
   const name = useCalendar((s) => s.name)
   const page = PAGES.find((p) => p.id === route) ?? PAGES[0] ?? { id: 'none', label: '', icon: House, view: NoAccess, group: 'cuenta' as Group }
@@ -109,11 +115,13 @@ function Shell() {
   useEffect(() => {
     loadAll()
     loadEvents()
+    refreshInbox()
     // keep every device in sync: when the app comes back to the screen, and every minute while visible
     const sync = () => {
       if (document.visibilityState !== 'visible') return
       syncNow()
       reloadEvents()
+      refreshInbox()
     }
     document.addEventListener('visibilitychange', sync)
     window.addEventListener('focus', sync)
@@ -145,7 +153,10 @@ function Shell() {
     }
   }, [])
 
-  const badge = (id: string) => id === 'inscripciones' && newIns > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-berry px-1 text-[11px] font-bold text-white">{newIns}</span>
+  const badge = (id: string) => {
+    const n = id === 'inscripciones' ? newIns : id === 'bandeja' ? unreadInbox : 0
+    return n > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-berry px-1 text-[11px] font-bold text-white">{n}</span>
+  }
 
   return (
     <div className="min-h-svh overflow-x-clip bg-paper pb-24 lg:pb-10 lg:pl-[256px]">
@@ -282,7 +293,7 @@ function Shell() {
           <button type="button" onClick={() => setMore((m) => !m)} aria-expanded={more} className={cn('relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-semibold', !MOBILE_MAIN.includes(page.id) ? 'text-ink' : 'text-muted')}>
             <span className={cn('grid h-8 w-12 place-items-center rounded-full', !MOBILE_MAIN.includes(page.id) && 'bg-[#eeedfb] text-royal')}>{more ? <X size={20} /> : <Menu size={20} />}</span>
             Más
-            {newIns > 0 && <span className="absolute top-1.5 right-[calc(50%-22px)] size-2.5 rounded-full bg-berry" />}
+            {(newIns > 0 || unreadInbox > 0) && <span className="absolute top-1.5 right-[calc(50%-22px)] size-2.5 rounded-full bg-berry" />}
           </button>
           )}
         </div>

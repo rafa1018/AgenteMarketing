@@ -231,6 +231,46 @@ function push_notify(string $type, array $message): int
     return $sent;
 }
 
+/**
+ * A message to specific staff users (Mensajes al personal): every device of those users, whatever their
+ * notification types — it was written to them. Logged like the others (with confirmation refs).
+ * @param list<string> $uids
+ */
+function push_notify_users(array $uids, array $message, string $type = 'comunicado'): int
+{
+    global $CONFIG;
+    if (!function_exists('curl_init') || !$uids) return 0;
+    $file = rp_data_dir() . '/push.json';
+    $targets = array_values(array_filter(rp_read_json($file)['subs'] ?? [], fn($s) => in_array((string) ($s['uid'] ?? RP_ROOT), $uids, true)));
+    $vapid = $targets ? push_vapid() : null;
+    $subject = 'mailto:' . ($CONFIG['push_contact'] ?? 'gabushjardin@gmail.com');
+    $detail = [];
+    $gone = [];
+    $sent = 0;
+    foreach ($targets as $s) {
+        $ref = bin2hex(random_bytes(8));
+        try {
+            $code = push_send_one($s, $message + ['type' => $type, 'ref' => $ref], $vapid, $subject);
+        } catch (Throwable $e) {
+            $code = 0;
+        }
+        $detail[] = ['who' => push_user_name((string) ($s['uid'] ?? RP_ROOT)), 'device' => (string) ($s['device'] ?? ''), 'status' => $code, 'ref' => $ref, 'key' => hash('sha256', (string) $s['endpoint'])];
+        if ($code === 404 || $code === 410) $gone[] = $s['endpoint'];
+        elseif ($code >= 200 && $code < 300) $sent++;
+    }
+    if ($gone) {
+        rp_with_json($file, function (array $data) use ($gone) {
+            $data['subs'] = array_values(array_filter($data['subs'] ?? [], fn($s) => !in_array($s['endpoint'], $gone, true)));
+            return [$data, null];
+        });
+    }
+    if ($app = push_app()) {
+        $who = implode(', ', array_map('push_user_name', $uids));
+        Gabush\Application\Notifications\StaffDigest::log($app, 'panel', $type, (string) ($message['title'] ?? ''), $message['body'] ?? null, null, $who, $detail, $message['url'] ?? null);
+    }
+    return $sent;
+}
+
 /** Lets the visitor's request finish before slow work (notifications) runs. */
 function push_finish_response(): void
 {

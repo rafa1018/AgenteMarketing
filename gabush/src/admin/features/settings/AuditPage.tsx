@@ -136,7 +136,7 @@ type Sent = { id: number; audience: 'panel' | 'familia'; type: string; title: st
 const PUSH_TYPE: Record<string, string> = {
   inscripciones: 'Inscripciones', pagos: 'Pagos', asistencia: 'Asistencia', cumpleanos: 'Cumpleaños', eventos: 'Eventos', recordatorio: 'Recordatorio de pago',
   pago: 'Pago recibido', cobro: 'Nuevo cobro', mensaje: 'Mensaje', notas: 'Notas', observador: 'Observador', documento: 'Documento', 'pago-en-linea': 'Pago en línea',
-  activacion: 'Activación de notificaciones', prueba: 'Prueba al activar',
+  activacion: 'Activación de notificaciones', prueba: 'Prueba al activar', comunicado: 'Mensaje al personal',
 }
 type StaffNoDevice = { id: string; name: string; role: string; lastLogin: string | null; lastTry: { error: string | null; at: string } | null }
 

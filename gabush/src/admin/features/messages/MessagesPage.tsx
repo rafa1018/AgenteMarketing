@@ -95,7 +95,7 @@ function Compose({ open, onClose, onSent }: { open: boolean; onClose: () => void
   return (
     <Modal open={open} onClose={onClose} label="Nuevo mensaje" closeLabel="Cerrar">
       <div className="space-y-4 p-5 sm:p-7">
-        <h2 className="text-[1.5rem]">Nuevo mensaje</h2>
+        <h2 className="text-[1.5rem]">Nuevo mensaje a familias</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Para">
             <select value={v.audience} onChange={(e) => setV({ ...v, audience: e.target.value, audienceId: null })} className={inputCls()}>
