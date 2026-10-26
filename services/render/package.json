@@ -1,0 +1,14 @@
+{
+  "name": "aima-render",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servicio interno: recibe HTML ya relleno con datos reales y devuelve un PNG renderizado (Playwright headless).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "playwright": "^1.48.0"
+  }
+}

@@ -88,6 +88,18 @@ services:
     # arranque (ver docs/00_FASE0_ARQUITECTURA.md, sección 12). Suficiente para Fase 3 (Telegram);
     # antes de Fase 6 (Meta) se reemplaza por un Named Tunnel con dominio propio.
 
+  render:
+    build:
+      context: ./services/render
+    container_name: aima-render
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3000" # TEMPORAL solo para pruebas manuales; quitar antes de produccion.
+    # Sin puerto expuesto al host ni volumenes: solo n8n le habla dentro de la red interna
+    # de Docker (http://render:3000/render), enviando HTML YA AUTOCONTENIDO (logo/foto como
+    # data URI o URL publica). Genera imagenes desde plantillas HTML + datos reales, en vez
+    # de pedirle a un modelo de IA que dibuje texto/logo.
+
   n8n-runners:
     image: n8nio/runners:2.39.9 # debe coincidir EXACTO con la versión de n8nio/n8n de arriba
     container_name: aima-n8n-runners

@@ -111,9 +111,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT\n  seed.cid AS company_id,\n  c.name AS company_name,\n  b.description, b.sector, b.tone, b.colors_primary, b.colors_secondary, b.visual_style,\n  COALESCE((SELECT json_agg(json_build_object('name', s.name, 'description', s.description, 'price', s.price, 'currency', s.currency)) FROM company_services s WHERE s.company_id = seed.cid AND s.active), '[]'::json) AS services,\n  COALESCE((SELECT json_agg(json_build_object('name', p.name, 'description', p.description, 'price_before', p.price_before, 'price_after', p.price_after, 'currency', p.currency)) FROM company_promotions p WHERE p.company_id = seed.cid AND p.status = 'ACTIVE'), '[]'::json) AS promotions,\n  COALESCE((SELECT json_agg(r.rule_text) FROM company_rules r WHERE r.company_id = seed.cid AND r.active), '[]'::json) AS rules\nFROM (SELECT $1::text AS cid) AS seed\nLEFT JOIN company_brand b ON b.company_id = seed.cid\nLEFT JOIN companies c ON c.id = seed.cid;",
+        "query": "SELECT\n  seed.cid AS company_id,\n  c.name AS company_name,\n  b.description, b.sector, b.tone, b.colors_primary, b.colors_secondary, b.visual_style,\n  b.phone, b.whatsapp_number, b.logo_path, b.logo_background,\n  b.city, b.address, b.email, b.website, b.accent_color, b.background_color, b.logo_description,\n  b.forbidden_visuals_json, b.social_handles_json, b.words_avoid_json,\n  b.target_age, b.target_location, b.target_interests,\n  COALESCE((SELECT json_agg(json_build_object('name', s.name, 'description', s.description, 'price', s.price, 'currency', s.currency)) FROM company_services s WHERE s.company_id = seed.cid AND s.active), '[]'::json) AS services,\n  COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name, 'labels_i18n', s.labels_i18n_json)) FROM company_services s WHERE s.company_id = seed.cid AND s.active), '[]'::json) AS services_full,\n  COALESCE((SELECT json_agg(json_build_object('name', p.name, 'description', p.description, 'price_before', p.price_before, 'price_after', p.price_after, 'currency', p.currency)) FROM company_promotions p WHERE p.company_id = seed.cid AND p.status = 'ACTIVE'), '[]'::json) AS promotions,\n  COALESCE((SELECT json_agg(r.rule_text) FROM company_rules r WHERE r.company_id = seed.cid AND r.active), '[]'::json) AS rules\nFROM (SELECT $1::text AS cid) AS seed\nLEFT JOIN company_brand b ON b.company_id = seed.cid\nLEFT JOIN companies c ON c.id = seed.cid;",
         "options": {
-          "queryReplacement": "={{ (() => { let s = $json.context_state_json; if (typeof s === 'string') { try { s = JSON.parse(s); } catch (e) { s = {}; } } return [ (s && s.company_id) ? s.company_id : '__none__' ]; })() }}"
+          "queryReplacement": "={{ (() => { let s = $('Obtener conversacion').item.json.context_state_json; if (typeof s === 'string') { try { s = JSON.parse(s); } catch (e) { s = {}; } } return [ (s && s.company_id) ? s.company_id : '__none__' ]; })() }}"
         }
       },
       "id": "b2a2a222-0000-4000-8000-00000000000a",
@@ -133,7 +133,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const trigger = $('Trigger Telegram').item.json;\nconst chatId = trigger.message.chat.id;\nconst text = (trigger.message.text || '').trim();\n\nlet companies = $('Buscar empresas del chat').item.json.companies;\nif (typeof companies === 'string') { try { companies = JSON.parse(companies); } catch (e) { companies = []; } }\nif (!Array.isArray(companies)) companies = [];\n\nconst conv = $('Obtener conversacion').item.json;\nconst conversationId = conv.id;\nlet state = conv.context_state_json;\nif (typeof state === 'string') { try { state = JSON.parse(state); } catch (e) { state = {}; } }\nif (!state || typeof state !== 'object') state = {};\nlet activeFlow = conv.active_flow;\n\nconst MENU = [\n  '1) Marketing automatico',\n  '2) Crear publicacion manual',\n  '3) Revisar publicaciones',\n  '4) Revisar clientes/leads',\n  '5) Ver resultados',\n  '6) Crear promocion',\n  '7) Otra cosa',\n];\n\nconst TIPOS = ['promocion', 'producto', 'servicio', 'educativo', 'testimonial', 'marca', 'informativo', 'engagement', 'dejar_decidir'];\nconst TIPOS_LABEL = [\n  '1) Promocion', '2) Producto', '3) Servicio', '4) Educativo', '5) Testimonial',\n  '6) Marca', '7) Informativo', '8) Engagement', '9) Dejame decidir',\n];\n\nfunction menuText(companyName) {\n  return `Buenos dias.\\n\\nEstas trabajando con: ${companyName}.\\n\\nQue deseas hacer hoy?\\n\\n${MENU.join('\\n')}\\n\\n(Responde con el numero o describelo con tus palabras. Escribe \"cambiar empresa\" para elegir otra.)`;\n}\nfunction askCompany(list) {\n  return `Con cual empresa quieres trabajar?\\n\\n${list.map((c, i) => `${i + 1}) ${c.name}`).join('\\n')}`;\n}\nfunction askCantidad() {\n  return 'Cuantas publicaciones deseas hacer hoy? (maximo 5)';\n}\nfunction askRedes() {\n  return 'Donde deseas publicar?\\n\\n1) Facebook\\n2) Instagram\\n3) WhatsApp\\n4) Todas';\n}\nfunction askRedesManual() {\n  return 'En cual red va esta publicacion?\\n\\n1) Facebook\\n2) Instagram\\n3) WhatsApp';\n}\nfunction askTipo() {\n  return `Que tipo de contenido quieres?\\n\\n${TIPOS_LABEL.join('\\n')}`;\n}\nfunction askIdioma() {\n  return 'En que idioma quieres la publicacion?\\n\\n1) Espanol\\n2) Ingles';\n}\nfunction askManualTema() {\n  return 'Sobre que quieres que sea la publicacion? Describelo con tus palabras.\\n\\nPor ejemplo: \"una promocion para el servicio de limpieza de oficinas\" o \"algo educativo sobre tecnicas de estudio para ninos\".';\n}\n\nfunction parseRedes(text, allowTodas) {\n  const map = allowTodas\n    ? { '1': 'facebook', '2': 'instagram', '3': 'whatsapp', '4': 'todas' }\n    : { '1': 'facebook', '2': 'instagram', '3': 'whatsapp' };\n  const numMatch = text.match(/^(\\d+)/);\n  let redes = numMatch ? map[numMatch[1]] : null;\n  if (!redes) {\n    const lower = text.toLowerCase();\n    if (allowTodas && lower.includes('todas')) redes = 'todas';\n    else if (lower.includes('facebook')) redes = 'facebook';\n    else if (lower.includes('instagram')) redes = 'instagram';\n    else if (lower.includes('whatsapp')) redes = 'whatsapp';\n  }\n  return redes;\n}\n\nfunction parseIdioma(text) {\n  const numMatch = text.match(/^(\\d+)/);\n  let idioma = null;\n  if (numMatch) {\n    if (numMatch[1] === '1') idioma = 'es';\n    else if (numMatch[1] === '2') idioma = 'en';\n  }\n  if (!idioma) {\n    const lower = text.toLowerCase();\n    if (lower.includes('espan') || lower.includes('spanish')) idioma = 'es';\n    else if (lower.includes('ingl') || lower.includes('english')) idioma = 'en';\n  }\n  return idioma;\n}\n\nfunction brandContext(brain) {\n  let services = brain.services;\n  let promotions = brain.promotions;\n  let rules = brain.rules;\n  if (typeof services === 'string') { try { services = JSON.parse(services); } catch (e) { services = []; } }\n  if (typeof promotions === 'string') { try { promotions = JSON.parse(promotions); } catch (e) { promotions = []; } }\n  if (typeof rules === 'string') { try { rules = JSON.parse(rules); } catch (e) { rules = []; } }\n  if (!Array.isArray(services)) services = [];\n  if (!Array.isArray(promotions)) promotions = [];\n  if (!Array.isArray(rules)) rules = [];\n  return `Eres el redactor de marketing de la empresa \"${brain.company_name}\".\nSector: ${brain.sector || 'no especificado'}.\nDescripcion: ${brain.description || 'no especificada'}.\nTono de comunicacion: ${brain.tone || 'profesional y cercano'}.\nColores de marca: ${brain.colors_primary || ''} y ${brain.colors_secondary || ''}.\nEstilo visual: ${brain.visual_style || 'no especificado'}.\n\nServicios/productos reales disponibles (NUNCA inventes otros ni cambies precios):\n${JSON.stringify(services)}\n\nPromociones activas reales (si esta vacio, no hay promociones activas, no inventes ninguna):\n${JSON.stringify(promotions)}\n\nReglas obligatorias:\n${rules.join('\\n')}`;\n}\n\nfunction jsonOutputSpec(idiomaNombre, cantidad) {\n  return `Responde SOLO con un arreglo JSON valido (sin texto adicional, sin markdown, sin bloque de codigo) de ${cantidad} objeto(s), cada uno con estas claves exactas: concept (string corto, en ${idiomaNombre}), headline (string, en ${idiomaNombre}), caption (string, el texto completo del post, en ${idiomaNombre}), cta (string corto, en ${idiomaNombre}), hashtags (arreglo de strings sin el simbolo #, en ${idiomaNombre} cuando aplique), alt_text (string describiendo la imagen para accesibilidad, en ${idiomaNombre}), image_prompt (string SIEMPRE en ingles, describiendo SOLO la escena o fondo fotografico para un generador de imagenes, sin pedir que dibuje ningun logo ni texto), platform (una de: facebook, instagram, whatsapp).`;\n}\n\nfunction buildAutomaticoPrompt(brain, automatico) {\n  const idiomaNombre = automatico.idioma === 'en' ? 'ingles (English)' : 'espanol';\n  return `${brandContext(brain)}\n\nTarea: genera exactamente ${automatico.cantidad} publicaciones de tipo \"${automatico.tipo}\" para la(s) red(es) \"${automatico.redes}\".\nIMPORTANTE: escribe TODO el contenido completamente en ${idiomaNombre}, sin mezclar idiomas.\n${jsonOutputSpec(idiomaNombre, automatico.cantidad)}\nSi no hay suficiente informacion real de servicios o promociones para el tipo pedido, usa contenido informativo o de marca en su lugar, pero nunca inventes precios ni promociones que no esten en las listas de arriba.`;\n}\n\nfunction buildManualPrompt(brain, manual) {\n  const idiomaNombre = manual.idioma === 'en' ? 'ingles (English)' : 'espanol';\n  return `${brandContext(brain)}\n\nEl dueno de la empresa pidio especificamente esta publicacion, en sus propias palabras: \"${manual.tema}\"\n\nTarea: genera EXACTAMENTE 1 publicacion para la red \"${manual.redes}\" que cumpla con esa peticion, usando solo informacion real de las listas de arriba.\nIMPORTANTE: escribe TODO el contenido completamente en ${idiomaNombre}, sin mezclar idiomas.\n${jsonOutputSpec(idiomaNombre, 1)}\nSi la peticion menciona un precio, producto, servicio o promocion que NO aparece en las listas reales de arriba, NO lo inventes: escribe un enfoque informativo o de marca en su lugar y dejalo claro en el \"concept\".`;\n}\n\nfunction contentTypeLabel(t) {\n  const map = {\n    promocion: 'Promocion', producto: 'Producto', servicio: 'Servicio', educativo: 'Educativo',\n    testimonial: 'Testimonial', marca: 'Marca', informativo: 'Informativo', engagement: 'Engagement',\n    dejar_decidir: 'Contenido libre', manual: 'Publicacion manual',\n  };\n  return map[t] || t || 'Sin tipo';\n}\n\nfunction statusLabel(s) {\n  const map = {\n    DRAFT: 'Borrador', GENERATED: 'Generado (sin imagen todavia)', VALIDATED: 'Validado',\n    PENDING_APPROVAL: 'Esperando tu aprobacion', APPROVED: 'Aprobado', SCHEDULED: 'Programado',\n    PUBLISHING: 'Publicando', PUBLISHED: 'Publicado', FAILED: 'Fallo', CANCELLED: 'Cancelado',\n  };\n  return map[s] || s;\n}\n\nlet reply;\nlet newState = state;\nlet newFlow = activeFlow;\nlet action = 'reply_only';\nlet geminiPrompt = null;\nlet automatico = null;\nlet manual = null;\n\nif (companies.length === 0) {\n  reply = `Hola. Tu chat de Telegram (chat_id: ${chatId}) todavia no esta vinculado a ninguna empresa. Pidele a Rafael que lo conecte.`;\n} else if (/^cambiar\\s+empresa/i.test(text)) {\n  if (companies.length === 1) {\n    newState = { company_id: companies[0].id };\n    newFlow = null;\n    reply = `Solo tienes una empresa conectada a este chat: ${companies[0].name}. Sigo trabajando con ella.\\n\\n${menuText(companies[0].name)}`;\n  } else {\n    newState = {};\n    newFlow = 'select_company';\n    reply = askCompany(companies);\n  }\n} else if (activeFlow === 'select_company' || (!state.company_id && companies.length > 1)) {\n  let picked = null;\n  const numMatch = text.match(/^(\\d+)/);\n  if (numMatch) {\n    const idx = parseInt(numMatch[1], 10) - 1;\n    if (companies[idx]) picked = companies[idx];\n  }\n  if (!picked) {\n    const lower = text.toLowerCase();\n    picked = companies.find((c) => lower.includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(lower));\n  }\n  if (picked) {\n    newState = { company_id: picked.id };\n    newFlow = null;\n    reply = menuText(picked.name);\n  } else {\n    newFlow = 'select_company';\n    reply = `No reconoci esa opcion. ${askCompany(companies)}`;\n  }\n} else if (!state.company_id && companies.length === 1) {\n  newState = { company_id: companies[0].id };\n  newFlow = null;\n  reply = menuText(companies[0].name);\n} else {\n  const company = companies.find((c) => c.id === state.company_id) || companies[0];\n\n  if (activeFlow === 'auto_cantidad') {\n    const n = parseInt(text, 10);\n    if (!isNaN(n) && n >= 1 && n <= 5) {\n      newState = { ...state, automatico: { cantidad: n } };\n      newFlow = 'auto_redes';\n      reply = askRedes();\n    } else {\n      newFlow = 'auto_cantidad';\n      reply = `Escribe un numero entre 1 y 5. ${askCantidad()}`;\n    }\n  } else if (activeFlow === 'auto_redes') {\n    const redes = parseRedes(text, true);\n    if (redes) {\n      const prevAuto = state.automatico || {};\n      newState = { ...state, automatico: { ...prevAuto, redes } };\n      newFlow = 'auto_tipo';\n      reply = askTipo();\n    } else {\n      newFlow = 'auto_redes';\n      reply = `No reconoci esa red. ${askRedes()}`;\n    }\n  } else if (activeFlow === 'auto_tipo') {\n    const numMatch = text.match(/^(\\d+)/);\n    let tipo = null;\n    if (numMatch) {\n      const idx = parseInt(numMatch[1], 10) - 1;\n      tipo = TIPOS[idx];\n    }\n    if (!tipo) {\n      const lower = text.toLowerCase();\n      if (lower.includes('decidir')) tipo = 'dejar_decidir';\n      else tipo = TIPOS.find((t) => lower.includes(t));\n    }\n    if (tipo) {\n      const prevAuto = state.automatico || {};\n      newState = { ...state, automatico: { ...prevAuto, tipo } };\n      newFlow = 'auto_idioma';\n      reply = askIdioma();\n    } else {\n      newFlow = 'auto_tipo';\n      reply = `No reconoci esa opcion. ${askTipo()}`;\n    }\n  } else if (activeFlow === 'auto_idioma') {\n    const idioma = parseIdioma(text);\n    if (idioma) {\n      const prevAuto = state.automatico || {};\n      automatico = { ...prevAuto, idioma };\n      newState = { ...state, automatico };\n      newFlow = null;\n      action = 'generate_content';\n      reply = `Generando ${automatico.cantidad} publicaciones para ${company.name} en ${idioma === 'en' ? 'ingles' : 'espanol'}, dame un momento...`;\n\n      const brain = $('Cargar Company Brain').item.json;\n      geminiPrompt = buildAutomaticoPrompt(brain, automatico);\n    } else {\n      newFlow = 'auto_idioma';\n      reply = `No reconoci esa opcion. ${askIdioma()}`;\n    }\n  } else if (activeFlow === 'manual_tema') {\n    if (text.length < 3) {\n      newFlow = 'manual_tema';\n      reply = `Cuentame un poco mas. ${askManualTema()}`;\n    } else {\n      newState = { ...state, manual: { tema: text } };\n      newFlow = 'manual_redes';\n      reply = askRedesManual();\n    }\n  } else if (activeFlow === 'manual_redes') {\n    const redes = parseRedes(text, false);\n    if (redes) {\n      const prevManual = state.manual || {};\n      newState = { ...state, manual: { ...prevManual, redes } };\n      newFlow = 'manual_idioma';\n      reply = askIdioma();\n    } else {\n      newFlow = 'manual_redes';\n      reply = `No reconoci esa red. ${askRedesManual()}`;\n    }\n  } else if (activeFlow === 'manual_idioma') {\n    const idioma = parseIdioma(text);\n    if (idioma) {\n      const prevManual = state.manual || {};\n      manual = { ...prevManual, idioma };\n      newState = { ...state, manual };\n      newFlow = null;\n      action = 'generate_content';\n      reply = `Generando tu publicacion sobre \"${manual.tema}\" para ${company.name} en ${idioma === 'en' ? 'ingles' : 'espanol'}, dame un momento...`;\n\n      const brain = $('Cargar Company Brain').item.json;\n      geminiPrompt = buildManualPrompt(brain, manual);\n    } else {\n      newFlow = 'manual_idioma';\n      reply = `No reconoci esa opcion. ${askIdioma()}`;\n    }\n  } else if (/^1\\b/.test(text) || /automatico/i.test(text)) {\n    newFlow = 'auto_cantidad';\n    reply = askCantidad();\n  } else if (/^2\\b/.test(text) || /publicaci.n\\s+manual/i.test(text)) {\n    newState = { ...state, manual: {} };\n    newFlow = 'manual_tema';\n    reply = askManualTema();\n  } else if (/^3\\b/.test(text) || /revisar\\s+public/i.test(text)) {\n    let items = $('Buscar publicaciones recientes').item.json.recent_items;\n    if (typeof items === 'string') { try { items = JSON.parse(items); } catch (e) { items = []; } }\n    if (!Array.isArray(items)) items = [];\n\n    if (items.length === 0) {\n      reply = `Todavia no hay publicaciones generadas para ${company.name}.\\n\\n${menuText(company.name)}`;\n    } else {\n      const lines = items.map((it) => `#${it.id} [${statusLabel(it.status)}] ${contentTypeLabel(it.content_type)} en ${it.platform || 'sin red'} (${it.created_at})\\n\"${it.headline}\"`);\n      reply = `Ultimas ${items.length} publicacion(es) de ${company.name}:\\n\\n${lines.join('\\n\\n')}\\n\\n${menuText(company.name)}`;\n    }\n  } else {\n    reply = `Elegiste: \"${text}\" para ${company.name}.\\n\\n(Esta opcion del menu se construye en un proximo incremento de la Fase 4.)\\n\\n${menuText(company.name)}`;\n  }\n}\n\nreturn [{\n  json: {\n    chat_id: chatId,\n    reply_text: reply,\n    conversation_id: conversationId,\n    new_state: JSON.stringify(newState),\n    new_flow: newFlow,\n    action,\n    company_id: (newState && newState.company_id) || null,\n    content_type: automatico ? automatico.tipo : (manual ? 'manual' : null),\n    gemini_prompt: geminiPrompt,\n  },\n}];\n"
+        "jsCode": "const trigger = $('Trigger Telegram').item.json;\nconst chatId = trigger.message.chat.id;\nconst text = (trigger.message.text || '').trim();\n\nlet companies = $('Buscar empresas del chat').item.json.companies;\nif (typeof companies === 'string') { try { companies = JSON.parse(companies); } catch (e) { companies = []; } }\nif (!Array.isArray(companies)) companies = [];\n\nconst conv = $('Obtener conversacion').item.json;\nconst conversationId = conv.id;\nlet state = conv.context_state_json;\nif (typeof state === 'string') { try { state = JSON.parse(state); } catch (e) { state = {}; } }\nif (!state || typeof state !== 'object') state = {};\nlet activeFlow = conv.active_flow;\n\nconst MENU = [\n  '1) Marketing automatico',\n  '2) Crear publicacion manual',\n  '3) Revisar publicaciones',\n  '4) Revisar clientes/leads',\n  '5) Ver resultados',\n  '6) Crear promocion',\n  '7) Estado de proveedores de imagenes',\n  '8) Otra cosa',\n];\n\nconst TIPOS = ['promocion', 'producto', 'servicio', 'educativo', 'testimonial', 'marca', 'informativo', 'engagement', 'dejar_decidir'];\nconst TIPOS_LABEL = [\n  '1) Promocion', '2) Producto', '3) Servicio', '4) Educativo', '5) Testimonial',\n  '6) Marca', '7) Informativo', '8) Engagement', '9) Dejame decidir',\n];\n\nconst FORMATO_DIMENSIONS = {\n  cuadrado: { width: 1080, height: 1080, aspect_ratio: '1:1' },\n  vertical: { width: 1080, height: 1350, aspect_ratio: '4:5' },\n  story: { width: 1080, height: 1920, aspect_ratio: '9:16' },\n};\n\nfunction menuText(companyName) {\n  return `Buenos dias.\\n\\nEstas trabajando con: ${companyName}.\\n\\nQue deseas hacer hoy?\\n\\n${MENU.join('\\n')}\\n\\n(Responde con el numero o describelo con tus palabras. Escribe \"cambiar empresa\" para elegir otra.)`;\n}\nfunction askCompany(list) {\n  return `Con cual empresa quieres trabajar?\\n\\n${list.map((c, i) => `${i + 1}) ${c.name}`).join('\\n')}`;\n}\nfunction askCantidad() {\n  return 'Cuantas publicaciones deseas hacer hoy? (maximo 5)';\n}\nfunction askRedes() {\n  return 'Donde deseas publicar?\\n\\n1) Facebook\\n2) Instagram\\n3) WhatsApp\\n4) Todas';\n}\nfunction askRedesManual() {\n  return 'En cual red va esta publicacion?\\n\\n1) Facebook\\n2) Instagram\\n3) WhatsApp';\n}\nfunction askTipo() {\n  return `Que tipo de contenido quieres?\\n\\n${TIPOS_LABEL.join('\\n')}`;\n}\nfunction askIdioma() {\n  return 'En que idioma quieres la publicacion?\\n\\n1) Espanol\\n2) Ingles';\n}\nfunction askManualTema() {\n  return 'Sobre que quieres que sea la publicacion? Describelo con tus palabras.\\n\\nPor ejemplo: \"una promocion para el servicio de limpieza de oficinas\" o \"algo educativo sobre tecnicas de estudio para ninos\".';\n}\nfunction askFormato() {\n  return 'En que formato quieres la publicacion?\\n\\n1) Post cuadrado (1080x1080)\\n2) Post vertical (1080x1350)\\n3) Historia/Reel (1080x1920)';\n}\nfunction parseFormato(text) {\n  const map = { '1': 'cuadrado', '2': 'vertical', '3': 'story' };\n  const numMatch = text.match(/^(\\d+)/);\n  let formato = numMatch ? map[numMatch[1]] : null;\n  if (!formato) {\n    const lower = text.toLowerCase();\n    if (lower.includes('cuadrad')) formato = 'cuadrado';\n    else if (lower.includes('vertical')) formato = 'vertical';\n    else if (lower.includes('story') || lower.includes('historia') || lower.includes('reel')) formato = 'story';\n  }\n  return formato;\n}\nfunction askModoImagen() {\n  return 'Como quieres la imagen?\\n\\n1) Foto generada por IA\\n2) Solo mis plantillas (sin foto, colores de marca)';\n}\nfunction parseModoImagen(text) {\n  const numMatch = text.match(/^(\\d+)/);\n  if (numMatch) {\n    if (numMatch[1] === '1') return 'ia';\n    if (numMatch[1] === '2') return 'plantilla';\n  }\n  const lower = text.toLowerCase();\n  if (lower.includes('plantilla')) return 'plantilla';\n  if (lower.includes('foto') || lower.includes('ia')) return 'ia';\n  return null;\n}\n\nfunction parseRedes(text, allowTodas) {\n  const map = allowTodas\n    ? { '1': 'facebook', '2': 'instagram', '3': 'whatsapp', '4': 'todas' }\n    : { '1': 'facebook', '2': 'instagram', '3': 'whatsapp' };\n  const numMatch = text.match(/^(\\d+)/);\n  let redes = numMatch ? map[numMatch[1]] : null;\n  if (!redes) {\n    const lower = text.toLowerCase();\n    if (allowTodas && lower.includes('todas')) redes = 'todas';\n    else if (lower.includes('facebook')) redes = 'facebook';\n    else if (lower.includes('instagram')) redes = 'instagram';\n    else if (lower.includes('whatsapp')) redes = 'whatsapp';\n  }\n  return redes;\n}\n\nfunction parseIdioma(text) {\n  const numMatch = text.match(/^(\\d+)/);\n  let idioma = null;\n  if (numMatch) {\n    if (numMatch[1] === '1') idioma = 'es';\n    else if (numMatch[1] === '2') idioma = 'en';\n  }\n  if (!idioma) {\n    const lower = text.toLowerCase();\n    if (lower.includes('espan') || lower.includes('spanish')) idioma = 'es';\n    else if (lower.includes('ingl') || lower.includes('english')) idioma = 'en';\n  }\n  return idioma;\n}\n\nfunction brandContext(brain) {\n  let services = brain.services;\n  let promotions = brain.promotions;\n  let rules = brain.rules;\n  if (typeof services === 'string') { try { services = JSON.parse(services); } catch (e) { services = []; } }\n  if (typeof promotions === 'string') { try { promotions = JSON.parse(promotions); } catch (e) { promotions = []; } }\n  if (typeof rules === 'string') { try { rules = JSON.parse(rules); } catch (e) { rules = []; } }\n  if (!Array.isArray(services)) services = [];\n  if (!Array.isArray(promotions)) promotions = [];\n  if (!Array.isArray(rules)) rules = [];\n  return `Eres el redactor de marketing de la empresa \"${brain.company_name}\".\nSector: ${brain.sector || 'no especificado'}.\nDescripcion: ${brain.description || 'no especificada'}.\nTono de comunicacion: ${brain.tone || 'profesional y cercano'}.\nColores de marca: ${brain.colors_primary || ''} y ${brain.colors_secondary || ''}.\nEstilo visual: ${brain.visual_style || 'no especificado'}.\n\nServicios/productos reales disponibles (NUNCA inventes otros ni cambies precios):\n${JSON.stringify(services)}\n\nPromociones activas reales (si esta vacio, no hay promociones activas, no inventes ninguna):\n${JSON.stringify(promotions)}\n\nReglas obligatorias:\n${rules.join('\\n')}`;\n}\n\nfunction hexToColorName(hex) {\n  if (!hex) return 'colores neutros de la marca';\n  const h = hex.replace('#', '');\n  if (h.length !== 6) return 'los colores de la marca';\n  const r = parseInt(h.slice(0, 2), 16) / 255;\n  const g = parseInt(h.slice(2, 4), 16) / 255;\n  const b = parseInt(h.slice(4, 6), 16) / 255;\n  const max = Math.max(r, g, b), min = Math.min(r, g, b);\n  const l = (max + min) / 2;\n  if (max - min < 0.08) {\n    if (l < 0.2) return 'negro';\n    if (l > 0.85) return 'blanco';\n    return 'gris';\n  }\n  let hue;\n  if (max === r) hue = ((g - b) / (max - min)) % 6;\n  else if (max === g) hue = (b - r) / (max - min) + 2;\n  else hue = (r - g) / (max - min) + 4;\n  hue = Math.round(hue * 60);\n  if (hue < 0) hue += 360;\n  if (l < 0.28 && hue >= 190 && hue <= 250) return 'azul marino';\n  if (hue < 15 || hue >= 345) return 'rojo';\n  if (hue < 45) return 'naranja';\n  if (hue < 65) return 'amarillo';\n  if (hue < 170) return 'verde';\n  if (hue < 200) return 'celeste';\n  if (hue < 250) return 'azul';\n  if (hue < 290) return 'morado';\n  if (hue < 345) return 'rosado';\n  return 'un color de marca';\n}\n\nfunction jsonOutputSpec(idiomaNombre, cantidad, brain) {\n  const colorName = hexToColorName(brain && brain.colors_primary);\n  return `Responde SOLO con un arreglo JSON valido (sin texto adicional, sin markdown, sin bloque de codigo) de ${cantidad} objeto(s), cada uno con estas claves exactas: concept (string corto, en ${idiomaNombre}), headline (string CORTO Y CONTUNDENTE, maximo 8 palabras, en ${idiomaNombre}), caption (string, el texto completo del post para la red social, en ${idiomaNombre}), cta (string corto de 2 a 4 palabras, en ${idiomaNombre}), hashtags (arreglo de strings sin el simbolo #, en ${idiomaNombre} cuando aplique), alt_text (string describiendo la imagen para accesibilidad, en ${idiomaNombre}), bullets (arreglo de 2 a 4 strings MUY CORTOS, maximo 5 palabras cada uno, en ${idiomaNombre}, como etiquetas de beneficio -ej: 'Resultados impecables', 'Atencion 24/7'-, NUNCA oraciones completas, sin el simbolo de vinieta ni #), visual (objeto con SOLO estas 6 claves, cada valor un STRING SIMPLE en ingles -NUNCA un objeto ni un arreglo-: subject (maximo 12 palabras, quien o que es el sujeto principal, ligado al sector real de esta empresa: ${brain.sector || brain.description || 'this business'}), action (maximo 12 palabras, que esta haciendo, con un verbo terminado en -ing), setting (maximo 12 palabras, el lugar), props (maximo 12 palabras, 2 a 4 objetos fisicos separados por comas), wardrobe (maximo 8 palabras, SOLO el tipo de ropa, NUNCA menciones colores -el color de marca lo agrega el sistema-; usa string vacio '' si no hay personas en la escena), lighting (maximo 8 palabras, luz y ambiente). Ejemplo de OTRO sector, solo de referencia de formato, NO lo copies -este ejemplo es de una panaderia-: subject: \\\"two bakers\\\", action: \\\"shaping fresh bread dough on a counter\\\", setting: \\\"small bright artisan bakery kitchen\\\", props: \\\"flour, wooden rolling pin, bread baskets\\\", wardrobe: \\\"aprons and short-sleeve shirts\\\", lighting: \\\"warm morning light from a window\\\". Adapta CADA campo al sector REAL de esta empresa, nunca al ejemplo. Ningun campo debe mencionar texto, letreros, logos, marcas, nombres de empresas ni codigos de color), platform (una de: facebook, instagram, whatsapp).`;\n}\n\nfunction buildAutomaticoPrompt(brain, automatico) {\n  const idiomaNombre = automatico.idioma === 'en' ? 'ingles (English)' : 'espanol';\n  return `${brandContext(brain)}\n\nTarea: genera exactamente ${automatico.cantidad} publicaciones de tipo \"${automatico.tipo}\" para la(s) red(es) \"${automatico.redes}\".\nIMPORTANTE: escribe TODO el contenido completamente en ${idiomaNombre}, sin mezclar idiomas.\n${jsonOutputSpec(idiomaNombre, automatico.cantidad, brain)}\nSi no hay suficiente informacion real de servicios o promociones para el tipo pedido, usa contenido informativo o de marca en su lugar, pero nunca inventes precios ni promociones que no esten en las listas de arriba.`;\n}\n\nfunction buildManualPrompt(brain, manual) {\n  const idiomaNombre = manual.idioma === 'en' ? 'ingles (English)' : 'espanol';\n  return `${brandContext(brain)}\n\nEl dueno de la empresa pidio especificamente esta publicacion, en sus propias palabras: \"${manual.tema}\"\n\nTarea: genera EXACTAMENTE 1 publicacion para la red \"${manual.redes}\" que cumpla con esa peticion, usando solo informacion real de las listas de arriba.\nIMPORTANTE: escribe TODO el contenido completamente en ${idiomaNombre}, sin mezclar idiomas.\n${jsonOutputSpec(idiomaNombre, 1, brain)}\nSi la peticion menciona un precio, producto, servicio o promocion que NO aparece en las listas reales de arriba, NO lo inventes: escribe un enfoque informativo o de marca en su lugar y dejalo claro en el \"concept\".`;\n}\n\nfunction contentTypeLabel(t) {\n  const map = {\n    promocion: 'Promocion', producto: 'Producto', servicio: 'Servicio', educativo: 'Educativo',\n    testimonial: 'Testimonial', marca: 'Marca', informativo: 'Informativo', engagement: 'Engagement',\n    dejar_decidir: 'Contenido libre', manual: 'Publicacion manual',\n  };\n  return map[t] || t || 'Sin tipo';\n}\n\nfunction statusLabel(s) {\n  const map = {\n    DRAFT: 'Borrador', GENERATED: 'Generado (sin imagen todavia)', VALIDATED: 'Validado',\n    PENDING_APPROVAL: 'Esperando tu aprobacion', APPROVED: 'Aprobado', SCHEDULED: 'Programado',\n    PUBLISHING: 'Publicando', PUBLISHED: 'Publicado', FAILED: 'Fallo', CANCELLED: 'Cancelado',\n  };\n  return map[s] || s;\n}\n\nlet reply;\nlet newState = state;\nlet newFlow = activeFlow;\nlet action = 'reply_only';\nlet geminiPrompt = null;\nlet automatico = null;\nlet manual = null;\n\nif (companies.length === 0) {\n  reply = `Hola. Tu chat de Telegram (chat_id: ${chatId}) todavia no esta vinculado a ninguna empresa. Pidele a Rafael que lo conecte.`;\n} else if (/^cambiar\\s+empresa/i.test(text)) {\n  if (companies.length === 1) {\n    newState = { company_id: companies[0].id };\n    newFlow = null;\n    reply = `Solo tienes una empresa conectada a este chat: ${companies[0].name}. Sigo trabajando con ella.\\n\\n${menuText(companies[0].name)}`;\n  } else {\n    newState = {};\n    newFlow = 'select_company';\n    reply = askCompany(companies);\n  }\n} else if (activeFlow === 'select_company' || (!state.company_id && companies.length > 1)) {\n  let picked = null;\n  const numMatch = text.match(/^(\\d+)/);\n  if (numMatch) {\n    const idx = parseInt(numMatch[1], 10) - 1;\n    if (companies[idx]) picked = companies[idx];\n  }\n  if (!picked) {\n    const lower = text.toLowerCase();\n    picked = companies.find((c) => lower.includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(lower));\n  }\n  if (picked) {\n    newState = { company_id: picked.id };\n    newFlow = null;\n    reply = menuText(picked.name);\n  } else {\n    newFlow = 'select_company';\n    reply = `No reconoci esa opcion. ${askCompany(companies)}`;\n  }\n} else if (!state.company_id && companies.length === 1) {\n  newState = { company_id: companies[0].id };\n  newFlow = null;\n  reply = menuText(companies[0].name);\n} else {\n  const company = companies.find((c) => c.id === state.company_id) || companies[0];\n\n  if (activeFlow === 'auto_cantidad') {\n    const n = parseInt(text, 10);\n    if (!isNaN(n) && n >= 1 && n <= 5) {\n      newState = { ...state, automatico: { cantidad: n } };\n      newFlow = 'auto_redes';\n      reply = askRedes();\n    } else {\n      newFlow = 'auto_cantidad';\n      reply = `Escribe un numero entre 1 y 5. ${askCantidad()}`;\n    }\n  } else if (activeFlow === 'auto_redes') {\n    const redes = parseRedes(text, true);\n    if (redes) {\n      const prevAuto = state.automatico || {};\n      newState = { ...state, automatico: { ...prevAuto, redes } };\n      newFlow = 'auto_formato';\n      reply = askFormato();\n    } else {\n      newFlow = 'auto_redes';\n      reply = `No reconoci esa red. ${askRedes()}`;\n    }\n  } else if (activeFlow === 'auto_formato') {\n    const formato = parseFormato(text);\n    if (formato) {\n      const prevAuto = state.automatico || {};\n      newState = { ...state, automatico: { ...prevAuto, formato } };\n      newFlow = 'auto_modo_imagen';\n      reply = askModoImagen();\n    } else {\n      newFlow = 'auto_formato';\n      reply = `No reconoci ese formato. ${askFormato()}`;\n    }\n  } else if (activeFlow === 'auto_modo_imagen') {\n    const modoImagen = parseModoImagen(text);\n    if (modoImagen) {\n      const prevAuto = state.automatico || {};\n      newState = { ...state, automatico: { ...prevAuto, modo_imagen: modoImagen } };\n      newFlow = 'auto_tipo';\n      reply = askTipo();\n    } else {\n      newFlow = 'auto_modo_imagen';\n      reply = `No reconoci esa opcion. ${askModoImagen()}`;\n    }\n  } else if (activeFlow === 'auto_tipo') {\n    const numMatch = text.match(/^(\\d+)/);\n    let tipo = null;\n    if (numMatch) {\n      const idx = parseInt(numMatch[1], 10) - 1;\n      tipo = TIPOS[idx];\n    }\n    if (!tipo) {\n      const lower = text.toLowerCase();\n      if (lower.includes('decidir')) tipo = 'dejar_decidir';\n      else tipo = TIPOS.find((t) => lower.includes(t));\n    }\n    if (tipo) {\n      const prevAuto = state.automatico || {};\n      newState = { ...state, automatico: { ...prevAuto, tipo } };\n      newFlow = 'auto_idioma';\n      reply = askIdioma();\n    } else {\n      newFlow = 'auto_tipo';\n      reply = `No reconoci esa opcion. ${askTipo()}`;\n    }\n  } else if (activeFlow === 'auto_idioma') {\n    const idioma = parseIdioma(text);\n    if (idioma) {\n      const prevAuto = state.automatico || {};\n      automatico = { ...prevAuto, idioma };\n      newState = { ...state, automatico };\n      newFlow = null;\n      action = 'generate_content';\n      reply = `Generando ${automatico.cantidad} publicaciones para ${company.name} en ${idioma === 'en' ? 'ingles' : 'espanol'}, dame un momento...`;\n\n      const brain = $('Cargar Company Brain').item.json;\n      geminiPrompt = buildAutomaticoPrompt(brain, automatico);\n    } else {\n      newFlow = 'auto_idioma';\n      reply = `No reconoci esa opcion. ${askIdioma()}`;\n    }\n  } else if (activeFlow === 'manual_tema') {\n    if (text.length < 3) {\n      newFlow = 'manual_tema';\n      reply = `Cuentame un poco mas. ${askManualTema()}`;\n    } else {\n      newState = { ...state, manual: { tema: text } };\n      newFlow = 'manual_redes';\n      reply = askRedesManual();\n    }\n  } else if (activeFlow === 'manual_redes') {\n    const redes = parseRedes(text, false);\n    if (redes) {\n      const prevManual = state.manual || {};\n      newState = { ...state, manual: { ...prevManual, redes } };\n      newFlow = 'manual_formato';\n      reply = askFormato();\n    } else {\n      newFlow = 'manual_redes';\n      reply = `No reconoci esa red. ${askRedesManual()}`;\n    }\n  } else if (activeFlow === 'manual_formato') {\n    const formato = parseFormato(text);\n    if (formato) {\n      const prevManual = state.manual || {};\n      newState = { ...state, manual: { ...prevManual, formato } };\n      newFlow = 'manual_modo_imagen';\n      reply = askModoImagen();\n    } else {\n      newFlow = 'manual_formato';\n      reply = `No reconoci ese formato. ${askFormato()}`;\n    }\n  } else if (activeFlow === 'manual_modo_imagen') {\n    const modoImagen = parseModoImagen(text);\n    if (modoImagen) {\n      const prevManual = state.manual || {};\n      newState = { ...state, manual: { ...prevManual, modo_imagen: modoImagen } };\n      newFlow = 'manual_idioma';\n      reply = askIdioma();\n    } else {\n      newFlow = 'manual_modo_imagen';\n      reply = `No reconoci esa opcion. ${askModoImagen()}`;\n    }\n  } else if (activeFlow === 'manual_idioma') {\n    const idioma = parseIdioma(text);\n    if (idioma) {\n      const prevManual = state.manual || {};\n      manual = { ...prevManual, idioma };\n      newState = { ...state, manual };\n      newFlow = null;\n      action = 'generate_content';\n      reply = `Generando tu publicacion sobre \"${manual.tema}\" para ${company.name} en ${idioma === 'en' ? 'ingles' : 'espanol'}, dame un momento...`;\n\n      const brain = $('Cargar Company Brain').item.json;\n      geminiPrompt = buildManualPrompt(brain, manual);\n    } else {\n      newFlow = 'manual_idioma';\n      reply = `No reconoci esa opcion. ${askIdioma()}`;\n    }\n  } else if (/^1\\b/.test(text) || /automatico/i.test(text)) {\n    newFlow = 'auto_cantidad';\n    reply = askCantidad();\n  } else if (/^2\\b/.test(text) || /publicaci.n\\s+manual/i.test(text)) {\n    newState = { ...state, manual: {} };\n    newFlow = 'manual_tema';\n    reply = askManualTema();\n  } else if (/^7\\b/.test(text) || /estado.*proveedor/i.test(text) || /(higgsfield|gemini)/i.test(text)) {\n    action = 'check_providers';\n    reply = 'Verificando el estado de Gemini (imagenes), un momento...';\n  } else if (/^3\\b/.test(text) || /revisar\\s+public/i.test(text)) {\n    let items = $('Buscar publicaciones recientes').item.json.recent_items;\n    if (typeof items === 'string') { try { items = JSON.parse(items); } catch (e) { items = []; } }\n    if (!Array.isArray(items)) items = [];\n\n    if (items.length === 0) {\n      reply = `Todavia no hay publicaciones generadas para ${company.name}.\\n\\n${menuText(company.name)}`;\n    } else {\n      const lines = items.map((it) => `#${it.id} [${statusLabel(it.status)}] ${contentTypeLabel(it.content_type)} en ${it.platform || 'sin red'} (${it.created_at})\\n\"${it.headline}\"`);\n      reply = `Ultimas ${items.length} publicacion(es) de ${company.name}:\\n\\n${lines.join('\\n\\n')}\\n\\n${menuText(company.name)}`;\n    }\n  } else {\n    reply = `Elegiste: \"${text}\" para ${company.name}.\\n\\n(Esta opcion del menu se construye en un proximo incremento de la Fase 4.)\\n\\n${menuText(company.name)}`;\n  }\n}\n\nreturn [{\n  json: {\n    chat_id: chatId,\n    reply_text: reply,\n    conversation_id: conversationId,\n    new_state: JSON.stringify(newState),\n    new_flow: newFlow,\n    action,\n    company_id: (newState && newState.company_id) || null,\n    content_type: automatico ? automatico.tipo : (manual ? 'manual' : null),\n    formato: (automatico && automatico.formato) || (manual && manual.formato) || 'cuadrado',\n    modo_imagen: (automatico && automatico.modo_imagen) || (manual && manual.modo_imagen) || 'ia',\n    brand_color_name: (typeof hexToColorName === 'function') ? hexToColorName((($('Cargar Company Brain').item.json) || {}).colors_primary) : '',\n    gemini_prompt: geminiPrompt,\n    idioma: (automatico && automatico.idioma) || (manual && manual.idioma) || null,\n    tema: (manual && manual.tema) || '',\n    modo: automatico ? 'automatic' : (manual ? 'manual' : null),\n  },\n}];\n"
       },
       "id": "b2a2a222-0000-4000-8000-000000000005",
       "name": "Decidir respuesta",
@@ -271,7 +271,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const decision = $('Decidir respuesta').item.json;\nconst geminiResponse = $input.first().json;\n\nlet draftsRaw = [];\nlet usage = {};\nlet parseError = null;\ntry {\n  const text = geminiResponse.candidates[0].content.parts[0].text;\n  draftsRaw = JSON.parse(text);\n  if (!Array.isArray(draftsRaw)) draftsRaw = [draftsRaw];\n} catch (e) {\n  parseError = String(e);\n  draftsRaw = [];\n}\nusage = geminiResponse.usageMetadata || {};\n\nconst drafts = draftsRaw.map((d) => ({\n  concept: d.concept || '',\n  headline: d.headline || '',\n  caption: d.caption || '',\n  cta: d.cta || '',\n  hashtags: Array.isArray(d.hashtags) ? d.hashtags : [],\n  alt_text: d.alt_text || '',\n  image_prompt: d.image_prompt || '',\n  platform: d.platform || (decision.content_type || null),\n}));\n\nlet replyText;\nif (drafts.length === 0) {\n  replyText = `Hubo un problema generando el contenido con la IA (${parseError || 'respuesta vacia'}). Intenta de nuevo escribiendo \"1\".`;\n} else {\n  const lines = drafts.map((d, i) => {\n    const hashtagsText = d.hashtags.map((h) => '#' + h).join(' ');\n    return `--- Publicacion ${i + 1} (${d.platform}) ---\\n${d.headline}\\n\\n${d.caption}\\n\\nCTA: ${d.cta}\\nHashtags: ${hashtagsText}`;\n  });\n  replyText = `Aqui tienes ${drafts.length} publicacion(es) generadas para revisar:\\n\\n${lines.join('\\n\\n')}\\n\\n(La aprobacion y edicion desde Telegram se conecta en el siguiente incremento; por ahora quedan guardadas como borradores en el sistema.)`;\n}\n\nconst inputTokens = usage.promptTokenCount || 0;\nconst outputTokens = usage.candidatesTokenCount || 0;\n// Precio promocional gemini-3.6-flash (docs/research/08_ai_text_providers_and_safety.md): $0.75 / $3.75 por millon de tokens\nconst estimatedCost = (inputTokens / 1000000) * 0.75 + (outputTokens / 1000000) * 3.75;\n\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: replyText,\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n    company_id: decision.company_id,\n    content_type: decision.content_type,\n    drafts_json: JSON.stringify(drafts),\n    input_tokens: inputTokens,\n    output_tokens: outputTokens,\n    estimated_cost: estimatedCost,\n  },\n}];\n"
+        "jsCode": "const decision = $('Decidir respuesta').item.json;\nconst geminiResponse = $input.first().json;\n\nlet draftsRaw = [];\nlet usage = {};\nlet parseError = null;\ntry {\n  const text = geminiResponse.candidates[0].content.parts[0].text;\n  draftsRaw = JSON.parse(text);\n  if (!Array.isArray(draftsRaw)) draftsRaw = [draftsRaw];\n} catch (e) {\n  parseError = String(e);\n  draftsRaw = [];\n}\nusage = geminiResponse.usageMetadata || {};\n\nconst drafts = draftsRaw.map((d) => ({\n  concept: d.concept || '',\n  headline: d.headline || '',\n  caption: d.caption || '',\n  cta: d.cta || '',\n  hashtags: Array.isArray(d.hashtags) ? d.hashtags : [],\n  alt_text: d.alt_text || '',\n  bullets: Array.isArray(d.bullets) ? d.bullets : [],\n  visual: d.visual,\n  image_prompt: (typeof d.image_prompt === 'string' ? d.image_prompt : ''),\n  platform: d.platform || (decision.content_type || null),\n}));\n\nlet replyText;\nif (drafts.length === 0) {\n  replyText = `Hubo un problema generando el contenido con la IA (${parseError || 'respuesta vacia'}). Intenta de nuevo escribiendo \"1\".`;\n} else {\n  const lines = drafts.map((d, i) => {\n    const hashtagsText = d.hashtags.map((h) => '#' + h).join(' ');\n    return `--- Publicacion ${i + 1} (${d.platform}) ---\\n${d.headline}\\n\\n${d.caption}\\n\\nCTA: ${d.cta}\\nHashtags: ${hashtagsText}`;\n  });\n  replyText = `Aqui tienes ${drafts.length} publicacion(es) generadas para revisar:\\n\\n${lines.join('\\n\\n')}\\n\\n(La aprobacion y edicion desde Telegram se conecta en el siguiente incremento; por ahora quedan guardadas como borradores en el sistema.)`;\n}\n\nconst inputTokens = usage.promptTokenCount || 0;\nconst outputTokens = usage.candidatesTokenCount || 0;\n// Precio promocional gemini-3.6-flash (docs/research/08_ai_text_providers_and_safety.md): $0.75 / $3.75 por millon de tokens\nconst estimatedCost = (inputTokens / 1000000) * 0.75 + (outputTokens / 1000000) * 3.75;\n\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: replyText,\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n    company_id: decision.company_id,\n    content_type: decision.content_type,\n    formato: decision.formato,\n    modo_imagen: decision.modo_imagen,\n    drafts_json: JSON.stringify(drafts),\n    input_tokens: inputTokens,\n    output_tokens: outputTokens,\n    estimated_cost: estimatedCost,\n    model_used: 'gemini-3.6-flash',\n  },\n}];\n"
       },
       "id": "b2a2a222-0000-4000-8000-00000000000d",
       "name": "Procesar respuesta IA",
@@ -285,9 +285,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH inserted AS (\n  INSERT INTO content_items (company_id, content_type, platform, concept, headline, caption, cta, hashtags_json, alt_text, image_prompt, status)\n  SELECT\n    $1,\n    $2,\n    d->>'platform',\n    d->>'concept',\n    d->>'headline',\n    d->>'caption',\n    d->>'cta',\n    COALESCE(d->'hashtags', '[]'::jsonb),\n    d->>'alt_text',\n    d->>'image_prompt',\n    'GENERATED'\n  FROM jsonb_array_elements($3::jsonb) AS d\n  RETURNING id\n)\nSELECT\n  (SELECT count(*) FROM inserted) AS inserted_count,\n  (SELECT min(id) FROM inserted) AS first_item_id,\n  $1::text AS company_id,\n  $4::integer AS input_tokens,\n  $5::integer AS output_tokens,\n  $6::numeric AS estimated_cost,\n  $7::text AS chat_id,\n  $8::text AS reply_text,\n  $9::text AS new_state,\n  $10::text AS new_flow,\n  $11::bigint AS conversation_id;",
+        "query": "WITH inserted AS (\n  INSERT INTO content_items (company_id, content_type, platform, concept, headline, caption, cta, hashtags_json, alt_text, image_prompt, visual_json, template_key, status)\n  SELECT\n    $1,\n    $2,\n    d->>'platform',\n    d->>'concept',\n    d->>'headline',\n    d->>'caption',\n    d->>'cta',\n    COALESCE(d->'hashtags', '[]'::jsonb),\n    d->>'alt_text',\n    d->>'image_prompt',\n    d->'visual',\n    d->>'template_key',\n    'GENERATED'\n  FROM jsonb_array_elements($3::jsonb) AS d\n  RETURNING id\n)\nSELECT\n  (SELECT count(*) FROM inserted) AS inserted_count,\n  (SELECT min(id) FROM inserted) AS first_item_id,\n  $1::text AS company_id,\n  $2::text AS content_type,\n  $3::text AS drafts_json,\n  $4::integer AS input_tokens,\n  $5::integer AS output_tokens,\n  $6::numeric AS estimated_cost,\n  $7::text AS chat_id,\n  $8::text AS reply_text,\n  $9::text AS new_state,\n  $10::text AS new_flow,\n  $11::bigint AS conversation_id,\n  $12::text AS formato,\n  $13::text AS modo_imagen;",
         "options": {
-          "queryReplacement": "={{ [$json.company_id, $json.content_type, $json.drafts_json, $json.input_tokens, $json.output_tokens, $json.estimated_cost, $json.chat_id, $json.reply_text, $json.new_state, $json.new_flow, $json.conversation_id] }}"
+          "queryReplacement": "={{ [$json.company_id, $json.content_type, $json.drafts_json, $json.input_tokens, $json.output_tokens, $json.estimated_cost, $json.chat_id, $json.reply_text, $json.new_state, $json.new_flow, $json.conversation_id, $json.formato, $json.modo_imagen] }}"
         }
       },
       "id": "b2a2a222-0000-4000-8000-00000000000e",
@@ -308,9 +308,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH logged AS (\n  INSERT INTO agent_logs (company_id, workflow, agent, action, model, input_tokens, output_tokens, estimated_cost, status)\n  VALUES ($1, '01_CHANNEL_Telegram', 'content_planner_creative_copywriter', 'generate_draft_posts', 'gemini-3.6-flash', $2, $3, $4, 'SUCCESS')\n  RETURNING id\n)\nSELECT\n  $5::text AS chat_id,\n  $6::text AS reply_text,\n  $7::text AS new_state,\n  $8::text AS new_flow,\n  $9::bigint AS conversation_id\nFROM logged;",
+        "query": "WITH logged AS (\n  INSERT INTO agent_logs (company_id, workflow, agent, action, model, input_tokens, output_tokens, estimated_cost, status)\n  VALUES ($1, '01_CHANNEL_Telegram', 'content_planner_creative_copywriter', 'generate_draft_posts', $2, $3, $4, $5, 'SUCCESS')\n  RETURNING id\n)\nSELECT\n  $6::text AS chat_id,\n  $7::text AS reply_text,\n  $8::text AS new_state,\n  $9::text AS new_flow,\n  $10::bigint AS conversation_id\nFROM logged;",
         "options": {
-          "queryReplacement": "={{ [$json.company_id, $json.input_tokens, $json.output_tokens, $json.estimated_cost, $json.chat_id, $json.reply_text, $json.new_state, $json.new_flow, $json.conversation_id] }}"
+          "queryReplacement": "={{ [$json.company_id, $json.model_used, $json.input_tokens, $json.output_tokens, $json.estimated_cost, $json.chat_id, $json.reply_text, $json.new_state, $json.new_flow, $json.conversation_id] }}"
         }
       },
       "id": "b2a2a222-0000-4000-8000-00000000000f",
@@ -333,7 +333,7 @@
         "operation": "executeQuery",
         "query": "SELECT COALESCE(json_agg(json_build_object(\n  'id', sub.id,\n  'content_type', sub.content_type,\n  'platform', sub.platform,\n  'headline', sub.headline,\n  'status', sub.status,\n  'created_at', to_char(sub.created_at, 'YYYY-MM-DD HH24:MI')\n) ORDER BY sub.created_at DESC), '[]'::json) AS recent_items\nFROM (\n  SELECT * FROM content_items WHERE company_id = $1 ORDER BY created_at DESC LIMIT 5\n) sub;",
         "options": {
-          "queryReplacement": "={{ (() => { let s = $json.context_state_json; if (typeof s === 'string') { try { s = JSON.parse(s); } catch (e) { s = {}; } } return [ (s && s.company_id) ? s.company_id : '__none__' ]; })() }}"
+          "queryReplacement": "={{ (() => { let s = $('Obtener conversacion').item.json.context_state_json; if (typeof s === 'string') { try { s = JSON.parse(s); } catch (e) { s = {}; } } return [ (s && s.company_id) ? s.company_id : '__none__' ]; })() }}"
         }
       },
       "id": "b2a2a222-0000-4000-8000-000000000011",
@@ -359,7 +359,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ prompt: (JSON.parse($('Procesar respuesta IA').item.json.drafts_json)[0] || {}).image_prompt || 'professional clean modern scene, no text, no logo, no people', resolution: '1k', aspect_ratio: '1:1', output_format: 'jpg' }) }}",
+        "jsonBody": "={{ JSON.stringify({ prompt: (JSON.parse($('Guardar borradores').item.json.drafts_json)[0] || {}).image_prompt || 'professional clean modern scene, no text, no logo, no people', resolution: '1k', aspect_ratio: ({ cuadrado: '1:1', vertical: '4:5', story: '9:16' }[$('Guardar borradores').item.json.formato] || '1:1'), output_format: 'jpg' }) }}",
         "options": {
           "timeout": 20000
         }
@@ -597,7 +597,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const decision = $('Procesar respuesta IA').item.json;\nconst draftInfo = $('Guardar borradores').item.json;\nconst imgResult = $input.first().json;\nconst imageUrl = (imgResult.images && imgResult.images[0] && imgResult.images[0].url) || null;\n\nlet drafts = [];\ntry { drafts = JSON.parse(decision.drafts_json); } catch (e) { drafts = []; }\nconst first = drafts[0] || {};\n\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: decision.reply_text,\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n    content_item_id: draftInfo.first_item_id,\n    image_url: imageUrl,\n    image_caption: (first.headline || '').slice(0, 900),\n  },\n}];"
+        "jsCode": "// Nodo Code \"Preparar imagen\" (01_CHANNEL_Telegram).\n// Tres entradas posibles:\n//   a) resultado de \"Procesar respuesta Gemini\" (gemini_result=true)  -> imagen generada o fallo con costo\n//   b) \"Reclamar job\" con claimed=false                               -> solicitud duplicada, no se genera\n//   c) \"Cost Guard\" (image_allowed=false)                             -> simulacion/bloqueo, sin imagen\n// Salida: campos que usan \"Guardar imagen en BD\", \"Registrar costo imagen\" y \"Construir HTML de plantilla\".\n\nconst decision = $('Guardar borradores').item.json;\nconst input = $input.first().json || {};\n\nlet drafts = [];\ntry { drafts = JSON.parse(decision.drafts_json); } catch (e) { drafts = []; }\nconst first = drafts[0] || {};\n\nfunction cop(n) { return 'COP ' + String(Math.round(n)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.'); }\n\nlet replyText = decision.reply_text;\nlet imageStoragePath = null;\nlet photoDataUri = null;\nlet jobStatus = null;\nlet costUsd = 0;\nlet costCop = 0;\nlet errorDetail = null;\nlet jobId = null;\nlet model = null;\n\nif (input.gemini_result) {\n  jobId = input.job_id;\n  model = input.model;\n  costUsd = Number(input.cost_usd) || 0;\n  costCop = Number(input.cost_cop) || 0;\n  if (input.ok) {\n    photoDataUri = input.photo_data_uri;\n    imageStoragePath = 'storage/generated/' + decision.company_id + '/' + decision.first_item_id + '_bg.' + (input.image_ext || 'png');\n    jobStatus = 'DONE';\n    replyText += '\\n\\n--- Imagen con IA ---\\nModelo: ' + input.model + ' (' + input.image_size + ') | Costo ' + (input.cost_source === 'usageMetadata' ? 'real' : 'estimado') + ': ' + cop(costCop) + ' (USD ' + costUsd.toFixed(4) + ')';\n  } else {\n    jobStatus = 'FAILED';\n    errorDetail = input.error_detail;\n    replyText += '\\n\\nNo se pudo generar la imagen con IA: ' + input.error_detail + '. ' + (input.billed ? 'Se registro ' + cop(costCop) + ' porque Google pudo cobrarlo.' : 'No se cobro nada.') + ' No se reintento automaticamente.';\n  }\n} else if (input.claimed === false) {\n  replyText += '\\n\\nEsta solicitud ya se estaba procesando (proteccion anti-duplicados): no se genero otra imagen.';\n} else if (decision.modo_imagen !== 'plantilla') {\n  let guardText = '';\n  try { guardText = $('Cost Guard').item.json.dry_run_text || ''; } catch (e) { guardText = ''; }\n  replyText += '\\n\\n' + (guardText || '(No se genero foto con IA. El texto ya quedo listo.)');\n}\n\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: replyText,\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n    content_item_id: decision.first_item_id,\n    image_url: imageStoragePath,\n    photo_data_uri: photoDataUri,\n    image_caption: (first.headline || '').slice(0, 900),\n    job_id: jobId,\n    job_status: jobStatus,\n    cost_usd: costUsd,\n    cost_cop: costCop,\n    error_detail: errorDetail,\n    model,\n  },\n}];\n"
       },
       "id": "b2a2a222-0000-4000-8000-00000000001c",
       "name": "Preparar imagen",
@@ -634,9 +634,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH logged AS (\n  INSERT INTO agent_logs (company_id, workflow, agent, action, model, estimated_cost, status)\n  VALUES ($1, '01_CHANNEL_Telegram', 'image_agent', 'generate_image', 'recraft/v4.1/text-to-image', 0.035, 'SUCCESS')\n  RETURNING id\n)\nSELECT\n  $2::text AS chat_id,\n  $3::text AS reply_text,\n  $4::text AS new_state,\n  $5::text AS new_flow,\n  $6::bigint AS conversation_id,\n  $7::text AS image_url,\n  $8::text AS image_caption\nFROM logged;",
+        "query": "WITH job AS (\n  UPDATE image_jobs\n  SET status = $9::text, generated_count = CASE WHEN $9::text = 'DONE' THEN 1 ELSE 0 END,\n      actual_usd = $10::numeric, actual_cop = $11::numeric, error_detail = $12::text, updated_at = now()\n  WHERE id = $13::bigint\n  RETURNING id\n), logged AS (\n  INSERT INTO agent_logs (company_id, workflow, agent, action, model, estimated_cost, cost_cop, job_id, status, error_detail)\n  SELECT $1, '01_CHANNEL_Telegram', 'image_agent', 'generate_image', $14::text, $10::numeric, $11::numeric, $13::bigint,\n         CASE WHEN $10::numeric > 0 THEN 'SUCCESS' ELSE 'ERROR' END, $12::text\n  WHERE $13::bigint IS NOT NULL\n  RETURNING id\n)\nSELECT\n  $2::text AS chat_id,\n  $3::text AS reply_text,\n  $4::text AS new_state,\n  $5::text AS new_flow,\n  $6::bigint AS conversation_id,\n  $7::text AS image_url,\n  $8::text AS image_caption;",
         "options": {
-          "queryReplacement": "={{ [$('Procesar respuesta IA').item.json.company_id, $json.chat_id, $json.reply_text, $json.new_state, $json.new_flow, $json.conversation_id, $json.image_url, $json.image_caption] }}"
+          "queryReplacement": "={{ [$('Guardar borradores').item.json.company_id, $json.chat_id, $json.reply_text, $json.new_state, $json.new_flow, $json.conversation_id, $json.image_url, $json.image_caption, $('Preparar imagen').item.json.job_status, $('Preparar imagen').item.json.cost_usd, $('Preparar imagen').item.json.cost_cop, $('Preparar imagen').item.json.error_detail, $('Preparar imagen').item.json.job_id, $('Preparar imagen').item.json.model] }}"
         }
       },
       "id": "b2a2a222-0000-4000-8000-00000000001e",
@@ -658,11 +658,11 @@
       "parameters": {
         "resource": "message",
         "operation": "sendPhoto",
-        "chatId": "={{ $json.chat_id }}",
-        "binaryData": false,
-        "file": "={{ $json.image_url }}",
+        "chatId": "={{ $('Registrar costo imagen').item.json.chat_id }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
         "additionalFields": {
-          "caption": "={{ $json.image_caption }}",
+          "caption": "={{ $('Registrar costo imagen').item.json.image_caption }}",
           "appendAttribution": false
         }
       },
@@ -671,8 +671,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3960,
-        140
+        4400,
+        40
       ],
       "credentials": {
         "telegramApi": {
@@ -683,7 +683,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const decision = $('Procesar respuesta IA').item.json;\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: decision.reply_text + '\\n\\n(La imagen esta tardando mas de lo esperado; el texto ya quedo listo. Puedes revisar la imagen mas tarde en \\'Revisar publicaciones\\'.)',\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n  },\n}];"
+        "jsCode": "const decision = $('Guardar borradores').item.json;\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: decision.reply_text + '\\n\\n(La imagen esta tardando mas de lo esperado; el texto ya quedo listo. Puedes revisar la imagen mas tarde en \\'Revisar publicaciones\\'.)',\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n  },\n}];"
       },
       "id": "b2a2a222-0000-4000-8000-000000000020",
       "name": "Manejar timeout imagen",
@@ -697,7 +697,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(SUM(estimated_cost), 0) AS gasto_hoy\nFROM agent_logs\nWHERE agent = 'image_agent'\n  AND status = 'SUCCESS'\n  AND timestamp::date = CURRENT_DATE;",
+        "query": "SELECT\n  COALESCE((SELECT SUM(estimated_cost) FROM agent_logs\n            WHERE agent = 'image_agent' AND status = 'SUCCESS'\n              AND (timestamp AT TIME ZONE 'America/Bogota')::date = (now() AT TIME ZONE 'America/Bogota')::date), 0) AS gasto_hoy_usd,\n  COALESCE((SELECT SUM(estimated_cost) FROM agent_logs\n            WHERE agent = 'image_agent' AND status = 'SUCCESS'\n              AND date_trunc('month', timestamp AT TIME ZONE 'America/Bogota') = date_trunc('month', now() AT TIME ZONE 'America/Bogota')), 0) AS gasto_mes_usd,\n  (SELECT value_json FROM system_config WHERE key = 'image_cost_control' AND company_id IS NULL) AS cost_control,\n  (SELECT value_json FROM system_config WHERE key = 'image_price_table' AND company_id IS NULL) AS price_table,\n  (SELECT value_json FROM system_config WHERE key = 'format_registry' AND company_id IS NULL) AS format_registry,\n  (SELECT value_json FROM system_config WHERE key = 'image_generation_enabled' AND company_id IS NULL) AS image_generation_enabled,\n  (SELECT value_json FROM system_config WHERE key = 'image_provider' AND company_id IS NULL) AS image_provider;",
         "options": {}
       },
       "id": "b2a2a222-0000-4000-8000-000000000021",
@@ -726,11 +726,13 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ Number($json.gasto_hoy) }}",
-              "rightValue": 1.0,
+              "id": "c05707a7-0002-4000-8000-00000000c058",
+              "leftValue": "={{ $json.image_allowed }}",
+              "rightValue": "",
               "operator": {
-                "type": "number",
-                "operation": "lt"
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
               }
             }
           ],
@@ -749,16 +751,356 @@
     },
     {
       "parameters": {
-        "jsCode": "const decision = $('Procesar respuesta IA').item.json;\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: decision.reply_text + '\\n\\n(Se alcanzo el limite diario de gasto en generacion de imagenes ($1.0 USD/dia). El texto ya quedo listo; la imagen se puede generar manana o pidele a Rafael que ajuste el limite.)',\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n  },\n}];"
+        "operation": "read",
+        "fileSelector": "=/data/storage/{{ $('Cargar Company Brain').item.json.logo_path.replace(/^storage\\//, '') }}",
+        "options": {}
       },
-      "id": "b2a2a222-0000-4000-8000-000000000023",
-      "name": "Manejar limite de gasto alcanzado",
+      "id": "b2a2a222-0000-4000-8000-000000000024",
+      "name": "Leer logo de la empresa",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        3740,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const TEMPLATE_PROMOCION = \"<!DOCTYPE html>\\n<html lang=\\\"es\\\">\\n<head>\\n<meta charset=\\\"UTF-8\\\">\\n<style>\\n  * { margin: 0; padding: 0; box-sizing: border-box; }\\n  html, body {\\n    width: 100vw; height: 100vh; overflow: hidden;\\n    font-family: 'Segoe UI', Arial, Helvetica, sans-serif;\\n  }\\n  .canvas {\\n    position: relative;\\n    width: 100%; height: 100%;\\n    background-color: {{COLOR_PRIMARY}};\\n    background-image: {{PHOTO_BACKGROUND_CSS}};\\n    background-size: cover;\\n    background-position: center;\\n  }\\n  .overlay {\\n    position: absolute; left: 0; right: 0; bottom: 0;\\n    height: 62%;\\n    background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 22%, rgba(0,0,0,0.86) 100%);\\n  }\\n  .logo-badge {\\n    position: absolute; top: 40px; left: 40px;\\n    background: {{LOGO_BADGE_BG}};\\n    border-radius: 16px;\\n    padding: 14px 20px;\\n    display: flex; align-items: center; gap: 12px;\\n    box-shadow: 0 4px 14px rgba(0,0,0,0.18);\\n  }\\n  .logo-badge img { height: 48px; display: block; }\\n  .company-name-badge { font-size: 22px; font-weight: 700; color: {{LOGO_BADGE_TEXT_COLOR}}; }\\n  .content {\\n    position: absolute; left: 56px; right: 56px; bottom: 48px;\\n    color: #ffffff;\\n  }\\n  .headline {\\n    font-size: 58px; font-weight: 800; line-height: 1.08;\\n    text-shadow: 0 2px 10px rgba(0,0,0,0.4);\\n    margin-bottom: 22px;\\n  }\\n  .bullets { list-style: none; margin-bottom: 30px; }\\n  .bullets li {\\n    font-size: 30px; font-weight: 600; line-height: 1.7;\\n    padding-left: 40px;\\n    position: relative;\\n  }\\n  .bullets li::before {\\n    content: \\\"\\u2713\\\";\\n    position: absolute; left: 0; top: 0;\\n    color: {{COLOR_SECONDARY}};\\n    font-weight: 900;\\n  }\\n  .cta-bar {\\n    display: flex; align-items: center; justify-content: space-between;\\n    background: {{COLOR_SECONDARY}};\\n    border-radius: 16px;\\n    padding: 22px 32px;\\n    margin-top: 8px;\\n  }\\n  .cta-text { font-size: 30px; font-weight: 800; color: #1a1a1a; }\\n  .cta-phone { font-size: 30px; font-weight: 800; color: #1a1a1a; }\\n</style>\\n</head>\\n<body>\\n  <div class=\\\"canvas\\\">\\n    <div class=\\\"overlay\\\"></div>\\n    <div class=\\\"logo-badge\\\">\\n      {{LOGO_IMG_TAG}}\\n    </div>\\n    <div class=\\\"content\\\">\\n      <div class=\\\"headline\\\">{{HEADLINE}}</div>\\n      <ul class=\\\"bullets\\\">{{BULLETS_HTML}}</ul>\\n      <div class=\\\"cta-bar\\\">\\n        <span class=\\\"cta-text\\\">{{CTA}}</span>\\n        <span class=\\\"cta-phone\\\">{{PHONE}}</span>\\n      </div>\\n    </div>\\n  </div>\\n</body>\\n</html>\\n\";\nconst TEMPLATE_SERVICIO = \"<!DOCTYPE html>\\n<html lang=\\\"es\\\">\\n<head>\\n<meta charset=\\\"UTF-8\\\">\\n<style>\\n  * { margin: 0; padding: 0; box-sizing: border-box; }\\n  html, body {\\n    width: 100vw; height: 100vh; overflow: hidden;\\n    font-family: 'Segoe UI', Arial, Helvetica, sans-serif;\\n  }\\n  .canvas {\\n    position: relative;\\n    width: 100%; height: 100%;\\n    background-color: {{COLOR_PRIMARY}};\\n    display: flex;\\n  }\\n  .panel {\\n    width: 46%; height: 100%;\\n    padding: 48px 44px;\\n    display: flex; flex-direction: column;\\n    color: #ffffff;\\n  }\\n  .logo-badge {\\n    background: {{LOGO_BADGE_BG}};\\n    border-radius: 14px;\\n    padding: 12px 18px;\\n    display: inline-flex; align-items: center; gap: 10px;\\n    align-self: flex-start;\\n    margin-bottom: 40px;\\n    box-shadow: 0 4px 14px rgba(0,0,0,0.18);\\n  }\\n  .logo-badge img { height: 40px; display: block; }\\n  .company-name-badge { font-size: 18px; font-weight: 700; color: {{LOGO_BADGE_TEXT_COLOR}}; }\\n  .headline {\\n    font-size: 46px; font-weight: 800; line-height: 1.12;\\n    margin-bottom: 20px;\\n  }\\n  .bullets { list-style: none; margin-bottom: auto; margin-top: 6px; }\\n  .bullets li {\\n    font-size: 26px; font-weight: 600; line-height: 1.9;\\n    padding-left: 36px;\\n    position: relative;\\n  }\\n  .bullets li::before {\\n    content: \\\"\\u2713\\\";\\n    position: absolute; left: 0; top: 0;\\n    color: {{COLOR_SECONDARY}};\\n    font-weight: 900;\\n  }\\n  .cta-bar {\\n    display: flex; flex-direction: column; gap: 8px;\\n    margin-top: 24px;\\n  }\\n  .cta-button {\\n    display: inline-block;\\n    background: {{COLOR_SECONDARY}};\\n    color: #1a1a1a;\\n    font-size: 22px; font-weight: 800;\\n    padding: 16px 28px;\\n    border-radius: 999px;\\n    align-self: flex-start;\\n  }\\n  .cta-phone { font-size: 24px; font-weight: 700; }\\n  .photo-side {\\n    width: 54%; height: 100%;\\n    background-image: {{MAIN_PHOTO_CSS}};\\n    background-size: cover;\\n    background-position: center;\\n    background-color: rgba(255,255,255,0.12);\\n  }\\n  .photo-fade {\\n    position: absolute; top: 0; bottom: 0;\\n    left: 38%; width: 220px;\\n    background: linear-gradient(90deg, {{COLOR_PRIMARY}} 0%, {{COLOR_PRIMARY}}00 100%);\\n    pointer-events: none;\\n  }\\n</style>\\n</head>\\n<body>\\n  <div class=\\\"canvas\\\">\\n    <div class=\\\"panel\\\">\\n      <div class=\\\"logo-badge\\\">\\n        {{LOGO_IMG_TAG}}\\n      </div>\\n      <div class=\\\"headline\\\">{{HEADLINE}}</div>\\n      <ul class=\\\"bullets\\\">{{BULLETS_HTML}}</ul>\\n      <div class=\\\"cta-bar\\\">\\n        <span class=\\\"cta-button\\\">{{CTA}}</span>\\n        <span class=\\\"cta-phone\\\">{{PHONE}}</span>\\n      </div>\\n    </div>\\n    <div class=\\\"photo-side\\\"></div>\\n    <div class=\\\"photo-fade\\\"></div>\\n  </div>\\n</body>\\n</html>\\n\";\nconst TEMPLATE_MARCA = \"<!DOCTYPE html>\\n<html lang=\\\"es\\\">\\n<head>\\n<meta charset=\\\"UTF-8\\\">\\n<style>\\n  * { margin: 0; padding: 0; box-sizing: border-box; }\\n  html, body {\\n    width: 100vw; height: 100vh; overflow: hidden;\\n    font-family: 'Segoe UI', Arial, Helvetica, sans-serif;\\n  }\\n  .canvas {\\n    position: relative;\\n    width: 100%; height: 100%;\\n    background-color: {{COLOR_PRIMARY}};\\n    background-image: {{PHOTO_BACKGROUND_CSS}};\\n    background-size: cover;\\n    background-position: center;\\n  }\\n  .tint {\\n    position: absolute; inset: 0;\\n    background: linear-gradient(135deg, {{COLOR_PRIMARY}}E6 0%, {{COLOR_PRIMARY}}99 35%, rgba(0,0,0,0.15) 70%, rgba(0,0,0,0.05) 100%);\\n  }\\n  .logo-badge {\\n    position: absolute; top: 40px; left: 40px;\\n    background: {{LOGO_BADGE_BG}};\\n    border-radius: 16px;\\n    padding: 14px 20px;\\n    display: flex; align-items: center; gap: 12px;\\n    box-shadow: 0 4px 14px rgba(0,0,0,0.18);\\n  }\\n  .logo-badge img { height: 48px; display: block; }\\n  .company-name-badge { font-size: 22px; font-weight: 700; color: {{LOGO_BADGE_TEXT_COLOR}}; }\\n  .headline {\\n    position: absolute; top: 190px; left: 56px; right: 56px;\\n    color: #ffffff;\\n    font-size: 62px; font-weight: 800; line-height: 1.1;\\n    text-shadow: 0 2px 12px rgba(0,0,0,0.35);\\n  }\\n  .feature-rows {\\n    position: absolute; left: 56px; right: 56px; bottom: 220px;\\n    display: flex; flex-direction: column; gap: 18px;\\n  }\\n  .feature-row {\\n    display: flex; align-items: center; gap: 18px;\\n    background: rgba(255,255,255,0.14);\\n    border: 1px solid rgba(255,255,255,0.3);\\n    border-radius: 999px;\\n    padding: 16px 26px;\\n    backdrop-filter: blur(2px);\\n  }\\n  .feature-dot {\\n    width: 14px; height: 14px; border-radius: 50%;\\n    background: {{COLOR_SECONDARY}};\\n    flex-shrink: 0;\\n  }\\n  .feature-text { color: #ffffff; font-size: 27px; font-weight: 700; }\\n  .cta-bar {\\n    position: absolute; left: 56px; right: 56px; bottom: 56px;\\n    display: flex; align-items: center; justify-content: space-between;\\n    background: {{COLOR_SECONDARY}};\\n    border-radius: 16px;\\n    padding: 22px 32px;\\n  }\\n  .cta-text { font-size: 30px; font-weight: 800; color: #1a1a1a; }\\n  .cta-phone { font-size: 30px; font-weight: 800; color: #1a1a1a; }\\n</style>\\n</head>\\n<body>\\n  <div class=\\\"canvas\\\">\\n    <div class=\\\"tint\\\"></div>\\n    <div class=\\\"logo-badge\\\">\\n      {{LOGO_IMG_TAG}}\\n    </div>\\n    <div class=\\\"headline\\\">{{HEADLINE}}</div>\\n    <div class=\\\"feature-rows\\\">{{FEATURE_ROWS_HTML}}</div>\\n    <div class=\\\"cta-bar\\\">\\n      <span class=\\\"cta-text\\\">{{CTA}}</span>\\n      <span class=\\\"cta-phone\\\">{{PHONE}}</span>\\n    </div>\\n  </div>\\n</body>\\n</html>\\n\";\nconst TEMPLATE_TESTIMONIAL = \"<!DOCTYPE html>\\n<html lang=\\\"es\\\">\\n<head>\\n<meta charset=\\\"UTF-8\\\">\\n<style>\\n  * { margin: 0; padding: 0; box-sizing: border-box; }\\n  html, body {\\n    width: 100vw; height: 100vh; overflow: hidden;\\n    font-family: 'Segoe UI', Arial, Helvetica, sans-serif;\\n  }\\n  .canvas {\\n    position: relative;\\n    width: 100%; height: 100%;\\n    background-color: {{COLOR_PRIMARY}};\\n    background-image: {{PHOTO_BACKGROUND_CSS}};\\n    background-size: cover;\\n    background-position: center;\\n  }\\n  .tint {\\n    position: absolute; inset: 0;\\n    background: linear-gradient(180deg, {{COLOR_PRIMARY}}F0 0%, {{COLOR_PRIMARY}}E6 55%, {{COLOR_PRIMARY}}F5 100%);\\n  }\\n  .logo-badge {\\n    position: absolute; top: 40px; left: 40px;\\n    background: {{LOGO_BADGE_BG}};\\n    border-radius: 16px;\\n    padding: 14px 20px;\\n    display: flex; align-items: center; gap: 12px;\\n    box-shadow: 0 4px 14px rgba(0,0,0,0.18);\\n  }\\n  .logo-badge img { height: 48px; display: block; }\\n  .company-name-badge { font-size: 22px; font-weight: 700; color: {{LOGO_BADGE_TEXT_COLOR}}; }\\n  .quote-mark {\\n    position: absolute; top: 170px; left: 0; right: 0;\\n    text-align: center;\\n    font-size: 160px; font-weight: 800; line-height: 1;\\n    color: {{COLOR_SECONDARY}};\\n    font-family: Georgia, 'Times New Roman', serif;\\n  }\\n  .quote-text {\\n    position: absolute; top: 340px; left: 100px; right: 100px;\\n    text-align: center;\\n    color: #ffffff;\\n    font-size: 42px; font-weight: 700; line-height: 1.35;\\n    text-shadow: 0 2px 10px rgba(0,0,0,0.35);\\n  }\\n  .attribution {\\n    position: absolute; bottom: 220px; left: 100px; right: 100px;\\n    text-align: center;\\n    color: {{COLOR_SECONDARY}};\\n    font-size: 26px; font-weight: 700;\\n    letter-spacing: 0.5px;\\n    text-transform: uppercase;\\n  }\\n  .cta-bar {\\n    position: absolute; left: 56px; right: 56px; bottom: 56px;\\n    display: flex; align-items: center; justify-content: space-between;\\n    background: {{COLOR_SECONDARY}};\\n    border-radius: 16px;\\n    padding: 22px 32px;\\n  }\\n  .cta-text { font-size: 28px; font-weight: 800; color: #1a1a1a; }\\n  .cta-phone { font-size: 28px; font-weight: 800; color: #1a1a1a; }\\n</style>\\n</head>\\n<body>\\n  <div class=\\\"canvas\\\">\\n    <div class=\\\"tint\\\"></div>\\n    <div class=\\\"logo-badge\\\">\\n      {{LOGO_IMG_TAG}}\\n    </div>\\n    <div class=\\\"quote-mark\\\">&#8220;</div>\\n    <div class=\\\"quote-text\\\">{{HEADLINE}}</div>\\n    <div class=\\\"attribution\\\">{{CTA}}</div>\\n    <div class=\\\"cta-bar\\\">\\n      <span class=\\\"cta-text\\\">Contactanos</span>\\n      <span class=\\\"cta-phone\\\">{{PHONE}}</span>\\n    </div>\\n  </div>\\n</body>\\n</html>\\n\";\nconst TEMPLATE_CORPORATIVO = \"<!DOCTYPE html>\\n<html lang=\\\"es\\\">\\n<head>\\n<meta charset=\\\"UTF-8\\\">\\n<style>\\n  * { margin: 0; padding: 0; box-sizing: border-box; }\\n  html, body {\\n    width: 100vw; height: 100vh; overflow: hidden;\\n    font-family: 'Segoe UI', Arial, Helvetica, sans-serif;\\n  }\\n  .canvas {\\n    position: relative;\\n    width: 100%; height: 100%;\\n    background-color: #ffffff;\\n    display: flex; flex-direction: column;\\n  }\\n  .hero {\\n    position: relative;\\n    width: 100%; height: 560px;\\n    background-color: {{COLOR_PRIMARY}};\\n    background-image: {{PHOTO_BACKGROUND_CSS}};\\n    background-size: cover;\\n    background-position: center;\\n  }\\n  .hero-scrim {\\n    position: absolute; inset: 0;\\n    background: linear-gradient(90deg, {{COLOR_PRIMARY}}F0 0%, {{COLOR_PRIMARY}}C0 42%, {{COLOR_PRIMARY}}00 68%);\\n  }\\n  .hero-fade-bottom {\\n    position: absolute; left: 0; right: 0; bottom: 0; height: 90px;\\n    background: linear-gradient(180deg, {{COLOR_PRIMARY}}00 0%, #ffffff 100%);\\n  }\\n  .logo-badge {\\n    position: absolute; top: 36px; left: 36px;\\n    background: {{LOGO_BADGE_BG}};\\n    border-radius: 14px;\\n    padding: 12px 18px;\\n    display: flex; align-items: center; gap: 10px;\\n    box-shadow: 0 4px 14px rgba(0,0,0,0.18);\\n  }\\n  .logo-badge img { height: 40px; display: block; }\\n  .company-name-badge { font-size: 18px; font-weight: 700; color: {{LOGO_BADGE_TEXT_COLOR}}; }\\n  .hero-text {\\n    position: absolute; left: 40px; right: 320px; top: 130px;\\n    color: #ffffff;\\n  }\\n  .hero-headline {\\n    font-size: 46px; font-weight: 800; line-height: 1.14;\\n    text-shadow: 0 2px 10px rgba(0,0,0,0.35);\\n    margin-bottom: 14px;\\n  }\\n  .hero-cta {\\n    font-size: 20px; font-weight: 700; color: {{COLOR_SECONDARY}};\\n    letter-spacing: 0.3px;\\n  }\\n  .badges-row {\\n    display: flex; justify-content: space-between;\\n    padding: 26px 40px 14px 40px;\\n    gap: 14px;\\n  }\\n  .badge {\\n    flex: 1;\\n    display: flex; flex-direction: column; align-items: center;\\n    text-align: center;\\n    gap: 8px;\\n  }\\n  .badge-circle {\\n    width: 56px; height: 56px; border-radius: 50%;\\n    background: {{COLOR_PRIMARY}};\\n    color: #ffffff;\\n    display: flex; align-items: center; justify-content: center;\\n    font-size: 24px; font-weight: 800;\\n  }\\n  .badge-label {\\n    font-size: 16px; font-weight: 700; color: #1a1a1a;\\n    line-height: 1.25;\\n  }\\n  .photo-strip {\\n    display: flex; gap: 6px;\\n    padding: 8px 40px;\\n    height: 230px;\\n  }\\n  .photo-tile {\\n    position: relative;\\n    flex: 1;\\n    border-radius: 10px;\\n    overflow: hidden;\\n    background-color: {{COLOR_PRIMARY}};\\n    background-image: {{PHOTO_BACKGROUND_CSS}};\\n    background-size: cover;\\n  }\\n  .photo-tile:nth-child(1) { background-position: left center; }\\n  .photo-tile:nth-child(2) { background-position: center; }\\n  .photo-tile:nth-child(3) { background-position: right center; }\\n  .photo-tile-label {\\n    position: absolute; left: 0; right: 0; bottom: 0;\\n    background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.75) 100%);\\n    color: #ffffff;\\n    font-size: 15px; font-weight: 700;\\n    text-align: center;\\n    padding: 26px 6px 10px 6px;\\n  }\\n  .cta-bar {\\n    margin: auto 40px 32px 40px;\\n    display: flex; align-items: center; justify-content: space-between;\\n    background: {{COLOR_SECONDARY}};\\n    border-radius: 16px;\\n    padding: 20px 30px;\\n  }\\n  .cta-text { font-size: 26px; font-weight: 800; color: #1a1a1a; }\\n  .cta-phone { font-size: 26px; font-weight: 800; color: #1a1a1a; }\\n</style>\\n</head>\\n<body>\\n  <div class=\\\"canvas\\\">\\n    <div class=\\\"hero\\\">\\n      <div class=\\\"hero-scrim\\\"></div>\\n      <div class=\\\"logo-badge\\\">\\n        {{LOGO_IMG_TAG}}\\n      </div>\\n      <div class=\\\"hero-text\\\">\\n        <div class=\\\"hero-headline\\\">{{HEADLINE}}</div>\\n        <div class=\\\"hero-cta\\\">{{CTA}}</div>\\n      </div>\\n      <div class=\\\"hero-fade-bottom\\\"></div>\\n    </div>\\n    <div class=\\\"badges-row\\\">{{BADGES_HTML}}</div>\\n    <div class=\\\"photo-strip\\\">{{PHOTO_TILES_HTML}}</div>\\n    <div class=\\\"cta-bar\\\">\\n      <span class=\\\"cta-text\\\">Contactanos</span>\\n      <span class=\\\"cta-phone\\\">{{PHONE}}</span>\\n    </div>\\n  </div>\\n</body>\\n</html>\\n\";\nconst TEMPLATE_ORGANICO = \"<!DOCTYPE html>\\n<html lang=\\\"es\\\">\\n<head>\\n<meta charset=\\\"UTF-8\\\">\\n<style>\\n  * { margin: 0; padding: 0; box-sizing: border-box; }\\n  html, body {\\n    width: 100vw; height: 100vh; overflow: hidden;\\n    font-family: 'Segoe UI', Arial, Helvetica, sans-serif;\\n  }\\n  .canvas {\\n    position: relative;\\n    width: 100%; height: 100%;\\n    background-color: #ffffff;\\n  }\\n  .blob {\\n    position: absolute; top: 0; left: 0;\\n    width: 720px; height: 760px;\\n    background: {{COLOR_PRIMARY}};\\n    border-radius: 0 40% 55% 0 / 0 30% 75% 0;\\n  }\\n  .photo-side {\\n    position: absolute; top: 0; right: 0;\\n    width: 480px; height: 720px;\\n    background-color: {{COLOR_PRIMARY}};\\n    background-image: {{PHOTO_BACKGROUND_CSS}};\\n    background-size: cover;\\n    background-position: center;\\n    border-radius: 0 0 0 60px;\\n  }\\n  .logo-badge {\\n    position: absolute; top: 40px; left: 40px;\\n    background: {{LOGO_BADGE_BG}};\\n    border-radius: 14px;\\n    padding: 12px 18px;\\n    display: flex; align-items: center; gap: 10px;\\n    box-shadow: 0 4px 14px rgba(0,0,0,0.18);\\n  }\\n  .logo-badge img { height: 40px; display: block; }\\n  .company-name-badge { font-size: 18px; font-weight: 700; color: {{LOGO_BADGE_TEXT_COLOR}}; }\\n  .headline {\\n    position: absolute; top: 170px; left: 56px; width: 560px;\\n    color: #ffffff;\\n    font-size: 52px; font-weight: 800; line-height: 1.15;\\n    text-shadow: 0 2px 10px rgba(0,0,0,0.3);\\n  }\\n  .cta-pill {\\n    position: absolute; top: 460px; left: 56px;\\n    display: inline-block;\\n    background: {{COLOR_SECONDARY}};\\n    color: #1a1a1a;\\n    font-size: 22px; font-weight: 800;\\n    padding: 16px 32px;\\n    border-radius: 999px;\\n  }\\n  .promo-badge {\\n    position: absolute; top: 620px; left: 480px;\\n    width: 190px; height: 190px;\\n    border-radius: 50%;\\n    background: {{COLOR_SECONDARY}};\\n    display: flex; flex-direction: column; align-items: center; justify-content: center;\\n    text-align: center;\\n    box-shadow: 0 8px 24px rgba(0,0,0,0.25);\\n    color: #1a1a1a;\\n  }\\n  .promo-badge-title { font-size: 26px; font-weight: 800; line-height: 1.1; }\\n  .promo-badge-sub { font-size: 15px; font-weight: 700; margin-top: 4px; }\\n  .phone-row {\\n    position: absolute; left: 56px; bottom: 60px;\\n    display: flex; align-items: center; gap: 16px;\\n  }\\n  .phone-icon {\\n    width: 52px; height: 52px; border-radius: 50%;\\n    background: {{COLOR_PRIMARY}};\\n    color: #ffffff;\\n    display: flex; align-items: center; justify-content: center;\\n    font-size: 24px;\\n  }\\n  .phone-text-label { font-size: 16px; color: #555; font-weight: 600; }\\n  .phone-text-number { font-size: 26px; color: #1a1a1a; font-weight: 800; }\\n  .services-block {\\n    position: absolute; right: 56px; bottom: 56px; width: 460px;\\n  }\\n  .services-title {\\n    font-size: 26px; font-weight: 800; color: #1a1a1a; margin-bottom: 14px;\\n  }\\n  .services-title span { color: {{COLOR_PRIMARY}}; }\\n  .services-list {\\n    list-style: none;\\n    display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px;\\n  }\\n  .services-list li {\\n    font-size: 18px; font-weight: 600; color: #333;\\n    padding-left: 28px; position: relative;\\n  }\\n  .services-list li::before {\\n    content: \\\"\\u2713\\\";\\n    position: absolute; left: 0; top: 0;\\n    color: {{COLOR_PRIMARY}};\\n    font-weight: 900;\\n  }\\n  .bottom-bar {\\n    position: absolute; left: 0; right: 0; bottom: 0; height: 14px;\\n    background: {{COLOR_SECONDARY}};\\n  }\\n</style>\\n</head>\\n<body>\\n  <div class=\\\"canvas\\\">\\n    <div class=\\\"blob\\\"></div>\\n    <div class=\\\"photo-side\\\"></div>\\n    <div class=\\\"logo-badge\\\">\\n      {{LOGO_IMG_TAG}}\\n    </div>\\n    <div class=\\\"headline\\\">{{HEADLINE}}</div>\\n    <div class=\\\"cta-pill\\\">{{CTA}}</div>\\n    {{PROMO_BADGE_HTML}}\\n    <div class=\\\"phone-row\\\">\\n      <div class=\\\"phone-icon\\\">&#9742;</div>\\n      <div>\\n        <div class=\\\"phone-text-label\\\">Contactanos</div>\\n        <div class=\\\"phone-text-number\\\">{{PHONE}}</div>\\n      </div>\\n    </div>\\n    <div class=\\\"services-block\\\">\\n      <div class=\\\"services-title\\\">Nuestros <span>Servicios</span></div>\\n      <ul class=\\\"services-list\\\">{{SERVICES_LIST_HTML}}</ul>\\n    </div>\\n    <div class=\\\"bottom-bar\\\"></div>\\n  </div>\\n</body>\\n</html>\\n\";\nconst TEMPLATE_CAMPANA = \"<!DOCTYPE html>\\n<html lang=\\\"es\\\">\\n<head>\\n<meta charset=\\\"UTF-8\\\">\\n<style>\\n  * { margin: 0; padding: 0; box-sizing: border-box; }\\n  html, body {\\n    width: 100vw; height: 100vh; overflow: hidden;\\n    font-family: 'Segoe UI', Arial, Helvetica, sans-serif;\\n  }\\n  .canvas {\\n    position: relative;\\n    width: 100%; height: 100%;\\n    background-color: {{COLOR_PRIMARY}};\\n    background-image: {{PHOTO_BACKGROUND_CSS}};\\n    background-size: cover;\\n    background-position: center;\\n  }\\n  .top-fade {\\n    position: absolute; top: 0; left: 0; right: 0; height: 640px;\\n    background: linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0) 55%);\\n  }\\n  .bottom-panel {\\n    position: absolute; left: 0; right: 0; bottom: 0; height: 440px;\\n    background: {{COLOR_PRIMARY}};\\n  }\\n  .diagonal-stripe {\\n    position: absolute; left: -60px; bottom: 385px;\\n    width: 900px; height: 60px;\\n    background: {{COLOR_SECONDARY}};\\n    transform: rotate(-4deg);\\n    transform-origin: left center;\\n  }\\n  .logo-badge {\\n    position: absolute; top: 40px; left: 40px;\\n    background: {{LOGO_BADGE_BG}};\\n    border-radius: 14px;\\n    padding: 12px 18px;\\n    display: flex; align-items: center; gap: 10px;\\n    box-shadow: 0 4px 14px rgba(0,0,0,0.18);\\n  }\\n  .logo-badge img { height: 44px; display: block; }\\n  .headline {\\n    position: absolute; left: 56px; right: 56px; bottom: 300px;\\n    color: #ffffff;\\n    font-size: 56px; font-weight: 900; line-height: 1.08;\\n    text-transform: uppercase;\\n    text-shadow: 0 2px 10px rgba(0,0,0,0.3);\\n  }\\n  .headline .accent { color: {{COLOR_SECONDARY}}; }\\n  .subline {\\n    position: absolute; left: 56px; right: 56px; bottom: 250px;\\n    color: #ffffff;\\n    font-size: 22px; font-weight: 600;\\n    opacity: 0.95;\\n  }\\n  .subline .dot { color: {{COLOR_SECONDARY}}; margin: 0 10px; }\\n  .badges-row {\\n    position: absolute; left: 56px; right: 56px; bottom: 130px;\\n    display: flex; justify-content: space-between;\\n    gap: 12px;\\n  }\\n  .badge {\\n    flex: 1;\\n    display: flex; align-items: center; gap: 10px;\\n  }\\n  .badge-circle {\\n    width: 52px; height: 52px; border-radius: 50%;\\n    border: 3px solid {{COLOR_SECONDARY}};\\n    color: #ffffff;\\n    display: flex; align-items: center; justify-content: center;\\n    font-size: 20px; font-weight: 800;\\n    flex-shrink: 0;\\n  }\\n  .badge-label {\\n    font-size: 15px; font-weight: 700; color: #ffffff;\\n    line-height: 1.2;\\n  }\\n  .cta-button {\\n    position: absolute; left: 56px; bottom: 48px;\\n    display: inline-flex; align-items: center; gap: 12px;\\n    background: {{COLOR_SECONDARY}};\\n    color: #1a1a1a;\\n    font-size: 26px; font-weight: 800;\\n    padding: 20px 34px;\\n    border-radius: 999px;\\n  }\\n</style>\\n</head>\\n<body>\\n  <div class=\\\"canvas\\\">\\n    <div class=\\\"top-fade\\\"></div>\\n    <div class=\\\"logo-badge\\\">\\n      {{LOGO_IMG_TAG}}\\n    </div>\\n    <div class=\\\"bottom-panel\\\"></div>\\n    <div class=\\\"diagonal-stripe\\\"></div>\\n    <div class=\\\"headline\\\">{{HEADLINE}}</div>\\n    <div class=\\\"subline\\\">{{SUBLINE_HTML}}</div>\\n    <div class=\\\"badges-row\\\">{{BADGES_ROW_HTML}}</div>\\n    <div class=\\\"cta-button\\\">{{CTA}} &#8594;</div>\\n  </div>\\n</body>\\n</html>\\n\";\n\nconst brain = $('Cargar Company Brain').item.json;\nconst decision = $('Guardar borradores').item.json;\nconst imgInfo = $('Preparar imagen').item.json;\n\nlet drafts = [];\ntry { drafts = JSON.parse(decision.drafts_json); } catch (e) { drafts = []; }\nconst first = drafts[0] || {};\n\nconst TEMPLATES_BY_KEY = {\n  promocion: TEMPLATE_PROMOCION,\n  servicio: TEMPLATE_SERVICIO,\n  marca: TEMPLATE_MARCA,\n  testimonial: TEMPLATE_TESTIMONIAL,\n  corporativo: TEMPLATE_CORPORATIVO,\n  organico: TEMPLATE_ORGANICO,\n  campana: TEMPLATE_CAMPANA,\n};\nlet template = TEMPLATES_BY_KEY[first.template_key];\nif (!template) {\n  if (decision.content_type === 'testimonial') {\n    template = TEMPLATE_TESTIMONIAL;\n  } else {\n    let TEMPLATES = [TEMPLATE_PROMOCION, TEMPLATE_SERVICIO, TEMPLATE_MARCA, TEMPLATE_CORPORATIVO, TEMPLATE_ORGANICO, TEMPLATE_CAMPANA];\n    if (decision.formato !== 'cuadrado') {\n      TEMPLATES = [TEMPLATE_PROMOCION, TEMPLATE_SERVICIO, TEMPLATE_MARCA, TEMPLATE_CAMPANA];\n    }\n    template = TEMPLATES[Math.floor(Math.random() * TEMPLATES.length)];\n  }\n}\n\nfunction escapeHtml(s) {\n  return String(s == null ? '' : s)\n    .replace(/&/g, '&amp;')\n    .replace(/</g, '&lt;')\n    .replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;');\n}\n\nconst inputBinary = ($input.first().binary) || {};\nlet logoBase64 = (inputBinary.data && inputBinary.data.data) || '';\n// Con binary data en modo filesystem, .data.data trae una referencia ('filesystem-v2'), no base64.\nif (!/^[A-Za-z0-9+\\/=]{200,}$/.test(logoBase64)) {\n  try { logoBase64 = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('base64'); } catch (e) { logoBase64 = ''; }\n}\nconst logoImgTag = logoBase64 ? `<img src=\"data:image/png;base64,${logoBase64}\">` : '';\n\nconst logoBadgeBg = brain.logo_background === 'dark' ? 'rgba(20,20,20,0.72)' : 'rgba(255,255,255,0.94)';\nconst logoBadgeTextColor = brain.logo_background === 'dark' ? '#ffffff' : '#222222';\n\nconst bullets = Array.isArray(first.bullets) ? first.bullets : [];\nconst bulletsHtml = bullets.slice(0, 4).map((b) => `<li>${escapeHtml(b)}</li>`).join('');\nconst featureRowsHtml = bullets.slice(0, 3).map((b) => `<div class='feature-row'><div class='feature-dot'></div><span class='feature-text'>${escapeHtml(b)}</span></div>`).join('');\nconst badgesHtml = bullets.slice(0, 4).map((b, i) => `<div class='badge'><div class='badge-circle'>${i + 1}</div><span class='badge-label'>${escapeHtml(b)}</span></div>`).join('');\nconst sublineHtml = bullets.slice(0, 3).map((b) => `<span>${escapeHtml(b)}</span>`).join(\"<span class='dot'>&#8226;</span>\");\n\nlet services = brain.services;\nif (typeof services === 'string') { try { services = JSON.parse(services); } catch (e) { services = []; } }\nif (!Array.isArray(services)) services = [];\nlet servicesFull = brain.services_full;\nif (typeof servicesFull === 'string') { try { servicesFull = JSON.parse(servicesFull); } catch (e) { servicesFull = []; } }\nif (!Array.isArray(servicesFull)) servicesFull = [];\nlet idiomaPlantilla = 'es';\ntry { idiomaPlantilla = ($('Decidir respuesta').item.json.idioma === 'en') ? 'en' : 'es'; } catch (e) { idiomaPlantilla = 'es'; }\nfunction serviceLabel(s) {\n  if (idiomaPlantilla !== 'es') {\n    const full = servicesFull.find((x) => x && x.name === s.name);\n    const lbl = full && full.labels_i18n && full.labels_i18n[idiomaPlantilla];\n    if (lbl) return lbl;\n  }\n  return s.name || '';\n}\nconst photoTilesHtml = services.slice(0, 3).map((s) => `<div class='photo-tile'><div class='photo-tile-label'>${escapeHtml(serviceLabel(s))}</div></div>`).join('');\nconst servicesListHtml = services.slice(0, 4).map((s) => `<li>${escapeHtml(serviceLabel(s))}</li>`).join('');\n\nlet promotions = brain.promotions;\nif (typeof promotions === 'string') { try { promotions = JSON.parse(promotions); } catch (e) { promotions = []; } }\nif (!Array.isArray(promotions)) promotions = [];\nlet promoBadgeHtml = '';\nif (promotions.length > 0) {\n  const promo = promotions[0];\n  let title = 'PROMO';\n  if (promo.price_before && promo.price_after && Number(promo.price_before) > 0) {\n    const pct = Math.round((1 - Number(promo.price_after) / Number(promo.price_before)) * 100);\n    if (pct > 0) title = pct + '%';\n  }\n  const sub = (promo.name || 'DESCUENTO').toUpperCase();\n  promoBadgeHtml = `<div class=\"promo-badge\"><span class=\"promo-badge-title\">${escapeHtml(title)}</span><span class=\"promo-badge-sub\">${escapeHtml(sub)}</span></div>`;\n}\n\nconst photoUrl = imgInfo.photo_data_uri || '';\nconst hex6 = (c) => /^#[0-9a-fA-F]{6}$/.test(c || '');\nconst photoFallbackCss = (hex6(brain.colors_primary) && hex6(brain.colors_secondary))\n  ? `repeating-linear-gradient(135deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 26px, rgba(255,255,255,0) 26px, rgba(255,255,255,0) 52px), linear-gradient(135deg, ${brain.colors_primary} 0%, ${brain.colors_primary} 100%)`\n  : 'none';\nconst photoCss = photoUrl ? `url('${photoUrl}')` : photoFallbackCss;\n\nlet html = template;\nconst replacements = {\n  '{{COLOR_PRIMARY}}': brain.colors_primary || '#333333',\n  '{{COLOR_SECONDARY}}': brain.colors_secondary || '#F0B038',\n  '{{LOGO_BADGE_BG}}': logoBadgeBg,\n  '{{LOGO_BADGE_TEXT_COLOR}}': logoBadgeTextColor,\n  '{{LOGO_IMG_TAG}}': logoImgTag,\n  '{{COMPANY_NAME}}': escapeHtml(brain.company_name || ''),\n  '{{HEADLINE}}': escapeHtml(first.headline || ''),\n  '{{CAPTION}}': escapeHtml(first.caption || ''),\n  '{{BULLETS_HTML}}': bulletsHtml,\n  '{{FEATURE_ROWS_HTML}}': featureRowsHtml,\n  '{{BADGES_HTML}}': badgesHtml,\n  '{{BADGES_ROW_HTML}}': badgesHtml,\n  '{{SUBLINE_HTML}}': sublineHtml,\n  '{{PHOTO_TILES_HTML}}': photoTilesHtml,\n  '{{SERVICES_LIST_HTML}}': servicesListHtml,\n  '{{PROMO_BADGE_HTML}}': promoBadgeHtml,\n  '{{CTA}}': escapeHtml(first.cta || ''),\n  '{{PHONE}}': escapeHtml(brain.phone || ''),\n  '{{PHOTO_BACKGROUND_CSS}}': photoCss,\n  '{{MAIN_PHOTO_CSS}}': photoCss,\n};\nfor (const [key, value] of Object.entries(replacements)) {\n  html = html.split(key).join(value);\n}\n\nconst STATIC_LABELS = {\n  en: [['Nuestros <span>Servicios</span>', 'Our <span>Services</span>'], ['Contactanos', 'Contact us'], ['DESCUENTO', 'DISCOUNT']],\n};\nfor (const [from, to] of (STATIC_LABELS[idiomaPlantilla] || [])) { html = html.split(from).join(to); }\n\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    final_html: html,\n  },\n}];\n"
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000025",
+      "name": "Construir HTML de plantilla",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2860,
+        3960,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://render:3000/render",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify((() => { const dims = { cuadrado: [1080, 1080], vertical: [1080, 1350], story: [1080, 1920] }[$('Guardar borradores').item.json.formato] || [1080, 1080]; return { html: $json.final_html, width: dims[0], height: dims[1] }; })()) }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000026",
+      "name": "Renderizar imagen final",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const info = $('Registrar costo imagen').item.json;\nconst prep = $('Preparar imagen').item.json;\nconst base = $('Guardar borradores').item.json.reply_text || '';\nconst extra = (prep.reply_text || '').startsWith(base) ? (prep.reply_text || '').slice(base.length).trim() : '';\nreturn [{\n  json: {\n    chat_id: info.chat_id,\n    reply_text: 'Publicacion lista (arriba). Se guardo como borrador.' + (extra ? '\\n\\n' + extra : ''),\n    new_state: info.new_state,\n    new_flow: info.new_flow,\n    conversation_id: info.conversation_id,\n  },\n}];\n"
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000027",
+      "name": "Preparar guardado imagen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://2.24.89.154:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'llama3.2:1b', prompt: $('Decidir respuesta').item.json.gemini_prompt, stream: false, format: 'json' }) }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000028",
+      "name": "Generar contenido IA (respaldo Ollama)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        820
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision = $('Decidir respuesta').item.json;\nconst ollamaResponse = $input.first().json;\n\nlet draftsRaw = [];\nlet parseError = null;\ntry {\n  const text = ollamaResponse.response;\n  draftsRaw = JSON.parse(text);\n  if (!Array.isArray(draftsRaw)) draftsRaw = [draftsRaw];\n} catch (e) {\n  parseError = String(e);\n  draftsRaw = [];\n}\n\nconst drafts = draftsRaw.map((d) => ({\n  concept: d.concept || '',\n  headline: d.headline || '',\n  caption: d.caption || '',\n  cta: d.cta || '',\n  hashtags: Array.isArray(d.hashtags) ? d.hashtags : [],\n  alt_text: d.alt_text || '',\n  bullets: Array.isArray(d.bullets) ? d.bullets : [],\n  visual: d.visual,\n  image_prompt: (typeof d.image_prompt === 'string' ? d.image_prompt : ''),\n  platform: d.platform || (decision.content_type || null),\n}));\n\nlet replyText;\nif (drafts.length === 0) {\n  replyText = `Hubo un problema generando el contenido, incluso con la IA de respaldo (${parseError || 'respuesta vacia'}). Intenta de nuevo escribiendo \"1\".`;\n} else {\n  const lines = drafts.map((d, i) => {\n    const hashtagsText = d.hashtags.map((h) => '#' + h).join(' ');\n    return `--- Publicacion ${i + 1} (${d.platform}) ---\\n${d.headline}\\n\\n${d.caption}\\n\\nCTA: ${d.cta}\\nHashtags: ${hashtagsText}`;\n  });\n  replyText = `Aqui tienes ${drafts.length} publicacion(es) generadas para revisar (con la IA de respaldo de tu VPS, Gemini no estaba disponible):\\n\\n${lines.join('\\n\\n')}\\n\\n(La aprobacion y edicion desde Telegram se conecta en el siguiente incremento; por ahora quedan guardadas como borradores en el sistema.)`;\n}\n\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: replyText,\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n    company_id: decision.company_id,\n    content_type: decision.content_type,\n    formato: decision.formato,\n    modo_imagen: decision.modo_imagen,\n    drafts_json: JSON.stringify(drafts),\n    input_tokens: ollamaResponse.prompt_eval_count || 0,\n    output_tokens: ollamaResponse.eval_count || 0,\n    estimated_cost: 0,\n    model_used: 'llama3.2:1b (VPS propio, respaldo)',\n  },\n}];\n"
+      },
+      "id": "b2a2a222-0000-4000-8000-000000000029",
+      "name": "Procesar respuesta Ollama",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
         820
       ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/data/storage/generated/{{ $('Guardar borradores').item.json.company_id }}/{{ $('Preparar imagen').item.json.content_item_id }}.png",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000002a",
+      "name": "Guardar imagen compuesta",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        4400,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "check_providers",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000002b",
+      "name": "Verificar proveedores?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {
+          "timeout": 8000
+        }
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000002c",
+      "name": "Chequear Gemini imagen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        860
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "geminiqueryauth1",
+          "name": "Gemini Query Auth"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision = $('Decidir respuesta').item.json;\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: 'Estado de proveedores de imagenes:\\n\\nGemini imagen (gemini-3.1-flash-image): disponible (respondio correctamente). Higgsfield: desactivado.',\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n  },\n}];\n"
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000002d",
+      "name": "Reportar estado proveedores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision = $('Decidir respuesta').item.json;\nreturn [{\n  json: {\n    chat_id: decision.chat_id,\n    reply_text: 'Estado de proveedores de imagenes:\\n\\nGemini imagen (gemini-3.1-flash-image): NO disponible en este momento. Intenta de nuevo en unos minutos.',\n    conversation_id: decision.conversation_id,\n    new_state: decision.new_state,\n    new_flow: decision.new_flow,\n  },\n}];\n"
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000002e",
+      "name": "Reportar proveedor caido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        940
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst decisionInfo = $('Decidir respuesta').item.json;\nconst brain = $('Cargar Company Brain').item.json;\n\nlet drafts = [];\ntry { drafts = JSON.parse(input.drafts_json); } catch (e) { drafts = []; }\nif (!Array.isArray(drafts)) drafts = [];\n\nconst EXAMPLE_VALUES = {\n  subject: 'two bakers',\n  action: 'shaping fresh bread dough on a counter',\n  setting: 'small bright artisan bakery kitchen',\n  props: 'flour, wooden rolling pin, bread baskets',\n  wardrobe: 'aprons and short-sleeve shirts',\n  lighting: 'warm morning light from a window',\n};\n\nconst FIELD_LIMITS = { subject: 12, action: 12, setting: 12, props: 12, wardrobe: 8, lighting: 8 };\n\nconst FORBIDDEN_RE = /\\b(text|logo|logos|sign|signage|lettering|slogan|caption|brand|branded|trademark|watermark|words)\\b/i;\nconst HEX_RE = /#[0-9a-fA-F]{3,6}\\b/;\nconst COLOR_WORDS_RE = /\\b(red|orange|yellow|green|blue|navy|purple|pink|black|white|gray|grey|brown|gold|golden|teal|cyan|magenta)\\b/i;\nconst SPANISH_HINT_RE = /[\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa\\u00f1\\u00bf\\u00a1]| de | la | el | con | para /i;\n\nfunction looksSpanish(s) {\n  return SPANISH_HINT_RE.test(' ' + s + ' ');\n}\n\n// Frases de marketing (\"Our Expertise...\", \"Transform Your...\") NO son escenas: producen texto dibujado en la imagen.\nconst SLOGAN_RE = /\\b(our|your|we|us|transform|expertise|services?|solutions?|quality|best|everywhere)\\b/i;\nfunction titleCaseCount(s) { return s.split(' ').filter((w) => /^[A-Z][a-z]+$/.test(w)).length; }\n\nfunction cleanField(raw, key) {\n  let v = raw;\n  if (v == null) return '';\n  if (typeof v === 'object') {\n    if (Array.isArray(v)) v = v.join(', ');\n    else if (typeof v.description === 'string') v = v.description;\n    else {\n      const strVals = Object.values(v).filter((x) => typeof x === 'string');\n      v = strVals.join(', ');\n    }\n  }\n  v = String(v);\n  v = v.replace(/[\"'\\n\\r]/g, ' ').replace(/\\s+/g, ' ').trim();\n  if (!v) return '';\n  if (!/[a-zA-Z]/.test(v)) return '';\n  if (v.toLowerCase() === String(EXAMPLE_VALUES[key] || '').toLowerCase()) return '';\n  if (looksSpanish(v)) return '';\n  if (FORBIDDEN_RE.test(v)) return '';\n  if (SLOGAN_RE.test(v)) return '';\n  if (titleCaseCount(v) >= 3) return '';\n  if (HEX_RE.test(v)) return '';\n  if (key === 'wardrobe' && COLOR_WORDS_RE.test(v)) return '';\n  const words = v.split(' ');\n  const limit = FIELD_LIMITS[key] || 12;\n  if (words.length > limit) v = words.slice(0, limit).join(' ');\n  return v;\n}\n\nfunction sectorFallback(sector, description) {\n  const text = ((sector || '') + ' ' + (description || '')).toLowerCase();\n  if (/limpi|clean|janitor|custodial/.test(text)) {\n    return {\n      subject: 'a professional cleaning worker',\n      action: 'cleaning a modern surface carefully',\n      setting: 'a bright modern commercial space',\n      props: 'cleaning cart, spray bottle, microfiber cloth',\n      wardrobe: 'a work uniform with gloves',\n      lighting: 'bright even indoor light',\n    };\n  }\n  if (/guarder|daycare|child|preschool|escuela|school|educa/.test(text)) {\n    return {\n      subject: 'a teacher with young children',\n      action: 'playing an educational activity together',\n      setting: 'a colorful classroom',\n      props: 'toys, books, art supplies',\n      wardrobe: 'casual comfortable clothing',\n      lighting: 'warm natural daylight',\n    };\n  }\n  return {\n    subject: 'a small business professional',\n    action: 'helping a customer attentively',\n    setting: 'a clean professional workplace',\n    props: 'a desk, a laptop, folders',\n    wardrobe: 'business casual attire',\n    lighting: 'soft natural light',\n  };\n}\n\nconst TEMPLATE_KEYS = ['promocion', 'servicio', 'marca', 'corporativo', 'organico', 'campana'];\nconst SAFE_ZONE = {\n  promocion: 'Main subject placed in the upper third of the frame; lower half of the image simple, low-detail and slightly darker.',\n  servicio: 'Vertical portrait framing; subject centered horizontally inside a narrow central vertical band; nothing important near the left or right edges.',\n  marca: 'Subject in the lower-right part of the frame; upper-left area open and simple; middle horizontal band uncluttered.',\n  corporativo: 'Wide composition; subject on the right side and vertically centered; left 40 percent of the frame open and simple; whole width shows relevant environment detail; bottom edge simple.',\n  organico: 'Vertical portrait framing, subject centered with tight framing, clean simple background.',\n  campana: 'Main subject placed in the upper 55 percent of the frame; lower 40 percent simple and low-detail, it will be covered by a solid color panel.',\n};\n\nconst SQUARE_ONLY_KEYS = ['corporativo', 'organico'];\nfunction chooseTemplateKey(contentType, formato) {\n  if (contentType === 'testimonial') return 'testimonial';\n  let pool = TEMPLATE_KEYS;\n  if (formato !== 'cuadrado') {\n    pool = TEMPLATE_KEYS.filter((k) => !SQUARE_ONLY_KEYS.includes(k));\n  }\n  return pool[Math.floor(Math.random() * pool.length)];\n}\n\nconst STYLE_PREFIX = 'Realistic professional photograph, natural colors, sharp focus, 35mm lens.';\nconst GUARD_SUFFIX = 'Plain unbranded clothing and surfaces, blank walls, no signage. No text, no letters, no numbers, no logos, no watermarks, no brand names. Natural anatomy, realistic hands and faces.';\n\nconst COLOR_EN = { 'azul marino': 'navy blue', 'azul': 'blue', 'rojo': 'red', 'naranja': 'orange', 'amarillo': 'yellow', 'verde': 'green', 'celeste': 'light blue', 'morado': 'purple', 'rosado': 'pink', 'negro': 'black', 'blanco': 'white', 'gris': 'gray' };\nfunction buildImagePrompt(visual, templateKey, brandColorName) {\n  const colorEn = COLOR_EN[String(brandColorName || '').toLowerCase()] || '';\n  if (templateKey === 'testimonial') {\n    const setting = visual.setting || 'a calm professional environment';\n    return `${STYLE_PREFIX} Soft, out-of-focus ambient photo of ${setting}, no people, no clear focal subject, gentle low-contrast light. ${GUARD_SUFFIX}`;\n  }\n  const parts = [STYLE_PREFIX];\n  parts.push(`${visual.subject} ${visual.action}, in ${visual.setting}.`);\n  if (visual.wardrobe) {\n    parts.push(`Wearing plain ${colorEn ? colorEn + ' ' : ''}${String(visual.wardrobe).replace(/^(a|an|the)\\s+/i, '')} with no markings.`);\n  }\n  if (visual.props) parts.push(`Visible objects: ${visual.props}.`);\n  if (visual.lighting) parts.push(`${visual.lighting}.`);\n  parts.push(SAFE_ZONE[templateKey] || SAFE_ZONE.promocion);\n  parts.push(GUARD_SUFFIX);\n  return parts.join(' ');\n}\n\nconst companyIdValid = !!(input.company_id && brain && brain.company_id === input.company_id);\n\nconst cleanedDrafts = [];\nfor (const d of drafts) {\n  if (!d || (!d.headline && !d.caption)) continue;\n  const rawVisual = (d.visual && typeof d.visual === 'object' && !Array.isArray(d.visual)) ? d.visual : {};\n\n  let visual = {};\n  let anyMissing = false;\n  for (const key of Object.keys(FIELD_LIMITS)) {\n    const cleaned = cleanField(rawVisual[key], key);\n    if (cleaned) visual[key] = cleaned; else anyMissing = true;\n  }\n\n  let visualSource = 'llm';\n  const hadRawVisual = Object.keys(rawVisual).length > 0;\n\n  if (Object.keys(visual).length === 0 && typeof d.image_prompt === 'string' && d.image_prompt) {\n    visual = { setting: d.image_prompt.slice(0, 80) };\n    visualSource = 'legacy';\n    anyMissing = true;\n  }\n\n  if (anyMissing) {\n    const fallback = sectorFallback(brain && brain.sector, brain && brain.description);\n    for (const key of Object.keys(FIELD_LIMITS)) {\n      if (!visual[key]) visual[key] = fallback[key];\n    }\n    if (visualSource !== 'legacy') {\n      visualSource = hadRawVisual ? 'partial' : 'fallback';\n    }\n  }\n\n  const templateKey = chooseTemplateKey(input.content_type, input.formato);\n  const imagePrompt = buildImagePrompt(visual, templateKey, decisionInfo.brand_color_name);\n\n  cleanedDrafts.push({\n    ...d,\n    visual,\n    visual_source: visualSource,\n    template_key: templateKey,\n    image_prompt: imagePrompt,\n  });\n}\n\nlet outModoImagen = input.modo_imagen;\nlet outDraftsJson = JSON.stringify(cleanedDrafts);\n\nif (!companyIdValid || cleanedDrafts.length === 0) {\n  outDraftsJson = '[]';\n  outModoImagen = 'plantilla';\n}\n\nreturn [{\n  json: {\n    chat_id: input.chat_id,\n    reply_text: input.reply_text,\n    conversation_id: input.conversation_id,\n    new_state: input.new_state,\n    new_flow: input.new_flow,\n    company_id: input.company_id,\n    content_type: input.content_type,\n    formato: input.formato,\n    modo_imagen: outModoImagen,\n    drafts_json: outDraftsJson,\n    input_tokens: input.input_tokens,\n    output_tokens: input.output_tokens,\n    estimated_cost: input.estimated_cost,\n    model_used: input.model_used,\n  },\n}];"
+      },
+      "id": "b2a2a222-0000-4000-8000-00000000002f",
+      "name": "Construir prompt de imagen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2090,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nodo Code \"Cost Guard\" del workflow 01_CHANNEL_Telegram (Fase 5 \u2014 Creative Engine, etapa dry-run).\n// Fuente de verdad del codigo: este archivo se incrusta en el nodo con un script de parche.\n//\n// Que hace (SIN llamar a ninguna API de imagenes):\n//   1. Construye el Creative Brief v1 a partir de Company Brain + menu + borradores del LLM.\n//   2. Lo valida (valid / missing[] / warnings[]).\n//   3. Estima el costo (tabla de precios en system_config) y lo compara contra los topes.\n//   4. Decide: not_applicable | blocked | dry_run | needs_confirmation | auto_approved.\n//   5. Emite el texto de simulacion para Telegram y image_allowed (hoy SIEMPRE false).\n//\n// Entrada: $input.first().json = fila de \"Revisar gasto de imagenes hoy\" (gasto + config).\n\nconst GEMINI_NODE_WIRED = true;   // Nodo \"Gemini imagen\" cableado. Con false NADA genera, aunque el interruptor este encendido.\nconst IMAGES_PER_RUN = 1;         // Hoy el pipeline compone UNA imagen por ejecucion (la del primer borrador).\n\nconst spend = $input.first().json;\nconst drafted = $('Guardar borradores').item.json;\nconst decision = $('Decidir respuesta').item.json;\nconst brain = $('Cargar Company Brain').item.json || {};\nlet trigger = {};\ntry { trigger = $('Trigger Telegram').item.json || {}; } catch (e) { trigger = {}; }\n\nfunction parseJson(v, fallback) {\n  if (v == null) return fallback;\n  if (typeof v === 'string') { try { return JSON.parse(v); } catch (e) { return fallback; } }\n  return v;\n}\n\nconst cfg = Object.assign({\n  dry_run_default: true,\n  max_images_per_request: 5,\n  require_confirmation_above_cop: 300,\n  daily_budget_cop: 2000,\n  monthly_budget_cop: 10000,\n  hard_ceiling_per_request_cop: 1500,\n  usd_cop_rate: 3300,\n  safety_margin: 1.15,\n  default_model: 'gemini-3.1-flash-image',\n  default_image_size: '1K',\n  max_retries: 0,\n}, parseJson(spend.cost_control, {}) || {});\nconst prices = parseJson(spend.price_table, {}) || {};\nconst formats = parseJson(spend.format_registry, {}) || {};\nconst enabled = parseJson(spend.image_generation_enabled, false) === true;\nconst provider = parseJson(spend.image_provider, 'gemini');\n\nconst fx = Number(cfg.usd_cop_rate) || 3300;\nconst spentTodayCop = Math.round((Number(spend.gasto_hoy_usd) || 0) * fx);\nconst spentMonthCop = Math.round((Number(spend.gasto_mes_usd) || 0) * fx);\n\nconst drafts = parseJson(drafted.drafts_json, []);\nconst draftList = Array.isArray(drafts) ? drafts : [];\nconst modoImagen = drafted.modo_imagen || decision.modo_imagen || 'plantilla';\nconst idioma = decision.idioma === 'en' ? 'en' : 'es';\nconst formato = drafted.formato || decision.formato || 'cuadrado';\n\n// ---- Formato normalizado ------------------------------------------------------------------\nconst FORMAT_LABEL = { cuadrado: 'Post cuadrado', vertical: 'Post vertical', story: 'Historia/Reel' };\nconst firstPlatform = (draftList[0] && draftList[0].platform) || 'instagram';\nfunction formatId(f, platform) {\n  if (f === 'cuadrado') return 'ig_feed_square';\n  if (f === 'vertical') return platform === 'facebook' ? 'fb_feed_portrait' : 'ig_feed_portrait';\n  if (f === 'story') return platform === 'facebook' ? 'fb_story' : (platform === 'whatsapp' ? 'wa_status' : 'ig_story');\n  return null;\n}\nconst fmtId = formatId(formato, firstPlatform);\nconst fmt = (fmtId && formats[fmtId]) || null;\n\n// ---- Brief --------------------------------------------------------------------------------\nconst services = parseJson(brain.services_full, []) || [];\nconst forbidden = parseJson(brain.forbidden_visuals_json, []) || [];\nconst wordsAvoid = parseJson(brain.words_avoid_json, []) || [];\nconst socials = parseJson(brain.social_handles_json, null);\n\nconst draftsForBrief = draftList.slice(0, Math.max(1, Number(cfg.max_images_per_request) || 5));\nconst variants = draftsForBrief.map((d, i) => ({\n  index: i + 1,\n  concept: d.concept || '',\n  subject: (d.visual && d.visual.subject) || '',\n  action: (d.visual && d.visual.action) || '',\n  setting: (d.visual && d.visual.setting) || '',\n  lighting: (d.visual && d.visual.lighting) || '',\n  template_key: d.template_key || '',\n  visual_source: d.visual_source || '',\n  prompt_delta: d.image_prompt || '',\n}));\n\nconst modelKey = cfg.default_model;\nconst imageSize = cfg.default_image_size;\nconst priceEntry = prices.models && prices.models[modelKey];\nconst perImageUsd = priceEntry && priceEntry.per_image ? priceEntry.per_image[imageSize] : undefined;\nconst overheadUsd = Number(prices.overhead_usd_per_call) || 0;\n\nconst wantsImage = modoImagen === 'ia';\nconst callsPlanned = wantsImage ? Math.min(variants.length, IMAGES_PER_RUN) : 0;\n\nconst brief = {\n  schema_version: '1.0',\n  meta: {\n    mode: decision.modo || (decision.content_type === 'manual' ? 'manual' : 'automatic'),\n    dry_run: true,\n    idempotency_key: [drafted.company_id, drafted.chat_id, trigger.update_id || Date.now(), callsPlanned, variants.map((v) => v.template_key).join('+')].join('|'),\n    source: { channel: 'telegram', chat_id: String(drafted.chat_id || ''), update_id: trigger.update_id || null },\n  },\n  request: {\n    user_text: decision.tema || '',\n    output_kind: callsPlanned > 1 ? 'options' : 'single',\n    quantity: callsPlanned,\n    quality: 'draft',\n    language: { campaign: idioma, copy: idioma, prompt: 'en' },\n  },\n  company: {\n    id: brain.company_id || null,\n    name: brain.company_name || null,\n    sector: brain.sector || null,\n    description: brain.description || null,\n    tone: brain.tone || null,\n    target_audience: [brain.target_age, brain.target_location, brain.target_interests].filter(Boolean).join(' | ') || null,\n    location: { city: brain.city || null, address: brain.address || null },\n    contact: {\n      phone: brain.phone || null,\n      whatsapp: brain.whatsapp_number || null,\n      website: brain.website || null,\n      email: brain.email || null,\n      social: socials,\n    },\n    services: services.map((s) => ({ id: s.id, name: s.name, label_i18n: s.labels_i18n || {} })),\n    do_not_translate: ['company.name', 'contact.*', 'social.*'],\n  },\n  brand: {\n    colors: {\n      primary: brain.colors_primary || null,\n      secondary: brain.colors_secondary || null,\n      accent: brain.accent_color || null,\n      background: brain.background_color || null,\n    },\n    logo: {\n      asset_path: brain.logo_path || null,\n      background: brain.logo_background || null,\n      description: brain.logo_description || null,\n      send_to_model: false,\n      overlay_in_render: true,\n    },\n    visual_style: brain.visual_style || null,\n    avoid_visual: forbidden,\n    words_avoid: wordsAvoid,\n  },\n  campaign: { content_type: drafted.content_type || decision.content_type || null, platforms: [...new Set(draftList.map((d) => d.platform).filter(Boolean))] },\n  format: fmt ? {\n    id: fmtId, platform: fmt.platform, placement: fmt.placement, width: fmt.width, height: fmt.height,\n    aspect_ratio: fmt.aspect_ratio, safe_zone_px: fmt.safe_zone_px || null,\n    provider: { aspect_ratio: fmt.provider_aspect_ratio, image_size: imageSize, fit: 'cover', crop_to_final: !!fmt.crop_to_final },\n  } : null,\n  text_rendering: { mode: 'overlay', native_text_in_image: false, exact_text_only: true },\n  variants,\n  grid: null,\n  image_generation: {\n    provider,\n    model: modelKey,\n    response_modalities: ['IMAGE'],\n    reference_images: [],\n    prompt: (variants[0] && variants[0].prompt_delta) || '',\n    calls_planned: callsPlanned,\n    max_retries: Number(cfg.max_retries) || 0,\n  },\n};\n\n// ---- Validacion ---------------------------------------------------------------------------\nconst missing = [];\nconst warnings = [];\nif (!brief.company.id || brief.company.id !== drafted.company_id) missing.push('company.id');\nif (!brief.company.name) missing.push('company.name');\nif (!brief.brand.colors.primary) missing.push('brand.colors.primary');\nif (!brief.company.contact.phone && !brief.company.contact.whatsapp) {\n  if (wantsImage) missing.push('company.contact.phone'); else warnings.push('La empresa no tiene telefono/WhatsApp cargado: la plantilla saldra sin numero.');\n}\nif (!fmt) missing.push('format');\nif (!['es', 'en'].includes(decision.idioma || 'es')) missing.push('request.language');\nif (wantsImage && variants.length === 0) missing.push('variants');\nif (wantsImage && draftList.length > Number(cfg.max_images_per_request)) missing.push('request.quantity<=' + cfg.max_images_per_request);\nif (wantsImage && variants.length > IMAGES_PER_RUN) warnings.push('Se generan ' + variants.length + ' textos pero solo la imagen de la primera publicacion (las demas quedan como borrador de texto).');\nif (wantsImage && !Number.isFinite(perImageUsd)) missing.push('price_table.' + modelKey + '.' + imageSize);\nif (wantsImage && !brief.company.sector && !brief.company.description) warnings.push('Sin sector ni descripcion en el Company Brain: la escena visual sera generica.');\nif (idioma === 'en' && services.some((s) => !s.labels_i18n || !s.labels_i18n.en)) {\n  warnings.push('Hay servicios sin etiqueta en ingles en el Company Brain: sus nombres saldran en espanol (no se traducen solos).');\n}\nconst keys = variants.map((v) => [v.subject, v.action, v.setting].join('|').toLowerCase());\nif (wantsImage && new Set(keys).size < keys.length) warnings.push('Hay variantes con la misma escena: se estaria pagando por imagenes casi iguales.');\nbrief.validation = { valid: missing.length === 0, missing, warnings };\n\n// ---- Costo + Cost Guard -------------------------------------------------------------------\nconst baseUsd = Number.isFinite(perImageUsd) ? (perImageUsd + overheadUsd) * callsPlanned : 0;\nconst estUsd = Math.round(baseUsd * Number(cfg.safety_margin) * 10000) / 10000;\nconst estCop = Math.round(estUsd * fx);\nbrief.cost_control = {\n  pricing_version: prices.version || null,\n  fx_usd_cop: fx,\n  safety_margin: cfg.safety_margin,\n  estimate: { usd: estUsd, cop: estCop, calls: callsPlanned },\n  limits: {\n    max_images: cfg.max_images_per_request,\n    confirm_above_cop: cfg.require_confirmation_above_cop,\n    daily_cop: cfg.daily_budget_cop,\n    monthly_cop: cfg.monthly_budget_cop,\n    ceiling_cop: cfg.hard_ceiling_per_request_cop,\n  },\n  spent: { today_cop: spentTodayCop, month_cop: spentMonthCop },\n};\n\nlet guard = 'not_applicable';\nlet reason = '';\nif (wantsImage) {\n  if (!brief.validation.valid) { guard = 'blocked'; reason = 'Brief incompleto: ' + missing.join(', '); }\n  else if (estCop > Number(cfg.hard_ceiling_per_request_cop)) { guard = 'blocked'; reason = 'Supera el tope por solicitud (COP ' + cfg.hard_ceiling_per_request_cop + ')'; }\n  else if (spentTodayCop + estCop > Number(cfg.daily_budget_cop)) { guard = 'blocked'; reason = 'Superaria el presupuesto diario'; }\n  else if (spentMonthCop + estCop > Number(cfg.monthly_budget_cop)) { guard = 'blocked'; reason = 'Superaria el presupuesto mensual'; }\n  else if (cfg.dry_run_default !== false || !enabled) { guard = 'dry_run'; reason = enabled ? 'dry_run activo' : 'generacion de imagenes apagada'; }\n  else if (estCop > Number(cfg.require_confirmation_above_cop)) { guard = 'needs_confirmation'; reason = 'Requiere tu aprobacion (supera COP ' + cfg.require_confirmation_above_cop + ')'; }\n  else { guard = 'auto_approved'; reason = 'Dentro de los topes'; }\n}\nbrief.cost_control.decision = guard;\nbrief.cost_control.approved = false;\n\nconst imageAllowed = GEMINI_NODE_WIRED && guard === 'auto_approved';\n\n// Peticion lista para el nodo \"Gemini imagen\" (solo tiene sentido si image_allowed).\nconst genRequest = imageAllowed ? {\n  model: modelKey,\n  image_size: imageSize,\n  aspect_ratio: brief.format && brief.format.provider ? brief.format.provider.aspect_ratio : '1:1',\n  prompt: brief.image_generation.prompt,\n  idempotency_key: brief.meta.idempotency_key,\n  estimate_usd: estUsd,\n  estimate_cop: estCop,\n} : null;\n\n// ---- Texto para Telegram ------------------------------------------------------------------\nfunction cop(n) { return 'COP ' + String(Math.round(n)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.'); }\nconst GUARD_LABEL = {\n  blocked: 'BLOQUEADO', dry_run: 'simulacion (no se genera ni se cobra nada)',\n  needs_confirmation: 'pide aprobacion', auto_approved: 'aprobado automaticamente',\n};\n\nlet dryRunText = '';\nif (wantsImage && guard !== 'auto_approved') {\n  const lines = [];\n  lines.push('--- Simulacion de imagen con IA (no se cobro nada) ---');\n  lines.push('Formato: ' + (FORMAT_LABEL[formato] || formato) + (fmt ? ' ' + fmt.width + 'x' + fmt.height + ' (' + fmt.aspect_ratio + ')' : '') + ' | Idioma: ' + (idioma === 'en' ? 'ingles' : 'espanol'));\n  lines.push('Modelo: ' + modelKey + ' ' + imageSize + ' | Imagenes previstas: ' + callsPlanned);\n  lines.push('Costo estimado: ' + cop(estCop) + ' (USD ' + estUsd.toFixed(3) + ', incluye margen ' + cfg.safety_margin + ')');\n  lines.push('Gastado hoy: ' + cop(spentTodayCop) + ' de ' + cop(cfg.daily_budget_cop) + ' | Mes: ' + cop(spentMonthCop) + ' de ' + cop(cfg.monthly_budget_cop));\n  lines.push('Decision: ' + (GUARD_LABEL[guard] || guard) + (reason ? ' - ' + reason : ''));\n  variants.forEach((v) => lines.push('  ' + v.index + ') plantilla ' + (v.template_key || '?') + ': ' + (v.subject || 'sin sujeto') + ' / ' + (v.setting || 'sin escena')));\n  if (missing.length) lines.push('Faltan datos: ' + missing.join(', '));\n  warnings.forEach((w) => lines.push('Aviso: ' + w));\n  if (guard === 'needs_confirmation') lines.push('No se genero: la aprobacion con boton aun no esta construida. Pide 1 sola imagen por vez para generar.');\n  lines.push('Abajo va la vista previa solo con tus plantillas (sin foto).');\n  dryRunText = lines.join('\\n');\n}\n\nreturn [{\n  json: {\n    image_allowed: imageAllowed,\n    gen_request: genRequest,\n    guard_decision: guard,\n    guard_reason: reason,\n    dry_run_text: dryRunText,\n    estimate_cop: estCop,\n    estimate_usd: estUsd,\n    brief,\n  },\n}];\n"
+      },
+      "id": "c05707a7-0001-4000-8000-00000000c057",
+      "name": "Cost Guard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH ins AS (\n  INSERT INTO image_jobs (company_id, idempotency_key, chat_id, update_id, output_kind, provider, model, image_size,\n                          quantity, estimated_cop, estimated_usd, dry_run, status, brief_json)\n  VALUES ($1, $2, $3, $4::bigint, 'single', 'gemini', $5, $6, 1, $7::numeric, $8::numeric, false, 'GENERATING', $9::jsonb)\n  ON CONFLICT (idempotency_key) DO NOTHING\n  RETURNING id\n)\nSELECT (SELECT id FROM ins) AS job_id, ((SELECT count(*) FROM ins) = 1) AS claimed;",
+        "options": {
+          "queryReplacement": "={{ [$('Cost Guard').item.json.brief.company.id, $('Cost Guard').item.json.gen_request.idempotency_key, String($('Cost Guard').item.json.brief.meta.source.chat_id), $('Cost Guard').item.json.brief.meta.source.update_id, $('Cost Guard').item.json.gen_request.model, $('Cost Guard').item.json.gen_request.image_size, $('Cost Guard').item.json.gen_request.estimate_cop, $('Cost Guard').item.json.gen_request.estimate_usd, JSON.stringify($('Cost Guard').item.json.brief)] }}"
+        }
+      },
+      "id": "c05707a7-0003-4000-8000-00000000c059",
+      "name": "Reclamar job",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2860,
+        480
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "vjJ3hmpVx6R9ZlxT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c05707a7-0004-4000-8000-00000000c05a",
+              "leftValue": "={{ $json.claimed }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c05707a7-0005-4000-8000-00000000c05b",
+      "name": "Job reclamado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3080,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $('Cost Guard').item.json.gen_request.model }}:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: $('Cost Guard').item.json.gen_request.prompt }] }], generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: $('Cost Guard').item.json.gen_request.aspect_ratio, imageSize: $('Cost Guard').item.json.gen_request.image_size } } }) }}",
+        "options": {
+          "timeout": 180000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "c05707a7-0006-4000-8000-00000000c05c",
+      "name": "Gemini imagen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3300,
+        480
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "geminiqueryauth1",
+          "name": "Gemini Query Auth"
+        }
+      },
+      "retryOnFail": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nodo Code \"Procesar respuesta Gemini\" (01_CHANNEL_Telegram).\n// Recibe la respuesta COMPLETA del nodo \"Gemini imagen\" (fullResponse + neverError) y decide:\n//   * si hay una imagen real (finishReason STOP + parte inlineData),\n//   * cuanto costo registrar (real, desde usageMetadata; si Google pudo cobrar sin entregar imagen, la estimacion),\n//   * que mensaje de error dar. NUNCA reintenta nada: un fallo = un mensaje.\n// Salida: json con el resultado + binary.data con la imagen (para guardarla en disco antes de componer).\n\nconst guard = $('Cost Guard').item.json;\nconst req = guard.gen_request || {};\nconst job = $('Reclamar job').item.json;\nconst res = $input.first().json || {};\n\nconst fx = (guard.brief && guard.brief.cost_control && guard.brief.cost_control.fx_usd_cop) || 3300;\n\nfunction findImage(o, depth) {\n  if (!o || typeof o !== 'object' || depth > 8) return null;\n  const mime = o.mimeType || o.mime_type;\n  if (typeof o.data === 'string' && o.data.length > 1000 && typeof mime === 'string' && mime.startsWith('image/')) {\n    return { data: o.data, mime };\n  }\n  for (const k of Object.keys(o)) {\n    const found = findImage(o[k], depth + 1);\n    if (found) return found;\n  }\n  return null;\n}\n\nconst statusCode = Number(res.statusCode || 0);\nconst body = (res.body && typeof res.body === 'object') ? res.body : (res.candidates || res.error ? res : {});\nconst apiError = (body && body.error) || res.error || null;\n\n// Respuesta de error de la API o error de red: no hubo generacion -> no se cobra.\nif (apiError || statusCode >= 400 || (!statusCode && !body.candidates)) {\n  const msg = (apiError && (apiError.message || apiError.description)) || ('HTTP ' + (statusCode || 'sin respuesta'));\n  // Un timeout NO prueba que Google no haya generado (y cobrado) la imagen: se registra la estimacion como gasto incierto.\n  const uncertain = !statusCode && /timeout|timed out|ETIMEDOUT|ECONNABORTED|ECONNRESET|socket hang up/i.test(String(msg));\n  const estUsd = Number(req.estimate_usd) || 0;\n  return [{ json: {\n    gemini_result: true, ok: false, billed: uncertain, job_id: job.job_id, model: req.model, image_size: req.image_size,\n    cost_usd: uncertain ? estUsd : 0, cost_cop: uncertain ? Math.round(estUsd * fx) : 0, cost_source: uncertain ? 'estimate' : 'none', finish_reason: null,\n    error_detail: (uncertain ? 'Sin respuesta a tiempo (' + String(msg).slice(0, 120) + '); el cobro es incierto, revisa AI Studio' : String(msg).slice(0, 300)), http_status: statusCode || null,\n  } }];\n}\n\nconst cand = (body.candidates && body.candidates[0]) || {};\nconst finishReason = cand.finishReason || null;\nconst blockReason = (body.promptFeedback && body.promptFeedback.blockReason) || null;\nconst parts = (cand.content && cand.content.parts) || [];\nconst visible = parts.filter((p) => !p.thought);\nconst image = findImage(visible.length ? visible : parts, 0) || findImage(body, 0);\n\n// Costo real desde usageMetadata (precios oficiales verificados solo para gemini-3.1-flash-image).\nconst u = body.usageMetadata || {};\nlet costUsd = null;\nlet costSource = 'estimate';\nif (req.model === 'gemini-3.1-flash-image' && Number.isFinite(u.promptTokenCount) && Array.isArray(u.candidatesTokensDetails)) {\n  const imgTok = u.candidatesTokensDetails.filter((d) => d.modality === 'IMAGE').reduce((a, d) => a + (d.tokenCount || 0), 0);\n  // Todo lo que no es imagen en la salida (texto + pensamiento) se cobra a USD 3/M. Gemini puede no desglosar el\n  // pensamiento: en una respuesta real candidatesTokenCount=1593 con solo 1120 de IMAGE en el detalle.\n  const otherOut = Math.max(0, (u.candidatesTokenCount || 0) - imgTok) + (u.thoughtsTokenCount || 0);\n  costUsd = (u.promptTokenCount * 0.5 + otherOut * 3 + imgTok * 60) / 1e6;\n  costSource = 'usageMetadata';\n}\nif (costUsd == null) costUsd = Number(req.estimate_usd) || 0;\ncostUsd = Math.round(costUsd * 1e6) / 1e6;\nconst costCop = Math.round(costUsd * fx);\n\nconst usage = { prompt: u.promptTokenCount, output: u.candidatesTokenCount, thoughts: u.thoughtsTokenCount, total: u.totalTokenCount };\n\nif (!image || (finishReason && finishReason !== 'STOP')) {\n  return [{ json: {\n    gemini_result: true, ok: false, billed: true, job_id: job.job_id, model: req.model, image_size: req.image_size,\n    cost_usd: costUsd, cost_cop: costCop, cost_source: costSource, finish_reason: finishReason, usage,\n    error_detail: 'Gemini respondio sin imagen (' + (blockReason || finishReason || 'sin motivo') + ')',\n  } }];\n}\n\nconst mime = image.mime || 'image/png';\nconst ext = mime.includes('jpeg') ? 'jpg' : (mime.includes('webp') ? 'webp' : 'png');\nconst bin = await this.helpers.prepareBinaryData(Buffer.from(image.data, 'base64'), 'fondo.' + ext, mime);\n\nreturn [{\n  json: {\n    gemini_result: true, ok: true, billed: true, job_id: job.job_id, model: req.model, image_size: req.image_size,\n    cost_usd: costUsd, cost_cop: costCop, cost_source: costSource, finish_reason: finishReason, usage,\n    photo_data_uri: 'data:' + mime + ';base64,' + image.data, image_mime: mime, image_ext: ext, error_detail: null,\n  },\n  binary: { data: bin },\n}];\n"
+      },
+      "id": "c05707a7-0007-4000-8000-00000000c05d",
+      "name": "Procesar respuesta Gemini",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/data/storage/generated/{{ $('Guardar borradores').item.json.company_id }}/{{ $('Guardar borradores').item.json.first_item_id }}_bg.{{ $json.image_ext || 'png' }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "c05707a7-0008-4000-8000-00000000c05e",
+      "name": "Guardar fondo",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        3740,
+        360
+      ],
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -839,7 +1181,7 @@
         ],
         [
           {
-            "node": "Guardar estado",
+            "node": "Verificar proveedores?",
             "type": "main",
             "index": 0
           }
@@ -857,7 +1199,7 @@
         ],
         [
           {
-            "node": "Manejar error IA",
+            "node": "Generar contenido IA (respaldo Ollama)",
             "type": "main",
             "index": 0
           }
@@ -868,7 +1210,7 @@
       "main": [
         [
           {
-            "node": "Guardar borradores",
+            "node": "Construir prompt de imagen",
             "type": "main",
             "index": 0
           }
@@ -1087,12 +1429,7 @@
       "main": [
         [
           {
-            "node": "Enviar foto",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Guardar estado",
+            "node": "Leer logo de la empresa",
             "type": "main",
             "index": 0
           }
@@ -1114,7 +1451,7 @@
       "main": [
         [
           {
-            "node": "Dentro del limite diario de imagenes?",
+            "node": "Cost Guard",
             "type": "main",
             "index": 0
           }
@@ -1125,25 +1462,233 @@
       "main": [
         [
           {
-            "node": "Generar imagen",
+            "node": "Reclamar job",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Manejar limite de gasto alcanzado",
+            "node": "Preparar imagen",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Manejar limite de gasto alcanzado": {
+    "Leer logo de la empresa": {
+      "main": [
+        [
+          {
+            "node": "Construir HTML de plantilla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir HTML de plantilla": {
+      "main": [
+        [
+          {
+            "node": "Renderizar imagen final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Renderizar imagen final": {
+      "main": [
+        [
+          {
+            "node": "Enviar foto",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Preparar guardado imagen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Guardar imagen compuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar guardado imagen": {
       "main": [
         [
           {
             "node": "Guardar estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar contenido IA (respaldo Ollama)": {
+      "main": [
+        [
+          {
+            "node": "Procesar respuesta Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Manejar error IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar respuesta Ollama": {
+      "main": [
+        [
+          {
+            "node": "Construir prompt de imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar proveedores?": {
+      "main": [
+        [
+          {
+            "node": "Chequear Gemini imagen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Guardar estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reportar estado proveedores": {
+      "main": [
+        [
+          {
+            "node": "Guardar estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reportar proveedor caido": {
+      "main": [
+        [
+          {
+            "node": "Guardar estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir prompt de imagen": {
+      "main": [
+        [
+          {
+            "node": "Guardar borradores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cost Guard": {
+      "main": [
+        [
+          {
+            "node": "Dentro del limite diario de imagenes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reclamar job": {
+      "main": [
+        [
+          {
+            "node": "Job reclamado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job reclamado?": {
+      "main": [
+        [
+          {
+            "node": "Gemini imagen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini imagen": {
+      "main": [
+        [
+          {
+            "node": "Procesar respuesta Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar respuesta Gemini": {
+      "main": [
+        [
+          {
+            "node": "Guardar fondo",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Preparar imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chequear Gemini imagen": {
+      "main": [
+        [
+          {
+            "node": "Reportar estado proveedores",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reportar proveedor caido",
             "type": "main",
             "index": 0
           }
